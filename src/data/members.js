@@ -1,0 +1,32 @@
+export const INITIAL_MEMBERS = [
+  {
+    id: 1,
+    name: 'Alex Chen',
+    role: 'Lead Dev',
+    initials: 'AC',
+    avatarColor: '#534AB7',
+    bio: 'Full-stack game developer with 6+ years of experience in Unity and Unreal Engine. Passionate about procedural generation, shader programming, and emergent gameplay systems.',
+    skills: ['Unity', 'C#', 'Unreal Engine', 'Blueprints', 'HLSL', 'Git', 'Wwise'],
+    projects: ['Echoes of Aethoria', 'Project Null'],
+  },
+  {
+    id: 2,
+    name: 'Maya Reyes',
+    role: 'Artist',
+    initials: 'MR',
+    avatarColor: '#7c3aed',
+    bio: '2D/3D artist specializing in character design, environment art, and pixel art. Loves building cohesive visual worlds that feel alive and richly detailed.',
+    skills: ['Photoshop', 'Blender', 'Aseprite', 'Substance Painter', 'Spine 2D'],
+    projects: ['Echoes of Aethoria'],
+  },
+  {
+    id: 3,
+    name: 'Jordan Park',
+    role: 'Designer',
+    initials: 'JP',
+    avatarColor: '#0891b2',
+    bio: 'Game designer focused on systems design, UX flows, and narrative structure. Background in tabletop RPGs and interactive fiction. Strong advocate for accessibility-first design.',
+    skills: ['Figma', 'Level Design', 'Narrative Design', 'Rapid Prototyping', 'Twine'],
+    projects: ['Echoes of Aethoria'],
+  },
+]

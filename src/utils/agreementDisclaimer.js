@@ -1,0 +1,2 @@
+export const AGREEMENT_DISCLAIMER =
+  'These agreement templates are provided as a starting point only. They are not legally reviewed documents and do not constitute legal advice. HQCMD accepts no responsibility or liability for agreements made using these templates. For agreements that are legally binding and safe to use in a professional context, we strongly recommend seeking independent legal advice before signing.'
