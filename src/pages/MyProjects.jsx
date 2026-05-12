@@ -17,7 +17,7 @@ const statusColors = {
   'Overtime':    { bg: 'rgba(237,39,147,0.12)', text: '#ed2793' },
 }
 
-function ProjectCard({ project, onOpen, topBorder }) {
+function ProjectCard({ project, onOpen, onManageTeam, topBorder }) {
   const progress = calculateProgress(project)
   const status = getProjectStatus(project)
   const sc = statusColors[status] || statusColors['In Progress']
@@ -74,15 +74,24 @@ function ProjectCard({ project, onOpen, topBorder }) {
               </span>
             )}
           </div>
-          <button
-            onClick={onOpen}
-            className="text-xs font-medium px-3 py-1.5 rounded-full text-white transition-colors"
-            style={{ backgroundColor: ACCENT }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
-          >
-            Open Workstation
-          </button>
+          <div className="flex flex-col items-end gap-1.5">
+            <button
+              onClick={onOpen}
+              className="text-xs font-medium px-3 py-1.5 rounded-full text-white transition-colors"
+              style={{ backgroundColor: ACCENT }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
+            >
+              Open Workstation
+            </button>
+            <button
+              onClick={onManageTeam}
+              className="text-xs font-medium transition-opacity hover:opacity-70"
+              style={{ color: 'var(--text-tertiary)' }}
+            >
+              Manage Team →
+            </button>
+          </div>
         </div>
       </div>
 
@@ -246,6 +255,7 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
                 project={{ ...p, coverImage: getProjectImage(p.id) }}
                 topBorder={CARD_BORDERS[i % 3]}
                 onOpen={() => { setActiveProjectId(p.id); navigate('/workstation') }}
+                onManageTeam={() => navigate(`/team/${p.id}`)}
               />
             ))}
           </div>

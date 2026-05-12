@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { IconBriefcase, IconMessageCircle } from '@tabler/icons-react'
+import { useNavigate } from 'react-router-dom'
+import { IconBriefcase, IconMessageCircle, IconArrowRight } from '@tabler/icons-react'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -24,6 +25,7 @@ const STATUS = {
 }
 
 function AppCard({ app, onUpdate, onAddNotification, onAcceptApplication }) {
+  const navigate = useNavigate()
   const [showReply, setShowReply] = useState(false)
   const [replyText, setReplyText] = useState(app.reply || '')
   const sc = STATUS[app.status] || STATUS.pending
@@ -161,7 +163,14 @@ function AppCard({ app, onUpdate, onAddNotification, onAcceptApplication }) {
               </>
             )}
             {['accepted_pending_agreement', 'agreement_sent', 'access_granted'].includes(app.status) && (
-              <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Manage onboarding in Team →</span>
+              <button
+                onClick={() => navigate(`/team/${app.projectId}`)}
+                className="flex items-center gap-1 text-xs font-medium transition-opacity hover:opacity-70"
+                style={{ color: '#534AB7' }}
+              >
+                Manage onboarding in Team
+                <IconArrowRight size={12} />
+              </button>
             )}
             <button
               onClick={openReply}

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconUserPlus, IconX } from '@tabler/icons-react'
+import { IconUserPlus, IconX, IconUsers } from '@tabler/icons-react'
 import InviteModal from './InviteModal'
 
 const ACCENT = '#534AB7'
@@ -104,14 +104,16 @@ export default function TeamMembers({ members, setMembers, projectId }) {
         </div>
       </div>
 
-      {members.length > 0 && projectId && (
+      {projectId && (
         <button
           onClick={() => navigate(`/team/${projectId}`)}
-          className="flex items-center justify-between w-full mt-3 pt-3 text-xs transition-opacity hover:opacity-70"
-          style={{ borderTop: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)' }}
+          className="flex items-center justify-center gap-2 w-full mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors"
+          style={{ border: '1px solid var(--border-default)', color: ACCENT, backgroundColor: 'transparent' }}
+          onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--brand-accent-glow)')}
+          onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
         >
-          <span>Manage Team</span>
-          <span style={{ color: 'var(--text-tertiary)', fontSize: '10px' }}>›</span>
+          <IconUsers size={13} />
+          Manage Team
         </button>
       )}
 
