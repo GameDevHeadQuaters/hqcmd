@@ -2,9 +2,12 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   IconArrowLeft, IconCommand, IconUserCheck, IconBriefcase, IconUsers,
-  IconChevronDown, IconX, IconCheck, IconAlertTriangle,
+  IconChevronDown, IconChevronUp, IconX, IconCheck, IconAlertTriangle,
+  IconWritingSign, IconRefresh, IconFileText,
 } from '@tabler/icons-react'
-import AgreementBuilder from '../components/AgreementBuilder'
+import { AGREEMENT_TEMPLATES } from '../utils/agreementTemplates'
+import AgreementSendModal from '../components/AgreementSendModal'
+import AgreementViewer from '../components/AgreementViewer'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -17,6 +20,11 @@ const APP_STATUS = {
   agreement_sent:             { label: 'Agreement Sent',   bg: 'rgba(83,74,183,0.12)',   color: '#534AB7'               },
   access_granted:             { label: 'Access Granted',   bg: 'rgba(34,197,94,0.12)',   color: 'var(--status-success)' },
   declined:                   { label: 'Declined',         bg: 'rgba(239,68,68,0.12)',   color: 'var(--status-error)'   },
+}
+
+function formatDate(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function RemoveModal({ member, agreements, projectId, onConfirm, onClose }) {
@@ -34,15 +42,9 @@ function RemoveModal({ member, agreements, projectId, onConfirm, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div
-        className="relative rounded-xl shadow-2xl w-full max-w-sm p-6"
-        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-strong)' }}
-      >
+      <div className="relative rounded-xl shadow-2xl w-full max-w-sm p-6" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-strong)' }}>
         <div className="flex items-center gap-3 mb-4">
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0"
-            style={{ backgroundColor: member.avatarColor ?? ACCENT }}
-          >
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: member.avatarColor ?? ACCENT }}>
             {member.initials}
           </div>
           <div>
@@ -55,38 +57,29 @@ function RemoveModal({ member, agreements, projectId, onConfirm, onClose }) {
           <div className="rounded-lg p-3 mb-4 flex items-start gap-2" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
             <IconAlertTriangle size={14} style={{ color: 'var(--status-warning)', flexShrink: 0, marginTop: 1 }} />
             <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              <span className="font-semibold" style={{ color: 'var(--status-warning)' }}>{member.name}</span> has an active signed agreement on this project. Removing them may constitute a breach of contract. Their agreement obligations may still apply legally. We strongly recommend seeking legal advice before proceeding.
+              <span className="font-semibold" style={{ color: 'var(--status-warning)' }}>{member.name}</span> has an active signed agreement on this project. Removing them may constitute a breach of contract. Seek legal advice before proceeding.
             </p>
           </div>
         )}
 
         <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
-          To confirm removal, type <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{member.name}</span> below:
+          To confirm, type <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{member.name}</span>:
         </p>
         <input
           className="w-full text-sm rounded-lg px-3 py-2 outline-none mb-4"
           style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
-          placeholder={member.name}
-          value={nameInput}
-          onChange={e => setNameInput(e.target.value)}
-          autoFocus
+          placeholder={member.name} value={nameInput}
+          onChange={e => setNameInput(e.target.value)} autoFocus
         />
-
         <div className="flex gap-2">
-          <button
-            onClick={onClose}
-            className="flex-1 py-2 rounded-full text-sm font-medium transition-colors"
+          <button onClick={onClose} className="flex-1 py-2 rounded-full text-sm font-medium transition-colors"
             style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
             onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
-          >
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
             Cancel
           </button>
-          <button
-            onClick={canConfirm ? onConfirm : undefined}
-            className="flex-1 py-2 rounded-full text-sm font-medium text-white transition-opacity"
-            style={{ backgroundColor: canConfirm ? '#dc2626' : 'rgba(220,38,38,0.4)', cursor: canConfirm ? 'pointer' : 'not-allowed' }}
-          >
+          <button onClick={canConfirm ? onConfirm : undefined} className="flex-1 py-2 rounded-full text-sm font-medium text-white"
+            style={{ backgroundColor: canConfirm ? '#dc2626' : 'rgba(220,38,38,0.4)', cursor: canConfirm ? 'pointer' : 'not-allowed' }}>
             Remove Member
           </button>
         </div>
@@ -102,23 +95,30 @@ export default function ManageTeam({
   applications,
   setApplications,
   agreements,
+  setAgreements,
   setActiveProjectId,
   onAcceptApplication,
   onAddNotification,
+  users,
+  onAddNotificationForUser,
+  onAddDirectMessageForUser,
 }) {
   const { projectId } = useParams()
   const navigate = useNavigate()
 
-  const project = projects.find(p => String(p.id) === projectId)
-  const members = project?.members ?? []
-  const projectApps = (applications ?? []).filter(a => String(a.projectId) === projectId)
-  const pendingApps = projectApps.filter(a => a.status === 'pending')
+  const project      = projects.find(p => String(p.id) === projectId)
+  const members      = project?.members ?? []
+  const projectApps  = (applications ?? []).filter(a => String(a.projectId) === projectId)
+  const pendingApps  = projectApps.filter(a => a.status === 'pending')
   const onboardingApps = projectApps.filter(a =>
     ['accepted_pending_agreement', 'agreement_sent', 'access_granted'].includes(a.status)
   )
 
-  const [removeTarget, setRemoveTarget] = useState(null)
-  const [agreementTarget, setAgreementTarget] = useState(null)
+  const [removeTarget,       setRemoveTarget]       = useState(null)
+  const [sendTarget,         setSendTarget]         = useState(null)  // { recipientName, recipientEmail, app? }
+  const [resendFeedback,     setResendFeedback]     = useState({})     // appId → msg
+  const [expandedAgreements, setExpandedAgreements] = useState(new Set())
+  const [viewerAgreement,    setViewerAgreement]    = useState(null)
 
   function goBack() {
     if (project) setActiveProjectId?.(project.id)
@@ -130,23 +130,17 @@ export default function ManageTeam({
   }
 
   function updateMemberPosition(memberId, position) {
-    const updated = members.map(m => m.id === memberId ? { ...m, position } : m)
-    onUpdateProject(project.id, { members: updated })
+    onUpdateProject(project.id, { members: members.map(m => m.id === memberId ? { ...m, position } : m) })
   }
 
   function removeMember(memberId) {
-    const updated = members.filter(m => m.id !== memberId)
-    onUpdateProject(project.id, { members: updated })
+    onUpdateProject(project.id, { members: members.filter(m => m.id !== memberId) })
     setRemoveTarget(null)
   }
 
   function acceptApp(app) {
     updateApp({ ...app, status: 'accepted_pending_agreement', read: true })
-    onAddNotification?.({
-      type: 'application',
-      text: `You accepted ${app.applicantName} for ${app.role}. Send them an agreement or grant access.`,
-      link: '/inbox',
-    })
+    onAddNotification?.({ type: 'application', text: `You accepted ${app.applicantName} for ${app.role}. Send them an agreement or grant access.`, link: '/inbox' })
   }
 
   function declineApp(app) {
@@ -164,41 +158,112 @@ export default function ManageTeam({
   }
 
   function grantAccess(app) {
-    if (getAgreementStatus(app) !== 'signed') {
-      console.warn('hqcmd: Grant Access blocked — no fully signed agreement for', app.applicantName)
-      return
-    }
+    if (getAgreementStatus(app) !== 'signed') return
     onAcceptApplication?.(app)
     updateApp({ ...app, status: 'access_granted', read: true })
-    onAddNotification?.({
-      type: 'application',
-      text: `${app.applicantName} has been added to ${project?.title ?? 'your project'} as ${app.role}.`,
-      link: '/workstation',
+    onAddNotification?.({ type: 'application', text: `${app.applicantName} has been added to ${project?.title ?? 'your project'} as ${app.role}.`, link: '/workstation' })
+  }
+
+  function getRecipientEmail(name, id) {
+    const u = (users ?? []).find(u =>
+      (id && String(u.id) === String(id)) ||
+      u.name?.toLowerCase() === name?.toLowerCase()
+    )
+    return u?.email ?? ''
+  }
+
+  function getMemberAgreements(member) {
+    return (agreements ?? []).filter(a =>
+      String(a.projectId) === String(project?.id) &&
+      (a.counterpartyName?.toLowerCase() === member.name.toLowerCase() ||
+       a.signerName?.toLowerCase() === member.name.toLowerCase())
+    )
+  }
+
+  function toggleMemberAgreements(memberId) {
+    setExpandedAgreements(prev => {
+      const next = new Set(prev)
+      next.has(memberId) ? next.delete(memberId) : next.add(memberId)
+      return next
     })
   }
 
-  function handleAgreementSave(agreement) {
-    if (!agreementTarget) return
-    updateApp({ ...agreementTarget, status: 'agreement_sent', agreementId: agreement.id, read: true })
-    onAddNotification?.({
-      type: 'agreement',
-      text: `Agreement sent to ${agreementTarget.applicantName} for ${project?.title ?? 'your project'}.`,
-      link: '/agreements',
-    })
-    setAgreementTarget(null)
+  function handleSendModalSave(agreement, app) {
+    if (app) {
+      updateApp({ ...app, status: 'agreement_sent', agreementId: agreement.id, read: true })
+      onAddNotification?.({ type: 'agreement', text: `Agreement sent to ${app.applicantName} for ${project?.title ?? 'your project'}.`, link: '/agreements' })
+    }
+    setSendTarget(null)
+  }
+
+  function resendAgreement(app) {
+    const ag = (agreements ?? []).find(a => a.id === app.agreementId)
+    if (!ag?.shareToken) return
+
+    const recipientEmail = ag.counterpartyEmail || getRecipientEmail(ag.counterpartyName || app.applicantName, app.applicantId)
+    const recipientName  = ag.counterpartyName  || app.applicantName
+    const counterparty   = recipientEmail
+      ? (users ?? []).find(u => u.email?.toLowerCase() === recipientEmail.toLowerCase())
+      : (users ?? []).find(u => u.name?.toLowerCase() === recipientName.toLowerCase())
+
+    // Always copy the link
+    navigator.clipboard.writeText(window.location.origin + '/sign/' + ag.shareToken).catch(() => {})
+
+    if (counterparty) {
+      const notifText = `${currentUser?.name ?? 'Someone'} has resent you an agreement to sign: "${ag.templateName}"`
+      const dmObj = {
+        id: Date.now(),
+        type: 'agreement',
+        agreementId: ag.id,
+        shareToken: ag.shareToken,
+        fromName: currentUser?.name ?? 'HQCMD User',
+        fromEmail: currentUser?.email ?? '',
+        subject: `Agreement to sign: ${ag.templateName}`,
+        message: `${currentUser?.name ?? 'Someone'} has resent you an agreement to sign: "${ag.templateName}". Click "Review & Sign" to view and sign it.`,
+        timestamp: new Date().toISOString(),
+        read: false,
+      }
+      onAddNotificationForUser?.(counterparty.id, { type: 'agreement', text: notifText, link: '/inbox' })
+      onAddDirectMessageForUser?.(counterparty.id, dmObj)
+      try {
+        const raw = localStorage.getItem('hqcmd_userData_v4')
+        if (raw) {
+          const allUD = JSON.parse(raw)
+          const rid = String(counterparty.id)
+          if (!allUD[rid]) allUD[rid] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [] }
+          allUD[rid].notifications = [
+            { id: Date.now() + 1, iconType: 'agreement', text: notifText, time: 'Just now', read: false, link: '/inbox' },
+            ...(allUD[rid].notifications ?? []),
+          ]
+          allUD[rid].directMessages = [dmObj, ...(allUD[rid].directMessages ?? [])]
+          localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allUD))
+        }
+      } catch {}
+    }
+
+    const msg = counterparty
+      ? `Agreement resent to ${recipientName}`
+      : `Link copied — share it with ${recipientName}`
+    setResendFeedback(prev => ({ ...prev, [app.id]: msg }))
+    setTimeout(() => setResendFeedback(prev => { const n = { ...prev }; delete n[app.id]; return n }), 4000)
   }
 
   const fi = e => (e.target.style.borderColor = ACCENT)
   const fb = e => (e.target.style.borderColor = 'var(--border-default)')
+
+  const liveViewerAgreement = viewerAgreement
+    ? ((agreements ?? []).find(a => a.id === viewerAgreement.id) ?? viewerAgreement)
+    : null
+  const viewerTemplate = liveViewerAgreement
+    ? AGREEMENT_TEMPLATES.find(t => t.id === liveViewerAgreement.templateId) ?? null
+    : null
 
   if (!project) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-base)' }}>
         <div className="text-center">
           <p className="text-sm mb-4" style={{ color: 'var(--text-tertiary)' }}>Project not found.</p>
-          <button onClick={() => navigate('/projects')} className="text-sm px-4 py-2 rounded-full text-white hover:opacity-80" style={{ backgroundColor: ACCENT }}>
-            My Projects
-          </button>
+          <button onClick={() => navigate('/projects')} className="text-sm px-4 py-2 rounded-full text-white hover:opacity-80" style={{ backgroundColor: ACCENT }}>My Projects</button>
         </div>
       </div>
     )
@@ -209,13 +274,9 @@ export default function ManageTeam({
       {/* Nav */}
       <nav className="hq-nav px-6 h-14 flex items-center justify-between sticky top-0 z-10" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
         <div className="flex items-center gap-3">
-          <button
-            onClick={goBack}
-            className="p-1.5 rounded-lg transition-colors"
-            style={{ color: 'var(--text-tertiary)' }}
+          <button onClick={goBack} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--text-tertiary)' }}
             onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
-          >
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
             <IconArrowLeft size={18} />
           </button>
           <button onClick={() => navigate('/')} className="flex items-center gap-2">
@@ -235,7 +296,7 @@ export default function ManageTeam({
 
       <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
 
-        {/* Active Members */}
+        {/* ── Active Members ── */}
         <section>
           <div className="flex items-center gap-2 mb-3">
             <IconUsers size={16} style={{ color: ACCENT }} />
@@ -249,53 +310,106 @@ export default function ManageTeam({
             </div>
           ) : (
             <div className="rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
-              {members.map((m, i) => (
-                <div
-                  key={m.id}
-                  className="flex items-center gap-3 px-5 py-3.5"
-                  style={{ borderBottom: i < members.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
-                >
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0"
-                    style={{ backgroundColor: m.avatarColor ?? ACCENT }}
-                  >
-                    {m.initials}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{m.name}</p>
-                    <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{m.role}</p>
-                  </div>
+              {members.map((m, i) => {
+                const memberAgs   = getMemberAgreements(m)
+                const isExpanded  = expandedAgreements.has(m.id)
+                const recipEmail  = getRecipientEmail(m.name, m.userId)
+                return (
+                  <div key={m.id} style={{ borderBottom: i < members.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                    {/* Member row */}
+                    <div className="flex items-center gap-3 px-5 py-3.5">
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: m.avatarColor ?? ACCENT }}>
+                        {m.initials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{m.name}</p>
+                        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{m.role}</p>
+                      </div>
 
-                  {/* Position selector */}
-                  <div className="relative">
-                    <select
-                      className="text-xs rounded-lg px-2.5 py-1.5 outline-none pr-6 appearance-none cursor-pointer"
-                      style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
-                      value={m.position ?? 'Member'}
-                      onChange={e => updateMemberPosition(m.id, e.target.value)}
-                      onFocus={fi} onBlur={fb}
-                    >
-                      {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                    <IconChevronDown size={11} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-tertiary)' }} />
-                  </div>
+                      {/* Position selector */}
+                      <div className="relative">
+                        <select className="text-xs rounded-lg px-2.5 py-1.5 outline-none pr-6 appearance-none cursor-pointer"
+                          style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                          value={m.position ?? 'Member'}
+                          onChange={e => updateMemberPosition(m.id, e.target.value)}
+                          onFocus={fi} onBlur={fb}>
+                          {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                        <IconChevronDown size={11} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-tertiary)' }} />
+                      </div>
 
-                  <button
-                    onClick={() => setRemoveTarget(m)}
-                    className="p-1.5 rounded-lg transition-colors flex-shrink-0"
-                    style={{ color: 'var(--text-tertiary)' }}
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = 'var(--status-error)' }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = ''; e.currentTarget.style.color = 'var(--text-tertiary)' }}
-                  >
-                    <IconX size={15} />
-                  </button>
-                </div>
-              ))}
+                      {/* Send Agreement (ghost icon button) */}
+                      <button
+                        title={`Send Agreement to ${m.name}`}
+                        onClick={() => setSendTarget({ recipientName: m.name, recipientEmail: recipEmail, app: null })}
+                        className="p-1.5 rounded-lg transition-colors flex-shrink-0"
+                        style={{ color: 'var(--text-tertiary)' }}
+                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--brand-accent-glow)'; e.currentTarget.style.color = ACCENT }}
+                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = ''; e.currentTarget.style.color = 'var(--text-tertiary)' }}
+                      >
+                        <IconWritingSign size={15} />
+                      </button>
+
+                      {/* Remove */}
+                      <button onClick={() => setRemoveTarget(m)}
+                        className="p-1.5 rounded-lg transition-colors flex-shrink-0" style={{ color: 'var(--text-tertiary)' }}
+                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = 'var(--status-error)' }}
+                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = ''; e.currentTarget.style.color = 'var(--text-tertiary)' }}>
+                        <IconX size={15} />
+                      </button>
+                    </div>
+
+                    {/* Agreement history */}
+                    {memberAgs.length > 0 && (
+                      <div className="px-5 pb-3">
+                        <button
+                          onClick={() => toggleMemberAgreements(m.id)}
+                          className="flex items-center gap-1 text-xs font-medium transition-colors"
+                          style={{ color: 'var(--text-tertiary)' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
+                          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}
+                        >
+                          {isExpanded ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
+                          View Agreements ({memberAgs.length})
+                        </button>
+                        {isExpanded && (
+                          <div className="mt-2 space-y-1.5">
+                            {memberAgs.map(ag => (
+                              <div key={ag.id} className="flex items-center gap-3 rounded-lg px-3 py-2"
+                                style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                                <IconFileText size={13} style={{ color: ACCENT, flexShrink: 0 }} />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{ag.templateName}</p>
+                                  <p className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{formatDate(ag.signedAt)}</p>
+                                </div>
+                                {ag.status === 'fully_signed' && (
+                                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: 'var(--status-success)' }}>Signed</span>
+                                )}
+                                {(ag.status === 'pending_countersign' || ag.status === 'signed') && (
+                                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: 'var(--status-warning)' }}>Awaiting</span>
+                                )}
+                                <button
+                                  onClick={() => setViewerAgreement(ag)}
+                                  className="text-[10px] font-medium px-2 py-1 rounded-full transition-colors flex-shrink-0"
+                                  style={{ border: '1px solid var(--border-default)', color: ACCENT }}
+                                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--brand-accent-glow)')}
+                                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+                                  View
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </section>
 
-        {/* Pending Onboarding */}
+        {/* ── Pending Onboarding ── */}
         {onboardingApps.length > 0 && (
           <section>
             <div className="flex items-center gap-2 mb-3">
@@ -306,25 +420,27 @@ export default function ManageTeam({
 
             <div className="rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
               {onboardingApps.map((app, i) => {
-                const sc = APP_STATUS[app.status] ?? APP_STATUS.pending
+                const sc       = APP_STATUS[app.status] ?? APP_STATUS.pending
                 const agStatus = getAgreementStatus(app)
                 const canGrant = agStatus === 'signed'
+                const recipEmail = getRecipientEmail(app.applicantName, app.applicantId)
+
                 return (
-                  <div
-                    key={app.id}
-                    className="px-5 py-4"
-                    style={{ borderBottom: i < onboardingApps.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
-                  >
+                  <div key={app.id} className="px-5 py-4"
+                    style={{ borderBottom: i < onboardingApps.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                     <div className="flex items-start gap-3">
                       <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 mt-0.5" style={{ backgroundColor: ACCENT }}>
                         {app.applicantName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                       </div>
+
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-0.5">
                           <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
                           <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: sc.bg, color: sc.color }}>{sc.label}</span>
                         </div>
                         <p className="text-xs mb-1.5" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
+
+                        {/* Agreement status indicator */}
                         {agStatus === 'none' && (
                           <p className="text-xs font-medium" style={{ color: 'var(--status-error)' }}>● No agreement sent</p>
                         )}
@@ -336,7 +452,14 @@ export default function ManageTeam({
                             <IconCheck size={11} /> Agreement signed
                           </p>
                         )}
+
+                        {/* Resend feedback */}
+                        {resendFeedback[app.id] && (
+                          <p className="text-xs mt-1 font-medium" style={{ color: 'var(--status-success)' }}>{resendFeedback[app.id]}</p>
+                        )}
                       </div>
+
+                      {/* Action buttons column */}
                       <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                         {app.status === 'access_granted' ? (
                           <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--status-success)' }}>
@@ -344,25 +467,44 @@ export default function ManageTeam({
                           </span>
                         ) : (
                           <>
-                            {(app.status === 'accepted_pending_agreement') && (
+                            {/* Agreement action button */}
+                            {agStatus === 'none' && (
                               <button
-                                onClick={() => setAgreementTarget(app)}
-                                className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors"
-                                style={{ borderColor: ACCENT, color: ACCENT }}
-                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--brand-accent-glow)')}
-                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
+                                onClick={() => setSendTarget({ recipientName: app.applicantName, recipientEmail: recipEmail, app })}
+                                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white transition-colors"
+                                style={{ backgroundColor: ACCENT }}
+                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
+                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
                               >
+                                <IconWritingSign size={12} />
                                 Send Agreement
                               </button>
                             )}
+                            {agStatus === 'sent' && (
+                              <button
+                                onClick={() => resendAgreement(app)}
+                                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
+                                style={{ border: '1px solid rgba(245,158,11,0.5)', color: 'var(--status-warning)', backgroundColor: 'rgba(245,158,11,0.08)' }}
+                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.15)')}
+                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.08)')}
+                              >
+                                <IconRefresh size={12} />
+                                Resend Agreement
+                              </button>
+                            )}
+                            {agStatus === 'signed' && (
+                              <span className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full"
+                                style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: 'var(--status-success)' }}>
+                                <IconCheck size={12} /> Agreement Signed
+                              </span>
+                            )}
+
+                            {/* Grant Access */}
                             <div className="flex flex-col items-end gap-0.5">
                               <button
                                 onClick={canGrant ? () => grantAccess(app) : undefined}
                                 className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-white transition-colors"
-                                style={{
-                                  backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.3)',
-                                  cursor: canGrant ? 'pointer' : 'not-allowed',
-                                }}
+                                style={{ backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.3)', cursor: canGrant ? 'pointer' : 'not-allowed' }}
                                 onMouseEnter={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#15803d' }}
                                 onMouseLeave={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#16a34a' }}
                               >
@@ -371,7 +513,7 @@ export default function ManageTeam({
                               </button>
                               {!canGrant && (
                                 <p className="text-[10px] text-right max-w-40 leading-snug" style={{ color: 'var(--text-tertiary)' }}>
-                                  A signed agreement is required before granting access. Send an agreement from the Agreements tab.
+                                  A signed agreement is required before granting access.
                                 </p>
                               )}
                             </div>
@@ -386,7 +528,7 @@ export default function ManageTeam({
           </section>
         )}
 
-        {/* Open Applications */}
+        {/* ── Open Applications ── */}
         <section>
           <div className="flex items-center gap-2 mb-3">
             <IconBriefcase size={16} style={{ color: ACCENT }} />
@@ -401,11 +543,7 @@ export default function ManageTeam({
           ) : (
             <div className="space-y-3">
               {pendingApps.map(app => (
-                <div
-                  key={app.id}
-                  className="rounded-lg p-5"
-                  style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}
-                >
+                <div key={app.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: ACCENT }}>
@@ -419,22 +557,18 @@ export default function ManageTeam({
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => acceptApp(app)}
+                      <button onClick={() => acceptApp(app)}
                         className="px-3 py-1.5 rounded-full text-xs font-medium text-white transition-colors"
                         style={{ backgroundColor: ACCENT }}
                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
-                      >
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}>
                         Accept
                       </button>
-                      <button
-                        onClick={() => declineApp(app)}
+                      <button onClick={() => declineApp(app)}
                         className="px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
                         style={{ borderColor: '#ed2793', color: '#ed2793' }}
                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)')}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
-                      >
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
                         Decline
                       </button>
                     </div>
@@ -449,6 +583,8 @@ export default function ManageTeam({
         </section>
       </div>
 
+      {/* ── Modals ── */}
+
       {removeTarget && (
         <RemoveModal
           member={removeTarget}
@@ -459,13 +595,32 @@ export default function ManageTeam({
         />
       )}
 
-      {agreementTarget && (
-        <AgreementBuilder
-          projectId={project.id}
+      {sendTarget && (
+        <AgreementSendModal
+          recipientName={sendTarget.recipientName}
+          recipientEmail={sendTarget.recipientEmail}
           projectTitle={project.title}
+          projectId={project.id}
           currentUser={currentUser}
-          onSave={handleAgreementSave}
-          onClose={() => setAgreementTarget(null)}
+          users={users}
+          setAgreements={setAgreements}
+          onSave={(agreement) => handleSendModalSave(agreement, sendTarget.app)}
+          onAddNotificationForUser={onAddNotificationForUser}
+          onAddDirectMessageForUser={onAddDirectMessageForUser}
+          onClose={() => setSendTarget(null)}
+        />
+      )}
+
+      {liveViewerAgreement && viewerTemplate && (
+        <AgreementViewer
+          agreement={liveViewerAgreement}
+          template={viewerTemplate}
+          onClose={() => setViewerAgreement(null)}
+          users={users}
+          setAgreements={setAgreements}
+          currentUser={currentUser}
+          onAddNotificationForUser={onAddNotificationForUser}
+          onAddDirectMessageForUser={onAddDirectMessageForUser}
         />
       )}
     </div>

@@ -499,9 +499,13 @@ export default function App() {
               applications={applications}
               setApplications={setApplications}
               agreements={agreements}
+              setAgreements={setAgreements}
               setActiveProjectId={setActiveProjectId}
               onAcceptApplication={acceptApplication}
               onAddNotification={onAddNotification}
+              users={users}
+              onAddNotificationForUser={addNotificationForUser}
+              onAddDirectMessageForUser={addDirectMessageForUser}
             />
           ) : <Navigate to="/login" replace />
         } />
