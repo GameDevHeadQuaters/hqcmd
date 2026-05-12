@@ -12,6 +12,7 @@ import BrowseProjects from './pages/BrowseProjects'
 import Inbox from './pages/Inbox'
 import Agreements from './pages/Agreements'
 import SignAgreement from './pages/SignAgreement'
+import BudgetPage from './pages/BudgetPage'
 import { IconMessages, IconBriefcase, IconWritingSign } from '@tabler/icons-react'
 
 const STORAGE_KEYS = {
@@ -470,6 +471,17 @@ export default function App() {
               users={users}
               onAddNotificationForUser={addNotificationForUser}
               onAddDirectMessageForUser={addDirectMessageForUser}
+            />
+          ) : <Navigate to="/login" replace />
+        } />
+
+        <Route path="/budget/:projectId" element={
+          currentUser ? (
+            <BudgetPage
+              currentUser={currentUser}
+              projects={projects}
+              onUpdateProject={updateProject}
+              setActiveProjectId={setActiveProjectId}
             />
           ) : <Navigate to="/login" replace />
         } />

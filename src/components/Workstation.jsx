@@ -63,7 +63,6 @@ export default function Workstation({
   const [messages, setMessages] = useState([])
   const [todos,    setTodos]    = useState([])
   const [links,    setLinks]    = useState([])
-  const [budget,   setBudget]   = useState({ configured: false, total: 0, spent: 0, expenses: [] })
 
   const [profileOpen,         setProfileOpen]         = useState(false)
   const [calendarOpen,        setCalendarOpen]        = useState(false)
@@ -259,7 +258,11 @@ export default function Workstation({
           />
         </div>
         <div className="flex flex-col gap-4">
-          <BudgetCard budget={budget} setBudget={setBudget} />
+          <BudgetCard
+            budget={activeProject?.budget}
+            onUpdateBudget={(b) => onUpdateProject?.({ budget: b })}
+            projectId={activeProject?.id}
+          />
           <TeamMembers members={members} setMembers={setMembers} />
         </div>
       </div>
