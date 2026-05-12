@@ -107,12 +107,8 @@ export default function AgreementViewer({
     const token = generateToken()
     const updated = patchAgreement({ counterpartyName: cpName.trim(), counterpartyEmail: cpEmail.trim(), shareToken: token, sentToInbox: true })
 
-    onAddNotificationForUser?.(counterparty.id, {
-      type: 'agreement',
-      text: `${currentUser?.name ?? 'Someone'} has sent you an agreement to sign: "${live.templateName}"`,
-      link: '/inbox',
-    })
-    onAddDirectMessageForUser?.(counterparty.id, {
+    const notifText = `${currentUser?.name ?? 'Someone'} has sent you an agreement to sign: "${live.templateName}"`
+    const dmObj = {
       id: Date.now(),
       type: 'agreement',
       agreementId: live.id,
@@ -123,7 +119,30 @@ export default function AgreementViewer({
       message: `${currentUser?.name ?? 'Someone'} has sent you an agreement to sign: "${live.templateName}". Click "Review & Sign" to view and sign it.`,
       timestamp: new Date().toISOString(),
       read: false,
-    })
+    }
+
+    // Update React state so the sender's session stays consistent
+    onAddNotificationForUser?.(counterparty.id, { type: 'agreement', text: notifText, link: '/inbox' })
+    onAddDirectMessageForUser?.(counterparty.id, dmObj)
+
+    // Write directly to localStorage so the recipient sees it in their own session
+    try {
+      const raw = localStorage.getItem('hqcmd_userData_v4')
+      if (raw) {
+        const allUD = JSON.parse(raw)
+        const rid = String(counterparty.id)
+        if (!allUD[rid]) allUD[rid] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [] }
+        allUD[rid].notifications = [
+          { id: Date.now() + 1, iconType: 'agreement', text: notifText, time: 'Just now', read: false, link: '/inbox' },
+          ...(allUD[rid].notifications ?? []),
+        ]
+        allUD[rid].directMessages = [dmObj, ...(allUD[rid].directMessages ?? [])]
+        localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allUD))
+      }
+    } catch (e) {
+      console.warn('hqcmd: failed to write agreement to recipient localStorage', e)
+    }
+
     setSendStatus('sent')
   }
 

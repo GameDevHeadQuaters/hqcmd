@@ -101,9 +101,25 @@ export default function SignAgreement({ userData, onCountersign, onNotifyOwner }
 
   useEffect(() => {
     let result = null
+
+    // Search React state first (already deserialized, fast)
     for (const [uid, data] of Object.entries(userData ?? {})) {
       const ag = (data.agreements ?? []).find(a => a.shareToken === token)
       if (ag) { result = { ownerId: uid, agreement: ag }; break }
+    }
+
+    // Fallback: read directly from localStorage in case React state is stale
+    if (!result) {
+      try {
+        const raw = localStorage.getItem('hqcmd_userData_v4')
+        if (raw) {
+          const allUD = JSON.parse(raw)
+          for (const [uid, data] of Object.entries(allUD)) {
+            const ag = (data.agreements ?? []).find(a => a.shareToken === token)
+            if (ag) { result = { ownerId: uid, agreement: ag }; break }
+          }
+        }
+      } catch {}
     }
 
     if (!result) { setPageState('not_found'); return }
@@ -125,25 +141,50 @@ export default function SignAgreement({ userData, onCountersign, onNotifyOwner }
     const counterpartySignedAt = new Date().toISOString()
     const { ownerId, agreement } = found
 
-    onCountersign(ownerId, agreement.id, {
+    const countersignPatch = {
       counterpartyName: signerName.trim(),
       counterpartyEmail: signerEmail.trim(),
       counterpartySignedAt,
       status: 'fully_signed',
-    })
+    }
 
+    // Update React state so any same-session tab sees the change
+    onCountersign(ownerId, agreement.id, countersignPatch)
     onNotifyOwner?.(ownerId, {
       type: 'agreement',
       text: `${signerName.trim()} has signed your agreement: "${agreement.templateName}"`,
       link: '/agreements',
     })
 
-    setSignedAgreement({
-      ...agreement,
-      counterpartyName: signerName.trim(),
-      counterpartyEmail: signerEmail.trim(),
-      counterpartySignedAt,
-    })
+    // Write directly to localStorage so the owner's next session sees it immediately
+    try {
+      const raw = localStorage.getItem('hqcmd_userData_v4')
+      if (raw) {
+        const allUD = JSON.parse(raw)
+        const ownerKey = String(ownerId)
+        if (allUD[ownerKey]) {
+          allUD[ownerKey].agreements = (allUD[ownerKey].agreements ?? []).map(a =>
+            a.id === agreement.id ? { ...a, ...countersignPatch } : a
+          )
+          allUD[ownerKey].notifications = [
+            {
+              id: Date.now(),
+              iconType: 'agreement',
+              text: `${signerName.trim()} has signed your agreement: "${agreement.templateName}"`,
+              time: 'Just now',
+              read: false,
+              link: '/agreements',
+            },
+            ...(allUD[ownerKey].notifications ?? []),
+          ]
+          localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allUD))
+        }
+      }
+    } catch (e) {
+      console.warn('hqcmd: failed to write countersignature to localStorage', e)
+    }
+
+    setSignedAgreement({ ...agreement, ...countersignPatch })
     setPageState('success')
   }
 

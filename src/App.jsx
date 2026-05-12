@@ -48,7 +48,7 @@ function serializeUserData(ud) {
       ...data,
       notifications: (data.notifications ?? []).map(({ Icon: _ic, ...n }) => ({
         ...n,
-        iconType: _ic === IconBriefcase ? 'application' : 'message',
+        iconType: _ic === IconBriefcase ? 'application' : _ic === IconWritingSign ? 'agreement' : 'message',
       })),
     }
   }
