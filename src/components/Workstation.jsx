@@ -233,7 +233,7 @@ export default function Workstation({
             onUpdateBudget={(b) => onUpdateProject?.({ budget: b })}
             projectId={activeProject?.id}
           />
-          <TeamMembers members={members} setMembers={setMembers} projectId={activeProject?.id} />
+          <TeamMembers members={members} setMembers={setMembers} projectId={activeProject?.id} agreements={agreements} />
         </div>
       </div>
 

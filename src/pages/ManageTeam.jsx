@@ -19,12 +19,14 @@ const APP_STATUS = {
   declined:                   { label: 'Declined',         bg: 'rgba(239,68,68,0.12)',   color: 'var(--status-error)'   },
 }
 
-function RemoveModal({ member, agreements, onConfirm, onClose }) {
+function RemoveModal({ member, agreements, projectId, onConfirm, onClose }) {
   const [nameInput, setNameInput] = useState('')
 
-  const activeAgreements = (agreements ?? []).filter(a =>
-    (a.status === 'pending_countersign' || a.status === 'countersigned') &&
-    (a.counterpartyName === member.name || a.signerName === member.name)
+  const signedAgreements = (agreements ?? []).filter(a =>
+    a.status === 'fully_signed' &&
+    String(a.projectId) === String(projectId) &&
+    (a.counterpartyName?.toLowerCase() === member.name.toLowerCase() ||
+     a.signerName?.toLowerCase() === member.name.toLowerCase())
   )
 
   const canConfirm = nameInput.trim().toLowerCase() === member.name.toLowerCase()
@@ -37,8 +39,11 @@ function RemoveModal({ member, agreements, onConfirm, onClose }) {
         style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-strong)' }}
       >
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(239,68,68,0.12)' }}>
-            <IconAlertTriangle size={20} style={{ color: 'var(--status-error)' }} />
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0"
+            style={{ backgroundColor: member.avatarColor ?? ACCENT }}
+          >
+            {member.initials}
           </div>
           <div>
             <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Remove {member.name}?</h3>
@@ -46,18 +51,17 @@ function RemoveModal({ member, agreements, onConfirm, onClose }) {
           </div>
         </div>
 
-        {activeAgreements.length > 0 && (
-          <div className="rounded-lg p-3 mb-4" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
-            <p className="text-xs font-medium mb-1" style={{ color: 'var(--status-warning)' }}>Active Agreement Warning</p>
-            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-              This member has {activeAgreements.length} active agreement{activeAgreements.length > 1 ? 's' : ''}.
-              Removing them does not automatically void any signed agreements.
+        {signedAgreements.length > 0 && (
+          <div className="rounded-lg p-3 mb-4 flex items-start gap-2" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
+            <IconAlertTriangle size={14} style={{ color: 'var(--status-warning)', flexShrink: 0, marginTop: 1 }} />
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              <span className="font-semibold" style={{ color: 'var(--status-warning)' }}>{member.name}</span> has an active signed agreement on this project. Removing them may constitute a breach of contract. Their agreement obligations may still apply legally. We strongly recommend seeking legal advice before proceeding.
             </p>
           </div>
         )}
 
-        <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>
-          Type <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{member.name}</span> to confirm removal.
+        <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+          To confirm removal, type <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{member.name}</span> below:
         </p>
         <input
           className="w-full text-sm rounded-lg px-3 py-2 outline-none mb-4"
@@ -83,7 +87,7 @@ function RemoveModal({ member, agreements, onConfirm, onClose }) {
             className="flex-1 py-2 rounded-full text-sm font-medium text-white transition-opacity"
             style={{ backgroundColor: canConfirm ? '#dc2626' : 'rgba(220,38,38,0.4)', cursor: canConfirm ? 'pointer' : 'not-allowed' }}
           >
-            Remove
+            Remove Member
           </button>
         </div>
       </div>
@@ -149,7 +153,21 @@ export default function ManageTeam({
     updateApp({ ...app, status: 'declined', read: true })
   }
 
+  function getAgreementStatus(app) {
+    if (app.agreementId) {
+      const ag = (agreements ?? []).find(a => a.id === app.agreementId)
+      if (ag?.status === 'fully_signed') return 'signed'
+      return 'sent'
+    }
+    if (app.status === 'agreement_sent') return 'sent'
+    return 'none'
+  }
+
   function grantAccess(app) {
+    if (getAgreementStatus(app) !== 'signed') {
+      console.warn('hqcmd: Grant Access blocked — no fully signed agreement for', app.applicantName)
+      return
+    }
     onAcceptApplication?.(app)
     updateApp({ ...app, status: 'access_granted', read: true })
     onAddNotification?.({
@@ -289,51 +307,77 @@ export default function ManageTeam({
             <div className="rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
               {onboardingApps.map((app, i) => {
                 const sc = APP_STATUS[app.status] ?? APP_STATUS.pending
+                const agStatus = getAgreementStatus(app)
+                const canGrant = agStatus === 'signed'
                 return (
                   <div
                     key={app.id}
-                    className="flex items-center gap-3 px-5 py-4"
+                    className="px-5 py-4"
                     style={{ borderBottom: i < onboardingApps.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}
                   >
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: ACCENT }}>
-                      {app.applicantName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
-                      <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
-                    </div>
-                    <span className="text-xs font-medium px-2.5 py-0.5 rounded-full flex-shrink-0" style={{ backgroundColor: sc.bg, color: sc.color }}>
-                      {sc.label}
-                    </span>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {app.status === 'accepted_pending_agreement' && (
-                        <button
-                          onClick={() => setAgreementTarget(app)}
-                          className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors"
-                          style={{ borderColor: ACCENT, color: ACCENT }}
-                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--brand-accent-glow)')}
-                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
-                        >
-                          Send Agreement
-                        </button>
-                      )}
-                      {(app.status === 'accepted_pending_agreement' || app.status === 'agreement_sent') && (
-                        <button
-                          onClick={() => grantAccess(app)}
-                          className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-white transition-colors"
-                          style={{ backgroundColor: '#16a34a' }}
-                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#15803d')}
-                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#16a34a')}
-                        >
-                          <IconCheck size={12} />
-                          Grant Access
-                        </button>
-                      )}
-                      {app.status === 'access_granted' && (
-                        <span className="flex items-center gap-1 text-xs" style={{ color: 'var(--status-success)' }}>
-                          <IconCheck size={12} /> Added to team
-                        </span>
-                      )}
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 mt-0.5" style={{ backgroundColor: ACCENT }}>
+                        {app.applicantName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                          <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: sc.bg, color: sc.color }}>{sc.label}</span>
+                        </div>
+                        <p className="text-xs mb-1.5" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
+                        {agStatus === 'none' && (
+                          <p className="text-xs font-medium" style={{ color: 'var(--status-error)' }}>● No agreement sent</p>
+                        )}
+                        {agStatus === 'sent' && (
+                          <p className="text-xs font-medium" style={{ color: 'var(--status-warning)' }}>● Agreement sent — awaiting signature</p>
+                        )}
+                        {agStatus === 'signed' && (
+                          <p className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--status-success)' }}>
+                            <IconCheck size={11} /> Agreement signed
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                        {app.status === 'access_granted' ? (
+                          <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--status-success)' }}>
+                            <IconCheck size={12} /> Added to team
+                          </span>
+                        ) : (
+                          <>
+                            {(app.status === 'accepted_pending_agreement') && (
+                              <button
+                                onClick={() => setAgreementTarget(app)}
+                                className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors"
+                                style={{ borderColor: ACCENT, color: ACCENT }}
+                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--brand-accent-glow)')}
+                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
+                              >
+                                Send Agreement
+                              </button>
+                            )}
+                            <div className="flex flex-col items-end gap-0.5">
+                              <button
+                                onClick={canGrant ? () => grantAccess(app) : undefined}
+                                className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-white transition-colors"
+                                style={{
+                                  backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.3)',
+                                  cursor: canGrant ? 'pointer' : 'not-allowed',
+                                }}
+                                onMouseEnter={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#15803d' }}
+                                onMouseLeave={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#16a34a' }}
+                              >
+                                <IconCheck size={12} />
+                                Grant Access
+                              </button>
+                              {!canGrant && (
+                                <p className="text-[10px] text-right max-w-40 leading-snug" style={{ color: 'var(--text-tertiary)' }}>
+                                  A signed agreement is required before granting access. Send an agreement from the Agreements tab.
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )
@@ -409,6 +453,7 @@ export default function ManageTeam({
         <RemoveModal
           member={removeTarget}
           agreements={agreements}
+          projectId={projectId}
           onConfirm={() => removeMember(removeTarget.id)}
           onClose={() => setRemoveTarget(null)}
         />

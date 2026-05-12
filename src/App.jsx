@@ -295,9 +295,21 @@ export default function App() {
   // ── Accept application: add applicant to project's members ────────────────
 
   function acceptApplication(app) {
-    const { projects } = getUserData()
+    const { projects, agreements } = getUserData()
     const project = projects.find(p => p.id === app.projectId)
     if (!project) return
+
+    const hasSignedAgreement = (agreements ?? []).some(a =>
+      a.status === 'fully_signed' &&
+      String(a.projectId) === String(app.projectId) &&
+      (app.agreementId ? a.id === app.agreementId
+        : a.counterpartyName?.toLowerCase() === app.applicantName?.toLowerCase())
+    )
+    if (!hasSignedAgreement) {
+      console.warn('hqcmd: grantProjectAccess blocked — no fully signed agreement for', app.applicantName)
+      return
+    }
+
     const initials = app.applicantName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
     const newMember = {
       id: Date.now(),

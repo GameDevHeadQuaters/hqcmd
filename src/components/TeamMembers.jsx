@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconUserPlus, IconX, IconUsers } from '@tabler/icons-react'
+import { IconUserPlus, IconX, IconUsers, IconAlertTriangle } from '@tabler/icons-react'
 import InviteModal from './InviteModal'
 
 const ACCENT = '#534AB7'
-const AVATAR_DARK = ['#1e1535', '#1f1228', '#161830']
 const AVATAR_CYCLES = [
   { bg: 'rgba(83,74,183,0.2)',  text: '#534AB7' },
   { bg: 'rgba(237,39,147,0.15)', text: '#ed2793' },
@@ -28,12 +27,90 @@ function avatarStyle(name) {
   return AVATAR_CYCLES[Math.abs(h) % AVATAR_CYCLES.length]
 }
 
-export default function TeamMembers({ members, setMembers, projectId }) {
+function RemoveModal({ member, agreements, projectId, onConfirm, onClose }) {
+  const [nameInput, setNameInput] = useState('')
+
+  const signedAgreements = (agreements ?? []).filter(a =>
+    a.status === 'fully_signed' &&
+    String(a.projectId) === String(projectId) &&
+    (a.counterpartyName?.toLowerCase() === member.name.toLowerCase() ||
+     a.signerName?.toLowerCase() === member.name.toLowerCase())
+  )
+
+  const canConfirm = nameInput.trim().toLowerCase() === member.name.toLowerCase()
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div
+        className="relative rounded-xl shadow-2xl w-full max-w-sm p-6"
+        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-strong)' }}
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0"
+            style={{ backgroundColor: member.avatarColor ?? ACCENT }}
+          >
+            {member.initials}
+          </div>
+          <div>
+            <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Remove {member.name}?</h3>
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>This action cannot be undone.</p>
+          </div>
+        </div>
+
+        {signedAgreements.length > 0 && (
+          <div className="rounded-lg p-3 mb-4 flex items-start gap-2" style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
+            <IconAlertTriangle size={14} style={{ color: 'var(--status-warning)', flexShrink: 0, marginTop: 1 }} />
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              <span className="font-semibold" style={{ color: 'var(--status-warning)' }}>{member.name}</span> has an active signed agreement on this project. Removing them may constitute a breach of contract. Their agreement obligations may still apply legally. We strongly recommend seeking legal advice before proceeding.
+            </p>
+          </div>
+        )}
+
+        <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+          To confirm removal, type <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{member.name}</span> below:
+        </p>
+        <input
+          className="w-full text-sm rounded-lg px-3 py-2 outline-none mb-4"
+          style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+          placeholder={member.name}
+          value={nameInput}
+          onChange={e => setNameInput(e.target.value)}
+          autoFocus
+        />
+
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2 rounded-full text-sm font-medium transition-colors"
+            style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={canConfirm ? onConfirm : undefined}
+            className="flex-1 py-2 rounded-full text-sm font-medium text-white"
+            style={{ backgroundColor: canConfirm ? '#dc2626' : 'rgba(220,38,38,0.4)', cursor: canConfirm ? 'pointer' : 'not-allowed' }}
+          >
+            Remove Member
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function TeamMembers({ members, setMembers, projectId, agreements }) {
   const navigate = useNavigate()
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [removeTarget, setRemoveTarget] = useState(null)
 
   function remove(id) {
     setMembers(prev => prev.filter(m => m.id !== id))
+    setRemoveTarget(null)
   }
 
   return (
@@ -90,7 +167,7 @@ export default function TeamMembers({ members, setMembers, projectId }) {
                   </span>
                 </div>
                 <button
-                  onClick={() => remove(m.id)}
+                  onClick={() => setRemoveTarget(m)}
                   className="opacity-0 group-hover:opacity-100 p-1 rounded transition-all flex-shrink-0"
                   style={{ color: 'var(--text-tertiary)' }}
                   onMouseEnter={e => { e.currentTarget.style.color = '#ef4444' }}
@@ -118,6 +195,16 @@ export default function TeamMembers({ members, setMembers, projectId }) {
       )}
 
       {inviteOpen && <InviteModal onClose={() => setInviteOpen(false)} />}
+
+      {removeTarget && (
+        <RemoveModal
+          member={removeTarget}
+          agreements={agreements}
+          projectId={projectId}
+          onConfirm={() => remove(removeTarget.id)}
+          onClose={() => setRemoveTarget(null)}
+        />
+      )}
     </>
   )
 }
