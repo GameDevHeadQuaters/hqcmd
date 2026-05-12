@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconCommand, IconBell, IconInbox, IconFileText, IconSun, IconMoon } from '@tabler/icons-react'
-import NotificationsPanel from './NotificationsPanel'
 import ProfileDropdown from './ProfileDropdown'
 import { useTheme } from '../context/ThemeContext'
 
@@ -10,29 +9,16 @@ const ACCENT_DARK = '#3C3489'
 
 export default function TopNav({
   currentUser,
-  notifications,
-  setNotifications,
   unreadInboxCount,
   onSignOut,
 }) {
   const navigate = useNavigate()
   const { theme, setTheme } = useTheme()
-  const [notifOpen, setNotifOpen] = useState(false)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
 
-  const unreadNotifCount = (notifications ?? []).filter(n => !n.read).length
   const isDark = theme === 'dark'
 
-  function markRead(id) {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
-  }
-
-  function markAllRead() {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-  }
-
   function closeAll() {
-    setNotifOpen(false)
     setProfileDropOpen(false)
   }
 
@@ -116,44 +102,30 @@ export default function TopNav({
             {/* Divider */}
             <span className="text-gray-200 mx-1 select-none">|</span>
 
-            {/* Notifications bell */}
-            <div className="relative">
-              <button
-                onClick={() => { setNotifOpen(v => !v); setProfileDropOpen(false) }}
-                className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
-                style={{
-                  color: unreadNotifCount > 0
-                    ? '#ed2793'
-                    : isDark ? 'rgba(255,255,255,0.5)' : '#6b7280',
-                  filter: unreadNotifCount > 0 && isDark
-                    ? 'drop-shadow(0 0 6px rgba(237,39,147,0.5))'
-                    : 'none',
-                }}
-              >
-                <IconBell size={19} />
-                {unreadNotifCount > 0 && (
-                  <span
-                    className="absolute top-1 right-1 w-4 h-4 rounded-full text-white flex items-center justify-center"
-                    style={{ backgroundColor: '#ed2793', fontSize: '9px', fontWeight: 700 }}
-                  >
-                    {unreadNotifCount}
-                  </span>
-                )}
-              </button>
-              {notifOpen && (
-                <>
-                  <div className="fixed inset-0 z-30" onClick={closeAll} />
-                  <div className="absolute top-full mt-1 right-0 z-40">
-                    <NotificationsPanel
-                      notifications={notifications ?? []}
-                      onMarkRead={markRead}
-                      onMarkAllRead={markAllRead}
-                      onClose={closeAll}
-                    />
-                  </div>
-                </>
+            {/* Bell → Inbox */}
+            <button
+              onClick={() => navigate('/inbox')}
+              title="Inbox"
+              className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+              style={{
+                color: unreadInboxCount > 0
+                  ? '#ed2793'
+                  : isDark ? 'rgba(255,255,255,0.5)' : '#6b7280',
+                filter: unreadInboxCount > 0 && isDark
+                  ? 'drop-shadow(0 0 6px rgba(237,39,147,0.5))'
+                  : 'none',
+              }}
+            >
+              <IconBell size={19} />
+              {unreadInboxCount > 0 && (
+                <span
+                  className="absolute top-1 right-1 w-4 h-4 rounded-full text-white flex items-center justify-center"
+                  style={{ backgroundColor: '#ed2793', fontSize: '9px', fontWeight: 700 }}
+                >
+                  {unreadInboxCount}
+                </span>
               )}
-            </div>
+            </button>
 
             {/* Profile avatar */}
             <div className="relative">

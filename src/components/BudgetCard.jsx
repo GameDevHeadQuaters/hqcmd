@@ -11,25 +11,15 @@ export default function BudgetCard({ budget: rawBudget, onUpdateBudget, projectI
   const { currency = 'USD', total = 0, transactions = [] } = budget
   const sym = CURRENCIES[currency]?.symbol ?? '$'
 
-  const [showAdd,      setShowAdd]      = useState(false)
-  const [showSetTotal, setShowSetTotal] = useState(false)
-  const [addType,      setAddType]      = useState('expense')
-  const [addForm,      setAddForm]      = useState({ desc: '', amount: '', category: 'other' })
-  const [totalInput,   setTotalInput]   = useState('')
+  const [showAdd, setShowAdd] = useState(false)
+  const [addType, setAddType] = useState('expense')
+  const [addForm, setAddForm] = useState({ desc: '', amount: '', category: 'other' })
 
   const totalIn  = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const totalOut = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
   const net      = totalIn - totalOut
   const pct      = total > 0 ? Math.min((totalOut / total) * 100, 100) : 0
   const barColor = pct > 80 ? 'var(--status-error)' : pct > 60 ? 'var(--status-warning)' : ACCENT
-
-  function saveTotal() {
-    const val = parseFloat(totalInput)
-    if (!val || val <= 0) return
-    onUpdateBudget?.({ ...budget, total: val })
-    setTotalInput('')
-    setShowSetTotal(false)
-  }
 
   function addTransaction() {
     const amt = parseFloat(addForm.amount)
@@ -96,7 +86,7 @@ export default function BudgetCard({ budget: rawBudget, onUpdateBudget, projectI
         ))}
       </div>
 
-      {/* Progress bar */}
+      {/* Progress bar (only when total is set — set it on the full Budget page) */}
       {total > 0 && (
         <div className="mb-3">
           <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-elevated)' }}>
@@ -114,59 +104,9 @@ export default function BudgetCard({ budget: rawBudget, onUpdateBudget, projectI
         </div>
       )}
 
-      {/* Set budget total */}
-      {total === 0 && (
-        showSetTotal ? (
-          <div className="flex gap-2 mb-3">
-            <div
-              className="flex-1 flex items-center rounded-lg overflow-hidden"
-              style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)' }}
-              onFocusCapture={e => (e.currentTarget.style.borderColor = ACCENT)}
-              onBlurCapture={e => (e.currentTarget.style.borderColor = 'var(--border-default)')}
-            >
-              <span className="px-2 text-xs select-none" style={{ color: 'var(--text-tertiary)' }}>{sym}</span>
-              <input
-                type="number" min="0" autoFocus
-                className="flex-1 text-xs py-1.5 pr-2 outline-none"
-                style={{ backgroundColor: 'transparent', color: 'var(--text-primary)' }}
-                placeholder="Budget total"
-                value={totalInput}
-                onChange={e => setTotalInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && saveTotal()}
-              />
-            </div>
-            <button
-              onClick={saveTotal}
-              className="px-2.5 rounded-full text-xs font-medium text-white hover:opacity-80 transition-opacity"
-              style={{ backgroundColor: ACCENT }}
-            >
-              Set
-            </button>
-            <button
-              onClick={() => setShowSetTotal(false)}
-              className="px-2 rounded-lg text-xs transition-colors"
-              style={{ color: 'var(--text-tertiary)' }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
-            >
-              ✕
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowSetTotal(true)}
-            className="text-xs mb-3 block transition-opacity hover:opacity-70"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
-            + Set budget total
-          </button>
-        )
-      )}
-
-      {/* Separator */}
       <div style={{ height: '1px', backgroundColor: 'var(--border-subtle)', marginBottom: '10px' }} />
 
-      {/* Add form */}
+      {/* Quick-add transaction */}
       {showAdd ? (
         <div className="space-y-2">
           <div

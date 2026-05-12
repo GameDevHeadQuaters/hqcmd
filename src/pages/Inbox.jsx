@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCommand, IconInbox, IconMessageCircle, IconMail, IconFileText, IconWritingSign } from '@tabler/icons-react'
+import { IconCommand, IconInbox, IconMessageCircle, IconMail, IconFileText, IconWritingSign, IconBell, IconCheck } from '@tabler/icons-react'
 import ApplicationsPanel from '../components/ApplicationsPanel'
 import ProfileDropdown from '../components/ProfileDropdown'
 
@@ -168,9 +168,47 @@ function MessageCard({ dm, onUpdate, navigate }) {
   )
 }
 
+function NotifCard({ notif, onMarkRead }) {
+  const Icon = notif.Icon ?? IconBell
+  return (
+    <div
+      className="rounded-lg p-4 flex items-start gap-3"
+      style={{
+        backgroundColor: 'var(--bg-surface)',
+        border: '1px solid var(--border-default)',
+        borderLeft: !notif.read ? '3px solid #534AB7' : '1px solid var(--border-default)',
+      }}
+    >
+      <div
+        className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+        style={{ backgroundColor: 'var(--brand-accent-glow)' }}
+      >
+        <Icon size={17} style={{ color: '#534AB7' }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm leading-snug" style={{ color: 'var(--text-primary)' }}>{notif.text}</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>{notif.time}</p>
+      </div>
+      {!notif.read && (
+        <button
+          onClick={() => onMarkRead(notif.id)}
+          title="Mark as read"
+          className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0 transition-colors"
+          style={{ color: 'var(--text-tertiary)' }}
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; e.currentTarget.style.color = '#534AB7' }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = ''; e.currentTarget.style.color = 'var(--text-tertiary)' }}
+        >
+          <IconCheck size={14} />
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function Inbox({
   applications, setApplications,
   directMessages, setDirectMessages,
+  notifications, setNotifications,
   onAddNotification, onAcceptApplication,
   unreadInboxCount, currentUser, onSignOut,
 }) {
@@ -181,21 +219,32 @@ export default function Inbox({
   useEffect(() => {
     if (tab === 'applications') {
       setApplications(prev => prev.map(a => ({ ...a, read: true })))
-    } else {
+    } else if (tab === 'messages') {
       setDirectMessages(prev => prev.map(m => ({ ...m, read: true })))
     }
+    // notifications are marked read individually, not on tab switch
   }, [tab])
 
-  const unreadApps = applications.filter(a => !a.read).length
-  const unreadMsgs = directMessages.filter(m => !m.read).length
+  const unreadApps   = applications.filter(a => !a.read).length
+  const unreadMsgs   = directMessages.filter(m => !m.read).length
+  const unreadNotifs = (notifications ?? []).filter(n => !n.read).length
 
   function updateDm(updated) {
     setDirectMessages(prev => prev.map(m => m.id === updated.id ? updated : m))
   }
 
+  function markNotifRead(id) {
+    setNotifications?.(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
+  }
+
+  function markAllNotifsRead() {
+    setNotifications?.(prev => prev.map(n => ({ ...n, read: true })))
+  }
+
   const TABS = [
-    { id: 'applications', label: 'Applications', count: unreadApps },
-    { id: 'messages',     label: 'Messages',     count: unreadMsgs },
+    { id: 'applications',  label: 'Applications',  count: unreadApps   },
+    { id: 'messages',      label: 'Messages',       count: unreadMsgs   },
+    { id: 'notifications', label: 'Notifications',  count: unreadNotifs },
   ]
 
   return (
@@ -340,6 +389,37 @@ export default function Inbox({
                   <MessageCard key={dm.id} dm={dm} onUpdate={updateDm} navigate={navigate} />
                 ))}
               </div>
+            )}
+          </>
+        )}
+
+        {tab === 'notifications' && (
+          <>
+            {(notifications ?? []).length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <IconBell size={48} style={{ color: 'var(--brand-purple)' }} className="mb-4" />
+                <p className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>No notifications</p>
+                <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Activity and system alerts will appear here</p>
+              </div>
+            ) : (
+              <>
+                {unreadNotifs > 0 && (
+                  <div className="flex justify-end mb-3">
+                    <button
+                      onClick={markAllNotifsRead}
+                      className="text-xs font-medium px-3 py-1.5 rounded-full transition-opacity hover:opacity-70"
+                      style={{ color: '#534AB7', backgroundColor: 'var(--brand-accent-glow)' }}
+                    >
+                      Mark all as read
+                    </button>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  {(notifications ?? []).map(n => (
+                    <NotifCard key={n.id} notif={n} onMarkRead={markNotifRead} />
+                  ))}
+                </div>
+              </>
             )}
           </>
         )}

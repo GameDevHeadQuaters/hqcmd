@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   IconCommand, IconSearch, IconX, IconUsers, IconZoom,
   IconCheck, IconSend, IconArrowRight, IconInbox, IconGlobe, IconFileText,
+  IconCrown,
 } from '@tabler/icons-react'
 import ProfileDropdown from '../components/ProfileDropdown'
 
@@ -238,7 +239,7 @@ function MessageModal({ project, onClose, onAddDirectMessage, onAddNotification 
   )
 }
 
-function ProjectCard({ project, onApply, onMessage, borderColor }) {
+function ProjectCard({ project, onApply, onMessage, borderColor, isOwnProject }) {
   const compColor = project.compensation === 'Paid'
     ? { bg: 'rgba(34,197,94,0.12)', text: 'var(--status-success)' }
     : project.compensation === 'Rev Share'
@@ -291,27 +292,34 @@ function ProjectCard({ project, onApply, onMessage, borderColor }) {
               <IconUsers size={13} />
               <span>{project.members} members · {project.owner}</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={onMessage}
-                className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors"
-                style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
-              >
-                Message
-              </button>
-              <button
-                onClick={onApply}
-                className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-white transition-colors"
-                style={{ backgroundColor: PINK }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = PINK_DARK)}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = PINK)}
-              >
-                Apply
-                <IconArrowRight size={12} />
-              </button>
-            </div>
+            {isOwnProject ? (
+              <div className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full" style={{ backgroundColor: 'var(--brand-accent-glow)', color: ACCENT }}>
+                <IconCrown size={12} />
+                Your project
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={onMessage}
+                  className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors"
+                  style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                >
+                  Message
+                </button>
+                <button
+                  onClick={onApply}
+                  className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-white transition-colors"
+                  style={{ backgroundColor: PINK }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = PINK_DARK)}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = PINK)}
+                >
+                  Apply
+                  <IconArrowRight size={12} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -341,7 +349,7 @@ export default function BrowseProjects({
   const [profileDropOpen, setProfileDropOpen] = useState(false)
 
   function requireAuth(cb) {
-    if (!currentUser) { navigate('/login', { state: { from: 'browse' } }); return }
+    if (!currentUser) { navigate('/login', { state: { from: 'browse', message: 'Sign in to apply or message project owners.' } }); return }
     cb()
   }
 
@@ -557,6 +565,7 @@ export default function BrowseProjects({
                 key={p.id}
                 project={p}
                 borderColor={CARD_BORDERS[i % 3]}
+                isOwnProject={currentUser?.id === p.ownerId}
                 onApply={() => requireAuth(() => setApplyProject(p))}
                 onMessage={() => requireAuth(() => setMsgProject(p))}
               />

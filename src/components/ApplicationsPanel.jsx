@@ -15,9 +15,12 @@ function formatTime(iso) {
 }
 
 const STATUS = {
-  pending:  { label: 'Pending',  bg: 'rgba(245,158,11,0.15)',  color: 'var(--status-warning)' },
-  accepted: { label: 'Accepted', bg: 'rgba(34,197,94,0.12)',   color: 'var(--status-success)' },
-  declined: { label: 'Declined', bg: 'rgba(239,68,68,0.12)',   color: 'var(--status-error)'   },
+  pending:                    { label: 'Pending',           bg: 'rgba(245,158,11,0.15)',  color: 'var(--status-warning)' },
+  accepted_pending_agreement: { label: 'Accepted',          bg: 'rgba(34,197,94,0.12)',   color: 'var(--status-success)' },
+  agreement_sent:             { label: 'Agreement Sent',    bg: 'rgba(83,74,183,0.12)',   color: '#534AB7'               },
+  access_granted:             { label: 'Access Granted',    bg: 'rgba(34,197,94,0.12)',   color: 'var(--status-success)' },
+  accepted:                   { label: 'Accepted',          bg: 'rgba(34,197,94,0.12)',   color: 'var(--status-success)' },
+  declined:                   { label: 'Declined',          bg: 'rgba(239,68,68,0.12)',   color: 'var(--status-error)'   },
 }
 
 function AppCard({ app, onUpdate, onAddNotification, onAcceptApplication }) {
@@ -27,11 +30,10 @@ function AppCard({ app, onUpdate, onAddNotification, onAcceptApplication }) {
   const initials = app.applicantName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 
   function accept() {
-    onUpdate({ ...app, status: 'accepted', read: true })
-    onAcceptApplication?.(app)
+    onUpdate({ ...app, status: 'accepted_pending_agreement', read: true })
     onAddNotification?.({
       type: 'application',
-      text: `You accepted ${app.applicantName} as ${app.role} on ${app.projectTitle}`,
+      text: `You accepted ${app.applicantName} for ${app.role} on ${app.projectTitle}. Go to Manage Team to onboard them.`,
       link: '/inbox',
     })
   }
@@ -157,6 +159,9 @@ function AppCard({ app, onUpdate, onAddNotification, onAcceptApplication }) {
                   Decline
                 </button>
               </>
+            )}
+            {['accepted_pending_agreement', 'agreement_sent', 'access_granted'].includes(app.status) && (
+              <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Manage onboarding in Team →</span>
             )}
             <button
               onClick={openReply}

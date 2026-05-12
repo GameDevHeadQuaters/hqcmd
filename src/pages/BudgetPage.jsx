@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { IconArrowLeft, IconCommand, IconPlus, IconX, IconSearch } from '@tabler/icons-react'
+import { IconArrowLeft, IconCommand, IconPlus, IconX, IconSearch, IconDownload } from '@tabler/icons-react'
 import { BUDGET_CATEGORIES, CURRENCIES, migrateBudget, getCategoryMeta } from '../utils/budgetCategories'
 
 const ACCENT = '#534AB7'
@@ -98,6 +98,27 @@ export default function BudgetPage({ currentUser, projects, onUpdateProject, set
     navigate('/workstation')
   }
 
+  function exportCSV() {
+    const headers = ['Date', 'Description', 'Type', 'Category', 'Tag', 'Amount', 'Currency']
+    const rows = transactions.map(t => [
+      t.date,
+      `"${(t.description ?? '').replace(/"/g, '""')}"`,
+      t.type,
+      t.category,
+      t.customTag ?? '',
+      t.amount,
+      currency,
+    ])
+    const csv = [headers, ...rows].map(r => r.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${project.title}-budget.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const fi = e => (e.target.style.borderColor = ACCENT)
   const fb = e => (e.target.style.borderColor = 'var(--border-default)')
 
@@ -162,13 +183,25 @@ export default function BudgetPage({ currentUser, projects, onUpdateProject, set
           <span style={{ color: 'var(--border-strong)' }}>›</span>
           <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Budget</span>
         </div>
-        <button
-          onClick={() => setSlideOpen(true)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-white transition-opacity hover:opacity-80"
-          style={{ backgroundColor: ACCENT }}
-        >
-          <IconPlus size={15} /> Add Transaction
-        </button>
+        <div className="flex items-center gap-2">
+          {transactions.length > 0 && (
+            <button
+              onClick={exportCSV}
+              title="Export CSV"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-opacity hover:opacity-70"
+              style={{ border: '1px solid var(--border-default)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-surface)' }}
+            >
+              <IconDownload size={14} /> Export
+            </button>
+          )}
+          <button
+            onClick={() => setSlideOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-white transition-opacity hover:opacity-80"
+            style={{ backgroundColor: ACCENT }}
+          >
+            <IconPlus size={15} /> Add Transaction
+          </button>
+        </div>
       </nav>
 
       {/* Body */}

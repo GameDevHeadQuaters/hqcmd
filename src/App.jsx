@@ -13,6 +13,7 @@ import Inbox from './pages/Inbox'
 import Agreements from './pages/Agreements'
 import SignAgreement from './pages/SignAgreement'
 import BudgetPage from './pages/BudgetPage'
+import ManageTeam from './pages/ManageTeam'
 import { IconMessages, IconBriefcase, IconWritingSign } from '@tabler/icons-react'
 
 const STORAGE_KEYS = {
@@ -302,6 +303,8 @@ export default function App() {
       id: Date.now(),
       name: app.applicantName,
       role: app.role,
+      position: 'Member',
+      joinedAt: new Date().toISOString(),
       initials,
       avatarColor: hashColor(app.applicantName),
       bio: '',
@@ -358,12 +361,11 @@ export default function App() {
 
   const unreadInboxCount =
     applications.filter(a => !a.read).length +
-    directMessages.filter(m => !m.read).length
+    directMessages.filter(m => !m.read).length +
+    notifications.filter(n => !n.read).length
 
   const topNavProps = {
     currentUser,
-    notifications,
-    setNotifications,
     unreadInboxCount,
     onSignOut: handleSignOut,
   }
@@ -450,6 +452,7 @@ export default function App() {
             <Inbox
               applications={applications}     setApplications={setApplications}
               directMessages={directMessages} setDirectMessages={setDirectMessages}
+              notifications={notifications}   setNotifications={setNotifications}
               onAddNotification={onAddNotification}
               onAcceptApplication={acceptApplication}
               unreadInboxCount={unreadInboxCount}
@@ -471,6 +474,22 @@ export default function App() {
               users={users}
               onAddNotificationForUser={addNotificationForUser}
               onAddDirectMessageForUser={addDirectMessageForUser}
+            />
+          ) : <Navigate to="/login" replace />
+        } />
+
+        <Route path="/team/:projectId" element={
+          currentUser ? (
+            <ManageTeam
+              currentUser={currentUser}
+              projects={projects}
+              onUpdateProject={updateProject}
+              applications={applications}
+              setApplications={setApplications}
+              agreements={agreements}
+              setActiveProjectId={setActiveProjectId}
+              onAcceptApplication={acceptApplication}
+              onAddNotification={onAddNotification}
             />
           ) : <Navigate to="/login" replace />
         } />

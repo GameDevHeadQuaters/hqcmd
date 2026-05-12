@@ -28,7 +28,7 @@ function avatarStyle(name) {
   return AVATAR_CYCLES[Math.abs(h) % AVATAR_CYCLES.length]
 }
 
-export default function TeamMembers({ members, setMembers }) {
+export default function TeamMembers({ members, setMembers, projectId }) {
   const navigate = useNavigate()
   const [inviteOpen, setInviteOpen] = useState(false)
 
@@ -103,6 +103,17 @@ export default function TeamMembers({ members, setMembers }) {
           })}
         </div>
       </div>
+
+      {members.length > 0 && projectId && (
+        <button
+          onClick={() => navigate(`/team/${projectId}`)}
+          className="flex items-center justify-between w-full mt-3 pt-3 text-xs transition-opacity hover:opacity-70"
+          style={{ borderTop: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)' }}
+        >
+          <span>Manage Team</span>
+          <span style={{ color: 'var(--text-tertiary)', fontSize: '10px' }}>›</span>
+        </button>
+      )}
 
       {inviteOpen && <InviteModal onClose={() => setInviteOpen(false)} />}
     </>

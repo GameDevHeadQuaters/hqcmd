@@ -8,7 +8,6 @@ import TeamMembers from './TeamMembers'
 import ProjectProfile from './ProjectProfile'
 import CalendarModal from './CalendarModal'
 import ScheduleMeetingModal from './ScheduleMeetingModal'
-import NotificationsPanel from './NotificationsPanel'
 import ProfileDropdown from './ProfileDropdown'
 import { useTheme } from '../context/ThemeContext'
 
@@ -67,27 +66,12 @@ export default function Workstation({
   const [profileOpen,         setProfileOpen]         = useState(false)
   const [calendarOpen,        setCalendarOpen]        = useState(false)
   const [scheduleMeetingOpen, setScheduleMeetingOpen] = useState(false)
-  const [notifOpen,           setNotifOpen]           = useState(false)
   const [profileDropOpen,     setProfileDropOpen]     = useState(false)
 
   const unreadNotifCount = (notifications ?? []).filter(n => !n.read).length
 
-  function markRead(id) {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
-  }
-
-  function markAllRead() {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
-  }
-
-  function toggleNotif() {
-    setNotifOpen(v => !v)
-    setProfileDropOpen(false)
-  }
-
   function toggleProfileDrop() {
     setProfileDropOpen(v => !v)
-    setNotifOpen(false)
   }
 
   return (
@@ -154,10 +138,11 @@ export default function Workstation({
               {isDark ? <IconSun size={16} /> : <IconMoon size={16} />}
             </button>
 
-            {/* Bell */}
+            {/* Bell → Inbox */}
             <button
-              onClick={toggleNotif}
+              onClick={() => navigate('/inbox')}
               className="relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+              title="Inbox"
               style={{
                 color: unreadNotifCount > 0
                   ? '#ed2793'
@@ -189,21 +174,6 @@ export default function Workstation({
               {currentUser?.initials ?? 'AC'}
             </button>
           </div>
-
-          {/* Notifications dropdown */}
-          {notifOpen && (
-            <>
-              <div className="fixed inset-0 z-30" onClick={() => setNotifOpen(false)} />
-              <div className="absolute top-full mt-1 right-14 z-40">
-                <NotificationsPanel
-                  notifications={notifications ?? []}
-                  onMarkRead={markRead}
-                  onMarkAllRead={markAllRead}
-                  onClose={() => setNotifOpen(false)}
-                />
-              </div>
-            </>
-          )}
 
           {/* Profile dropdown */}
           {profileDropOpen && (
@@ -263,7 +233,7 @@ export default function Workstation({
             onUpdateBudget={(b) => onUpdateProject?.({ budget: b })}
             projectId={activeProject?.id}
           />
-          <TeamMembers members={members} setMembers={setMembers} />
+          <TeamMembers members={members} setMembers={setMembers} projectId={activeProject?.id} />
         </div>
       </div>
 
