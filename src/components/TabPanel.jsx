@@ -75,7 +75,7 @@ export default function TabPanel({
       </div>
 
       {activeTab === 'chat'   && <TeamChat   projectId={projectId} ownerUserId={ownerUserId} currentUser={currentUser} userRole={userRole} />}
-      {activeTab === 'todos'  && <TodoList   projectId={projectId} ownerUserId={ownerUserId} userRole={userRole} />}
+      {activeTab === 'todos'  && <TodoList   projectId={projectId} ownerUserId={ownerUserId} currentUser={currentUser} userRole={userRole} />}
       {activeTab === 'events' && <EventsList projectId={projectId} ownerUserId={ownerUserId} onOpenCalendar={onOpenCalendar} />}
       {activeTab === 'links'  && <LinksList  projectId={projectId} ownerUserId={ownerUserId} userRole={userRole} />}
       {activeTab === 'applications' && (
