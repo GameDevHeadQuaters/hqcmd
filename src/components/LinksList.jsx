@@ -11,26 +11,33 @@ export default function LinksList({ projectId, ownerUserId, userRole = 'Owner' }
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', url: '' })
 
+  function load() {
+    const proj = readProject(projectId, ownerUserId)
+    setLinks(proj?.links || [])
+  }
+
   useEffect(() => {
-    function load() {
-      const proj = readProject(projectId, ownerUserId)
-      setLinks(proj?.links || [])
-    }
+    console.log('[LinksList] projectId:', projectId, 'ownerUserId:', ownerUserId)
     load()
+    const interval = setInterval(load, 3000)
     window.addEventListener('storage', load)
-    return () => window.removeEventListener('storage', load)
+    return () => { clearInterval(interval); window.removeEventListener('storage', load) }
   }, [projectId, ownerUserId])
 
   function add() {
     if (!form.title || !form.url || !projectId || !ownerUserId) return
     const url = /^https?:\/\//i.test(form.url) ? form.url : `https://${form.url}`
-    appendToProjectArray(projectId, ownerUserId, 'links', { id: Date.now(), title: form.title, url })
+    appendToProjectArray(projectId, ownerUserId, 'links', { id: String(Date.now()), title: form.title, url })
     setForm({ title: '', url: '' })
     setShowForm(false)
+    const updated = readProject(projectId, ownerUserId)
+    setLinks(updated?.links || [])
   }
 
   function remove(id) {
     removeFromProjectArray(projectId, ownerUserId, 'links', id)
+    const updated = readProject(projectId, ownerUserId)
+    setLinks(updated?.links || [])
   }
 
   return (

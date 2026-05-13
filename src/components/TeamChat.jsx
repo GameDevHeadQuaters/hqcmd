@@ -16,14 +16,17 @@ export default function TeamChat({ projectId, ownerUserId, currentUser, userRole
   const [input, setInput] = useState('')
   const bottomRef = useRef(null)
 
+  function load() {
+    const proj = readProject(projectId, ownerUserId)
+    setMessages(proj?.chatMessages || [])
+  }
+
   useEffect(() => {
-    function load() {
-      const proj = readProject(projectId, ownerUserId)
-      setMessages(proj?.chatMessages || [])
-    }
+    console.log('[TeamChat] projectId:', projectId, 'ownerUserId:', ownerUserId)
     load()
+    const interval = setInterval(load, 3000)
     window.addEventListener('storage', load)
-    return () => window.removeEventListener('storage', load)
+    return () => { clearInterval(interval); window.removeEventListener('storage', load) }
   }, [projectId, ownerUserId])
 
   useEffect(() => {
@@ -36,7 +39,7 @@ export default function TeamChat({ projectId, ownerUserId, currentUser, userRole
     const initials = currentUser?.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'ME'
     const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
     appendToProjectArray(projectId, ownerUserId, 'chatMessages', {
-      id: Date.now(),
+      id: String(Date.now()),
       author: currentUser?.name || 'You',
       initials,
       text,
@@ -44,6 +47,8 @@ export default function TeamChat({ projectId, ownerUserId, currentUser, userRole
       senderId: String(currentUser?.id),
     })
     setInput('')
+    const updated = readProject(projectId, ownerUserId)
+    setMessages(updated?.chatMessages || [])
   }
 
   return (

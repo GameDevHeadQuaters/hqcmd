@@ -10,27 +10,34 @@ export default function TodoList({ projectId, ownerUserId, userRole = 'Owner' })
   const [newText, setNewText] = useState('')
   const [calAdded, setCalAdded] = useState({})
 
+  function load() {
+    const proj = readProject(projectId, ownerUserId)
+    setTodos(proj?.todos || [])
+  }
+
   useEffect(() => {
-    function load() {
-      const proj = readProject(projectId, ownerUserId)
-      setTodos(proj?.todos || [])
-    }
+    console.log('[TodoList] projectId:', projectId, 'ownerUserId:', ownerUserId)
     load()
+    const interval = setInterval(load, 3000)
     window.addEventListener('storage', load)
-    return () => window.removeEventListener('storage', load)
+    return () => { clearInterval(interval); window.removeEventListener('storage', load) }
   }, [projectId, ownerUserId])
 
   function toggle(id) {
     const todo = todos.find(t => t.id === id)
     if (!todo) return
     updateProjectArrayItem(projectId, ownerUserId, 'todos', id, { done: !todo.done })
+    const updated = readProject(projectId, ownerUserId)
+    setTodos(updated?.todos || [])
   }
 
   function add() {
     const text = newText.trim()
     if (!text || !projectId || !ownerUserId) return
-    appendToProjectArray(projectId, ownerUserId, 'todos', { id: Date.now(), text, done: false })
+    appendToProjectArray(projectId, ownerUserId, 'todos', { id: String(Date.now()), text, done: false })
     setNewText('')
+    const updated = readProject(projectId, ownerUserId)
+    setTodos(updated?.todos || [])
   }
 
   function toggleCal(id) {

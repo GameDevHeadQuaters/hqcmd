@@ -10,21 +10,26 @@ export default function EventsList({ projectId, ownerUserId, onOpenCalendar }) {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', date: '', time: '' })
 
+  function load() {
+    const proj = readProject(projectId, ownerUserId)
+    setEvents(proj?.calendarEvents || [])
+  }
+
   useEffect(() => {
-    function load() {
-      const proj = readProject(projectId, ownerUserId)
-      setEvents(proj?.calendarEvents || [])
-    }
+    console.log('[EventsList] projectId:', projectId, 'ownerUserId:', ownerUserId)
     load()
+    const interval = setInterval(load, 3000)
     window.addEventListener('storage', load)
-    return () => window.removeEventListener('storage', load)
+    return () => { clearInterval(interval); window.removeEventListener('storage', load) }
   }, [projectId, ownerUserId])
 
   function add() {
     if (!form.title || !form.date || !projectId || !ownerUserId) return
-    appendToProjectArray(projectId, ownerUserId, 'calendarEvents', { ...form, id: Date.now() })
+    appendToProjectArray(projectId, ownerUserId, 'calendarEvents', { ...form, id: String(Date.now()) })
     setForm({ title: '', date: '', time: '' })
     setShowForm(false)
+    const updated = readProject(projectId, ownerUserId)
+    setEvents(updated?.calendarEvents || [])
   }
 
   const sorted = [...events].sort((a, b) => (a.date || '').localeCompare(b.date || ''))

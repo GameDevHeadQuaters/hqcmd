@@ -150,9 +150,11 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
       }
     }
 
+    console.log('[TeamMembers] projectId:', projectId, 'ownerUserId:', ownerUserId)
     loadMembers()
+    const interval = setInterval(loadMembers, 5000)
     window.addEventListener('storage', loadMembers)
-    return () => window.removeEventListener('storage', loadMembers)
+    return () => { clearInterval(interval); window.removeEventListener('storage', loadMembers) }
   }, [projectId, ownerUserId, currentUser])
 
   function updateMemberRole(memberId, newRole) {

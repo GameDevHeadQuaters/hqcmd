@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { IconPencil, IconCalendarEvent, IconCheck, IconPlus, IconX, IconTrash, IconAlertTriangle } from '@tabler/icons-react'
 import { calculateProgress, getProjectStatus } from '../utils/progress'
 import { hasPermission } from '../utils/permissions'
+import { readProject, writeProjectField } from '../utils/projectData'
 
 const ACCENT = '#534AB7'
 
@@ -14,16 +15,32 @@ const statusColors = {
   'Overtime':    { bg: 'rgba(237,39,147,0.12)', text: '#ed2793' },
 }
 
-export default function ProjectHeader({ project, setProject, onOpenProfile, onScheduleMeeting, onAddCalendarEvent, onMilestonesChange, userRole = 'Owner' }) {
-  const { title, description, milestones } = project
+export default function ProjectHeader({ project, setProject, onOpenProfile, onScheduleMeeting, onAddCalendarEvent, onMilestonesChange, userRole = 'Owner', projectId, ownerUserId }) {
+  const { title, description } = project
   const progress = calculateProgress(project)
   const status = getProjectStatus(project)
   const sc = statusColors[status] || statusColors['In Progress']
   const isOvertime = status === 'Overtime'
 
+  const [localMilestones, setLocalMilestones] = useState(() => project.milestones ?? [])
   const [modal, setModal] = useState(null)
   const [mForm, setMForm] = useState({ name: '', date: '', done: false })
   const [overtimeDismissed, setOvertimeDismissed] = useState(false)
+
+  useEffect(() => {
+    console.log('[ProjectHeader] projectId:', projectId, 'ownerUserId:', ownerUserId)
+    function load() {
+      if (!projectId || !ownerUserId) return
+      const proj = readProject(projectId, ownerUserId)
+      if (proj?.milestones) setLocalMilestones(proj.milestones)
+    }
+    load()
+    const interval = setInterval(load, 5000)
+    window.addEventListener('storage', load)
+    return () => { clearInterval(interval); window.removeEventListener('storage', load) }
+  }, [projectId, ownerUserId])
+
+  const milestones = localMilestones
 
   function openCreate() {
     setMForm({ name: '', date: '', done: false })
@@ -41,25 +58,29 @@ export default function ProjectHeader({ project, setProject, onOpenProfile, onSc
     if (!mForm.name.trim()) return
     let newMilestones
     if (modal.mode === 'create') {
-      const newM = { id: Date.now(), name: mForm.name.trim(), date: mForm.date, done: mForm.done }
+      const newM = { id: String(Date.now()), name: mForm.name.trim(), date: mForm.date, done: mForm.done }
       newMilestones = [...milestones, newM]
       if (mForm.date && onAddCalendarEvent) {
-        onAddCalendarEvent({ id: Date.now() + 1, title: mForm.name.trim(), date: mForm.date, time: '' })
+        onAddCalendarEvent({ id: String(Date.now() + 1), title: mForm.name.trim(), date: mForm.date, time: '' })
       }
     } else {
       newMilestones = milestones.map(m =>
         m.id === modal.id ? { ...m, name: mForm.name.trim(), date: mForm.date, done: mForm.done } : m
       )
     }
+    setLocalMilestones(newMilestones)
     setProject(p => ({ ...p, milestones: newMilestones }))
     onMilestonesChange?.(newMilestones)
+    writeProjectField(projectId, ownerUserId, 'milestones', newMilestones)
     closeModal()
   }
 
   function deleteMilestone() {
     const newMilestones = milestones.filter(m => m.id !== modal.id)
+    setLocalMilestones(newMilestones)
     setProject(p => ({ ...p, milestones: newMilestones }))
     onMilestonesChange?.(newMilestones)
+    writeProjectField(projectId, ownerUserId, 'milestones', newMilestones)
     closeModal()
   }
 

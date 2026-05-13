@@ -118,6 +118,8 @@ export default function Workstation({
             onAddCalendarEvent={(ev) => handleSetCalendarEvents(prev => [...prev, ev])}
             onMilestonesChange={(milestones) => onUpdateProject?.({ milestones })}
             userRole={myRole}
+            projectId={activeProject?.id}
+            ownerUserId={ownerUserId}
           />
           <TabPanel
             onOpenCalendar={() => setCalendarOpen(true)}
@@ -145,7 +147,7 @@ export default function Workstation({
             projectId={activeProject?.id}
             userRole={myRole}
           />
-          <TeamMembers projectId={activeProject?.id} ownerUserId={urlOwnerUserId} currentUser={currentUser} agreements={agreements} userRole={myRole} />
+          <TeamMembers projectId={activeProject?.id} ownerUserId={ownerUserId} currentUser={currentUser} agreements={agreements} userRole={myRole} />
         </div>
       </div>
 
