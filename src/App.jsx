@@ -780,14 +780,12 @@ export default function App() {
   )
 }
 
-const PUBLIC_PATHS = ['/', '/browse', '/login', '/signup', '/terms', '/privacy', '/contact']
-
 function AppLayout({ children, topNavProps, sidebarProps }) {
   const { pathname } = useLocation()
   const { currentUser } = sidebarProps
 
-  const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/sign/')
-  const showSidebar = !!currentUser && !isPublic
+  const isPublic = !currentUser || ['/', '/login', '/signup', '/terms', '/privacy', '/contact'].includes(pathname) || pathname.startsWith('/sign/')
+  const showSidebar = !isPublic
 
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('hqcmd_sidebar_collapsed') === 'true' } catch { return false }
