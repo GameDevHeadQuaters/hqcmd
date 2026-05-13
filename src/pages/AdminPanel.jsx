@@ -611,7 +611,15 @@ function SystemDebugTab() {
         })
       })
 
-      setReport({ userHealth, sharedRefs, orphanedAgreements, allApps, generatedAt: new Date().toISOString() })
+      const agreementsByUser = allUsers.map(u => {
+        const uid = String(u.id)
+        const agreements = allData[uid]?.agreements ?? []
+        const received = agreements.filter(a => a.isReceived === true)
+        const sent = agreements.filter(a => !a.isReceived)
+        return { user: u, uid, total: agreements.length, receivedCount: received.length, sentCount: sent.length, received }
+      })
+
+      setReport({ userHealth, sharedRefs, orphanedAgreements, allApps, agreementsByUser, generatedAt: new Date().toISOString() })
     } catch (e) {
       setActionFeedback('Report failed: ' + e.message)
     }
@@ -652,6 +660,21 @@ function SystemDebugTab() {
 
   function normaliseIds() {
     migrateUserIds(); runReport(); flash('IDs normalised to strings')
+  }
+
+  function forceResync() {
+    const allUsers = readLS('hqcmd_users_v3', [])
+    const allData  = readLS(UD_KEY, {})
+    console.group('[Force Resync] Full agreements state per user')
+    allUsers.forEach(u => {
+      const uid = String(u.id)
+      const agreements = allData[uid]?.agreements ?? []
+      console.log(`${u.name} (uid:${uid}) — ${agreements.length} agreements:`, agreements)
+    })
+    console.groupEnd()
+    const result = runIntegrityCheck()
+    runReport()
+    flash(`Resynced — ${result.fixed > 0 ? result.fixed + ' issue' + (result.fixed !== 1 ? 's' : '') + ' fixed' : 'no issues found'}`)
   }
 
   function exportData() {
@@ -803,27 +826,58 @@ function SystemDebugTab() {
 
         {/* 3. Cross-User Agreement Delivery */}
         <section>
-          <div className="flex items-center gap-2 mb-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
-              Cross-User Agreement Delivery
-            </h3>
-            {report.orphanedAgreements.length > 0 && (
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: 'var(--status-warning)' }}>
-                {report.orphanedAgreements.length} orphaned
-              </span>
-            )}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+                Cross-User Agreement Delivery
+              </h3>
+              {report.orphanedAgreements.length > 0 && (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: 'var(--status-warning)' }}>
+                  {report.orphanedAgreements.length} orphaned
+                </span>
+              )}
+            </div>
+            <button
+              onClick={forceResync}
+              className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-medium transition-colors"
+              style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'var(--bg-elevated)')}>
+              <IconRefresh size={11} /> Force Resync
+            </button>
           </div>
-          {report.orphanedAgreements.length === 0 ? (
-            <p className="text-xs py-2" style={{ color: 'var(--status-success)' }}>✓ All received agreements have valid originals</p>
+          {report.agreementsByUser.every(u => u.total === 0) ? (
+            <p className="text-xs py-2" style={{ color: 'var(--text-tertiary)' }}>No agreements found for any user</p>
           ) : (
             <div className="space-y-2">
-              {report.orphanedAgreements.map((o, i) => (
-                <div key={i} className="rounded-lg px-4 py-3 text-xs leading-relaxed"
-                  style={{ backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                  <span style={{ color: 'var(--status-warning)' }}>⚠ </span>
-                  <span style={{ color: 'var(--text-secondary)' }}>
-                    uid:{String(o.uid).slice(0, 8)} has orphaned received agreement &quot;{o.agreement.templateName ?? o.agreement.id}&quot; — original sender uid:{String(o.senderId).slice(0, 8)} not found
-                  </span>
+              {report.agreementsByUser.filter(u => u.total > 0).map(({ user, uid, total, receivedCount, sentCount, received }) => (
+                <div key={uid} className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)' }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{user.name}</span>
+                    <div className="flex items-center gap-3 text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
+                      <span>{total} total</span>
+                      <span style={{ color: receivedCount > 0 ? '#534AB7' : 'var(--text-tertiary)' }}>↓ {receivedCount} received</span>
+                      <span>↑ {sentCount} sent</span>
+                    </div>
+                  </div>
+                  {receivedCount > 0 ? (
+                    <div className="space-y-1">
+                      {received.map((a, i) => (
+                        <div key={a.id ?? i} className="flex items-center gap-2 text-[11px] px-2 py-1.5 rounded flex-wrap" style={{ backgroundColor: 'var(--bg-surface)' }}>
+                          <span style={{ color: 'var(--text-tertiary)' }}>from</span>
+                          <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{a.signerName ?? '—'}</span>
+                          <span style={{ color: 'var(--text-tertiary)' }}>·</span>
+                          <span style={{ color: 'var(--text-secondary)', flex: 1, minWidth: 0 }}>{a.templateName ?? 'Unknown template'}</span>
+                          <span className="px-1.5 py-0.5 rounded-full flex-shrink-0 text-[10px]" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-tertiary)' }}>{a.status ?? '—'}</span>
+                          {a.receivedAt && (
+                            <span className="flex-shrink-0" style={{ color: 'var(--text-tertiary)' }}>{formatDate(a.receivedAt)}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>No received agreements</p>
+                  )}
                 </div>
               ))}
             </div>
