@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useMemo } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { IconBell, IconInbox, IconSun, IconMoon } from '@tabler/icons-react'
 import ProjectHeader from './ProjectHeader'
 import TabPanel from './TabPanel'
@@ -33,8 +33,49 @@ export default function Workstation({
   userRole = 'Owner',
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const { theme, setTheme } = useTheme()
   const isDark = theme === 'dark'
+
+  const searchParams = new URLSearchParams(location.search)
+  const urlOwnerUserId = searchParams.get('ownerUserId')
+  const isSharedProject = !!urlOwnerUserId && urlOwnerUserId !== String(currentUser?.id)
+
+  const projectMembers = useMemo(() => {
+    try {
+      const ownerId = isSharedProject ? urlOwnerUserId : String(currentUser?.id)
+      const pid = String(activeProject?.id)
+      if (!ownerId || !pid) return activeProject?.members ?? []
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const proj = (allData[ownerId]?.projects || []).find(p => String(p.id) === pid)
+      return proj?.members || activeProject?.members || []
+    } catch { return activeProject?.members ?? [] }
+  }, [activeProject, isSharedProject, urlOwnerUserId, currentUser])
+
+  const myRole = useMemo(() => {
+    if (!isSharedProject) return userRole
+    try {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const refs = allData[String(currentUser?.id)]?.sharedProjects || []
+      const ref = refs.find(sp => String(sp.projectId) === String(activeProject?.id))
+      return ref?.role || userRole || 'Member'
+    } catch { return userRole || 'Member' }
+  }, [activeProject, isSharedProject, currentUser, userRole])
+
+  const allMembers = useMemo(() => {
+    if (!isSharedProject || !currentUser) return projectMembers
+    const existingIds = projectMembers.map(m => String(m.userId || m.id))
+    if (existingIds.includes(String(currentUser.id))) return projectMembers
+    return [...projectMembers, {
+      id: String(currentUser.id),
+      userId: String(currentUser.id),
+      name: currentUser.name,
+      role: myRole,
+      position: myRole,
+      initials: currentUser.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+      joinedAt: new Date().toISOString(),
+    }]
+  }, [projectMembers, currentUser, isSharedProject, myRole])
 
   const [project, setProject] = useState(() => ({
     title:          activeProject?.title          ?? '',
@@ -56,9 +97,9 @@ export default function Workstation({
     createdEndDate: activeProject?.createdEndDate ?? null,
     createdAt:      activeProject?.createdAt      ?? null,
   }))
-  const members = activeProject?.members ?? []
+
   function setMembers(updater) {
-    const next = typeof updater === 'function' ? updater(members) : updater
+    const next = typeof updater === 'function' ? updater(allMembers) : updater
     onUpdateProject?.({ members: next })
   }
   const [messages, setMessages] = useState([])
@@ -80,7 +121,7 @@ export default function Workstation({
     <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
 
 {/* Observer read-only banner */}
-      {userRole === 'Observer' && (
+      {myRole === 'Observer' && (
         <div className="max-w-7xl mx-auto px-6 pt-4">
           <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm" style={{ backgroundColor: 'rgba(83,74,183,0.08)', border: '1px solid rgba(83,74,183,0.2)', color: '#534AB7' }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -103,7 +144,7 @@ export default function Workstation({
             onScheduleMeeting={() => setScheduleMeetingOpen(true)}
             onAddCalendarEvent={(ev) => setCalendarEvents(prev => [...prev, ev])}
             onMilestonesChange={(milestones) => onUpdateProject?.({ milestones })}
-            userRole={userRole}
+            userRole={myRole}
           />
           <TabPanel
             messages={messages}     setMessages={setMessages}
@@ -111,7 +152,7 @@ export default function Workstation({
             events={calendarEvents} setEvents={setCalendarEvents}
             links={links}           setLinks={setLinks}
             onOpenCalendar={() => setCalendarOpen(true)}
-            members={members}
+            members={allMembers}
             applications={applications}
             setApplications={setApplications}
             agreements={agreements}
@@ -124,7 +165,7 @@ export default function Workstation({
             users={users}
             onAddNotificationForUser={onAddNotificationForUser}
             onAddDirectMessageForUser={onAddDirectMessageForUser}
-            userRole={userRole}
+            userRole={myRole}
           />
         </div>
         <div className="flex flex-col gap-4">
@@ -132,9 +173,9 @@ export default function Workstation({
             budget={activeProject?.budget}
             onUpdateBudget={(b) => onUpdateProject?.({ budget: b })}
             projectId={activeProject?.id}
-            userRole={userRole}
+            userRole={myRole}
           />
-          <TeamMembers members={members} setMembers={setMembers} projectId={activeProject?.id} agreements={agreements} userRole={userRole} />
+          <TeamMembers members={allMembers} setMembers={setMembers} projectId={activeProject?.id} agreements={agreements} userRole={myRole} />
         </div>
       </div>
 

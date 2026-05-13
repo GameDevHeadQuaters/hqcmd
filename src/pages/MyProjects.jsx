@@ -371,7 +371,7 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
                             </div>
                           </div>
                           <button
-                            onClick={() => navigate(`/workstation?projectId=${project.id}&ownerUserId=${project._ownerUserId}`)}
+                            onClick={() => { setActiveOwnerUserId?.(project._ownerUserId); setActiveProjectId(project.id); navigate('/workstation') }}
                             style={{ width: '100%', padding: '8px', borderRadius: '9999px', border: 'none', background: 'var(--brand-accent)', color: 'white', fontSize: '12px', fontWeight: '500', cursor: 'pointer' }}
                           >
                             Open Workstation
