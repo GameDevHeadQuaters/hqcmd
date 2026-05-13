@@ -222,21 +222,23 @@ function UsersTab({ users, setUsers }) {
 // ── Beta Requests Tab ─────────────────────────────────────────────────────────
 
 function BetaRequestsTab() {
-  const [requests, setRequests]   = useState(() => readLS(BETA_KEY, []))
-  const [filter, setFilter]       = useState('all')
+  const [requests, setRequests]       = useState(() => readLS(BETA_KEY, []))
+  const [filter, setFilter]           = useState('all')
   const [generatedCodes, setGeneratedCodes] = useState({}) // reqId → code
-  const [copied, setCopied]       = useState({})
+  const [copied, setCopied]           = useState({})
+  const [approvalFeedback, setApprovalFeedback] = useState({}) // reqId → { success, code, email }
 
   function persist(next) { setRequests(next); writeLS(BETA_KEY, next) }
 
-  function approve(req) {
+  async function approve(req) {
     const code = genCode()
     const codes = readLS(CODE_KEY, [])
     codes.push({ code, createdAt: new Date().toISOString(), used: false, usedBy: null, usedAt: null, forEmail: req.email })
     writeLS(CODE_KEY, codes)
     setGeneratedCodes(p => ({ ...p, [req.id]: code }))
     const { subject, html } = betaApprovedEmail(req.name, code)
-    sendEmail({ to: req.email, subject, html })
+    const emailSent = await sendEmail({ to: req.email, subject, html })
+    setApprovalFeedback(p => ({ ...p, [req.id]: { success: emailSent, code, email: req.email } }))
     persist(requests.map(r => r.id === req.id ? { ...r, status: 'approved', inviteCode: code, reviewedAt: new Date().toISOString() } : r))
   }
 
@@ -314,6 +316,17 @@ function BetaRequestsTab() {
                     </div>
                   )}
                 </div>
+                {approvalFeedback[req.id] && (
+                  <div className="mt-2 text-xs font-medium px-2 py-1.5 rounded" style={{
+                    backgroundColor: approvalFeedback[req.id].success ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)',
+                    color: approvalFeedback[req.id].success ? 'var(--status-success)' : 'var(--status-warning)',
+                  }}>
+                    {approvalFeedback[req.id].success
+                      ? `✓ Approved! Invite code ${approvalFeedback[req.id].code} sent to ${approvalFeedback[req.id].email}`
+                      : `✓ Approved! Email failed — send code manually: ${approvalFeedback[req.id].code}`
+                    }
+                  </div>
+                )}
               </div>
             )
           })}

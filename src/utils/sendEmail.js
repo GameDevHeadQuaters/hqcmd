@@ -76,8 +76,11 @@ export async function sendEmail({ to, subject, html }) {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       console.warn('[sendEmail] failed:', err.error ?? res.status)
+      return false
     }
+    return true
   } catch (err) {
     console.warn('[sendEmail] network error:', err)
+    return false
   }
 }
