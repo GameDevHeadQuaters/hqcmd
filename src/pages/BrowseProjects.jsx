@@ -17,14 +17,48 @@ const CATEGORIES = ['All', 'RPG', 'Action', 'Puzzle', 'Platformer', 'Strategy', 
 const COMPENSATIONS = ['All', 'Paid', 'Rev Share', 'Volunteer', 'Grant']
 const CARD_BORDERS = ['#534AB7', '#805da8', '#ed2793']
 
-function ApplyModal({ project, onClose, onAddApplication, onAddNotification }) {
+const ROLE_KEYWORDS = {
+  programmer: ['code', 'program', 'develop', 'unity', 'unreal', 'javascript', 'python', 'c#', 'c++', 'software', 'engineer'],
+  artist:     ['art', 'illustrat', 'draw', 'paint', 'sketch', 'photoshop', 'blender', '3d', 'concept', 'pixel'],
+  audio:      ['music', 'audio', 'sound', 'compose', 'mix', 'ableton', 'fl studio', 'pro tools'],
+  writer:     ['writ', 'narrative', 'story', 'script', 'dialogue', 'author', 'content'],
+  marketing:  ['market', 'social', 'seo', 'advertis', 'brand', 'growth', 'campaign'],
+  designer:   ['design', 'ui', 'ux', 'figma', 'sketch', 'interface'],
+  film:       ['film', 'video', 'edit', 'direct', 'cinemat', 'after effects', 'premiere'],
+}
+
+function roleHasKeywords(roleName) {
+  const lower = roleName.toLowerCase()
+  return Object.values(ROLE_KEYWORDS).some(kws => kws.some(k => lower.includes(k)))
+}
+
+function userSkillsMatchRole(userSkills, roleName) {
+  const lower = roleName.toLowerCase()
+  for (const kws of Object.values(ROLE_KEYWORDS)) {
+    if (kws.some(k => lower.includes(k))) {
+      return (userSkills ?? []).some(skill => kws.some(k => skill.toLowerCase().includes(k)))
+    }
+  }
+  return true // unknown/custom role — allow through
+}
+
+function checkProfileComplete(user) {
+  return !!(
+    user?.name?.trim() &&
+    (user?.bio?.trim()?.length ?? 0) >= 20 &&
+    (user?.skills?.length ?? 0) >= 1 &&
+    user?.role?.trim()
+  )
+}
+
+function ApplyModal({ project, currentUser, onClose, onAddApplication, onAddNotification }) {
   const [role, setRole] = useState(project.roles[0] || '')
-  const [name, setName] = useState('')
+  const [name, setName] = useState(currentUser?.name ?? '')
   const [message, setMessage] = useState('')
   const [sent, setSent] = useState(false)
 
   function submit() {
-    const applicantName = name.trim() || 'Anonymous'
+    const applicantName = currentUser?.name ?? (name.trim() || 'Anonymous')
     onAddApplication({
       id: Date.now(),
       projectId: project.originalId ?? project.id,
@@ -96,16 +130,22 @@ function ApplyModal({ project, onClose, onAddApplication, onAddNotification }) {
               {project.roles.map(r => <option key={r}>{r}</option>)}
             </select>
           </div>
-          <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Your Name</label>
-            <input
-              className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
-              style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-              placeholder="Alex Chen"
-              value={name}
-              onChange={e => setName(e.target.value)}
-            />
-          </div>
+          {currentUser ? (
+            <p className="text-xs py-1" style={{ color: 'var(--text-secondary)' }}>
+              Applying as <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{currentUser.name}</span>
+            </p>
+          ) : (
+            <div>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Your Name</label>
+              <input
+                className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
+                style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                placeholder="Alex Chen"
+                value={name}
+                onChange={e => setName(e.target.value)}
+              />
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Message</label>
             <textarea
@@ -357,10 +397,28 @@ export default function BrowseProjects({
   const [applyProject, setApplyProject] = useState(null)
   const [msgProject,   setMsgProject]   = useState(null)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
+  const [applyAlert, setApplyAlert] = useState(null) // { type: 'incomplete' | 'skill_mismatch' }
 
   function requireAuth(cb) {
     if (!currentUser) { navigate('/login', { state: { from: 'browse', message: 'Sign in to apply or message project owners.' } }); return }
     cb()
+  }
+
+  function handleApply(project) {
+    requireAuth(() => {
+      if (!checkProfileComplete(currentUser)) {
+        setApplyAlert({ type: 'incomplete' })
+        return
+      }
+      const knownRoles = (project.roles ?? []).filter(r => roleHasKeywords(r))
+      const hasSkillMatch = knownRoles.length === 0 ||
+        knownRoles.some(r => userSkillsMatchRole(currentUser?.skills, r))
+      if (!hasSkillMatch) {
+        setApplyAlert({ type: 'skill_mismatch' })
+        return
+      }
+      setApplyProject(project)
+    })
   }
 
   const allProjects = []
@@ -583,7 +641,7 @@ export default function BrowseProjects({
                 project={p}
                 borderColor={CARD_BORDERS[i % 3]}
                 isOwnProject={currentUser?.id === p.ownerId}
-                onApply={() => requireAuth(() => setApplyProject(p))}
+                onApply={() => handleApply(p)}
                 onMessage={() => requireAuth(() => setMsgProject(p))}
               />
             ))}
@@ -591,9 +649,43 @@ export default function BrowseProjects({
         )}
       </div>
 
+      {applyAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setApplyAlert(null)} />
+          <div className="relative rounded-xl shadow-2xl w-full max-w-sm p-6"
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-strong)' }}>
+            <h3 className="font-semibold text-sm mb-2" style={{ color: 'var(--text-primary)' }}>
+              {applyAlert.type === 'incomplete' ? 'Complete your profile first' : 'Skills don\'t match this role'}
+            </h3>
+            <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>
+              {applyAlert.type === 'incomplete'
+                ? 'Complete your profile before applying — you need a bio (20+ chars), at least one skill, and a role/title.'
+                : 'Your profile skills don\'t match this role. Update your profile to add relevant skills.'}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setApplyAlert(null); navigate(`/profile/${currentUser?.id}`) }}
+                className="flex-1 py-2 rounded-full text-sm font-medium text-white transition-opacity hover:opacity-80"
+                style={{ backgroundColor: ACCENT }}>
+                {applyAlert.type === 'incomplete' ? 'Go to Profile →' : 'Update Skills →'}
+              </button>
+              <button
+                onClick={() => setApplyAlert(null)}
+                className="flex-1 py-2 rounded-full text-sm font-medium transition-colors"
+                style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {applyProject && (
         <ApplyModal
           project={applyProject}
+          currentUser={currentUser}
           onClose={() => setApplyProject(null)}
           onAddApplication={(app) => {
             onAddApplicationToOwner(applyProject.ownerId, app)

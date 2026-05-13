@@ -1,0 +1,557 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  IconArrowLeft, IconCommand, IconUsers, IconChevronDown, IconChevronUp,
+  IconClock, IconAlertTriangle,
+} from '@tabler/icons-react'
+import AgreementSendModal from '../components/AgreementSendModal'
+
+const ACCENT = '#534AB7'
+const UD_KEY = 'hqcmd_userData_v4'
+const POSITIONS = ['Owner', 'Co-leader', 'Member', 'Contributor', 'Observer']
+
+function readAllUD() {
+  try { return JSON.parse(localStorage.getItem(UD_KEY)) ?? {} } catch { return {} }
+}
+
+function formatDate(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function initials(name) {
+  return (name ?? '').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+}
+
+const AVATAR_COLORS = ['#534AB7', '#7c3aed', '#0891b2', '#059669', '#d97706', '#db2777']
+function hashColor(name) {
+  let h = 0
+  for (const c of (name ?? '')) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length]
+}
+
+function RemoveModal({ member, agreements, projectId, onConfirm, onClose }) {
+  const [nameInput, setNameInput] = useState('')
+
+  const signedAgreements = (agreements ?? []).filter(a =>
+    a.status === 'fully_signed' &&
+    String(a.projectId) === String(projectId) &&
+    (a.counterpartyName?.toLowerCase() === member.name.toLowerCase() ||
+     a.signerName?.toLowerCase() === member.name.toLowerCase())
+  )
+
+  const canConfirm = nameInput.trim().toLowerCase() === member.name.toLowerCase()
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative rounded-xl shadow-2xl w-full max-w-sm p-6"
+        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-strong)' }}>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0"
+            style={{ backgroundColor: member.avatarColor ?? ACCENT }}>
+            {member.initials || initials(member.name)}
+          </div>
+          <div>
+            <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Remove {member.name}?</h3>
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>This action cannot be undone.</p>
+          </div>
+        </div>
+        {signedAgreements.length > 0 && (
+          <div className="rounded-lg p-3 mb-4 flex items-start gap-2"
+            style={{ backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
+            <IconAlertTriangle size={14} style={{ color: 'var(--status-warning)', flexShrink: 0, marginTop: 1 }} />
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              <span className="font-semibold" style={{ color: 'var(--status-warning)' }}>{member.name}</span> has an active signed agreement. Removing them may constitute a breach of contract. Seek legal advice before proceeding.
+            </p>
+          </div>
+        )}
+        <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+          Type <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{member.name}</span> to confirm:
+        </p>
+        <input
+          className="w-full text-sm rounded-lg px-3 py-2 outline-none mb-4"
+          style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+          placeholder={member.name}
+          value={nameInput}
+          onChange={e => setNameInput(e.target.value)}
+          autoFocus
+        />
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2 rounded-full text-sm font-medium transition-colors"
+            style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+            Cancel
+          </button>
+          <button onClick={canConfirm ? onConfirm : undefined} className="flex-1 py-2 rounded-full text-sm font-medium text-white"
+            style={{ backgroundColor: canConfirm ? '#dc2626' : 'rgba(220,38,38,0.4)', cursor: canConfirm ? 'pointer' : 'not-allowed' }}>
+            Remove Member
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function TeamsPage({
+  currentUser,
+  projects,
+  agreements,
+  setAgreements,
+  applications,
+  users,
+  onUpdateProject,
+  setActiveProjectId,
+  setActiveOwnerUserId,
+  onAddNotificationForUser,
+  onAddDirectMessageForUser,
+  getProjectImage,
+}) {
+  const navigate = useNavigate()
+
+  const [expanded, setExpanded] = useState(new Set())
+  const [sendTarget, setSendTarget] = useState(null)   // { member, project, app? }
+  const [removeTarget, setRemoveTarget] = useState(null) // { member, project }
+  const [pendingPositions, setPendingPositions] = useState({}) // `${projectId}-${memberId}` → position
+  const [positionFeedback, setPositionFeedback] = useState({}) // same key → msg
+
+  // ── Build combined owned + shared project list ────────────────────────────
+  const ownEntries = (projects ?? []).map(p => ({
+    ...p,
+    userRole: 'Owner',
+    isOwned: true,
+  }))
+
+  const allUD = readAllUD()
+  const sharedEntries = []
+  Object.entries(allUD).forEach(([uid, data]) => {
+    if (String(uid) === String(currentUser?.id)) return
+    const ownerUser = (users ?? []).find(u => String(u.id) === uid)
+    if (!ownerUser) return
+    ;(data.projects ?? []).forEach(p => {
+      const memberEntry = (p.members ?? []).find(m =>
+        (m.userId && String(m.userId) === String(currentUser?.id)) ||
+        m.name?.toLowerCase() === currentUser?.name?.toLowerCase()
+      )
+      if (memberEntry) {
+        sharedEntries.push({
+          ...p,
+          ownerUserId: uid,
+          ownerName: ownerUser.name,
+          userRole: memberEntry.position ?? 'Member',
+          isOwned: false,
+        })
+      }
+    })
+  })
+
+  const allEntries = [...ownEntries, ...sharedEntries]
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  const totalProjects = allEntries.length
+  const allMemberNames = new Set()
+  allEntries.forEach(p => (p.members ?? []).forEach(m => allMemberNames.add(m.name)))
+  const totalMembers = allMemberNames.size
+  const pendingOnboardingCount = (applications ?? []).filter(a =>
+    ['accepted_pending_agreement', 'agreement_sent'].includes(a.status)
+  ).length
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function toggleExpand(projectId) {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      next.has(projectId) ? next.delete(projectId) : next.add(projectId)
+      return next
+    })
+  }
+
+  function posKey(projectId, memberId) {
+    return `${projectId}-${memberId}`
+  }
+
+  function getMemberAgreementStatus(member, projectId) {
+    const matching = (agreements ?? []).filter(a =>
+      String(a.projectId) === String(projectId) &&
+      (a.counterpartyName?.toLowerCase() === member.name.toLowerCase() ||
+       a.signerName?.toLowerCase() === member.name.toLowerCase())
+    )
+    if (!matching.length) return { type: 'none' }
+    const signed = matching.find(a => a.status === 'fully_signed')
+    if (signed) return { type: 'signed', date: signed.signedAt ?? signed.createdAt }
+    return { type: 'sent' }
+  }
+
+  function savePosition(project, member) {
+    const key = posKey(project.id, member.id)
+    const position = pendingPositions[key]
+    if (!position) return
+    onUpdateProject(project.id, {
+      members: (project.members ?? []).map(m => m.id === member.id ? { ...m, position } : m),
+    })
+    const msg = `Role updated to ${position}`
+    setPositionFeedback(prev => ({ ...prev, [key]: msg }))
+    setPendingPositions(prev => { const n = { ...prev }; delete n[key]; return n })
+    setTimeout(() => setPositionFeedback(prev => { const n = { ...prev }; delete n[key]; return n }), 2000)
+  }
+
+  function removeMember(project, member) {
+    onUpdateProject(project.id, {
+      members: (project.members ?? []).filter(m => m.id !== member.id),
+    })
+    setRemoveTarget(null)
+  }
+
+  function getRecipientEmail(member) {
+    const u = (users ?? []).find(u =>
+      (member.userId && String(u.id) === String(member.userId)) ||
+      u.name?.toLowerCase() === member.name?.toLowerCase()
+    )
+    return u?.email ?? ''
+  }
+
+  function canManage(userRole) {
+    return userRole === 'Owner' || userRole === 'Co-leader'
+  }
+
+  function getPendingOnboarding(project) {
+    if (!project.isOwned) return []
+    return (applications ?? []).filter(a =>
+      String(a.projectId) === String(project.id) &&
+      ['accepted_pending_agreement', 'agreement_sent'].includes(a.status)
+    )
+  }
+
+  const fi = e => (e.target.style.borderColor = ACCENT)
+  const fb = e => (e.target.style.borderColor = 'var(--border-default)')
+
+  return (
+    <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+      {/* Nav */}
+      <nav className="hq-nav px-6 h-14 flex items-center gap-3 sticky top-0 z-10" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+        <button onClick={() => navigate(-1)} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--text-tertiary)' }}
+          onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+          onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+          <IconArrowLeft size={18} />
+        </button>
+        <button onClick={() => navigate('/')} className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)' }}>
+            <IconCommand size={13} color="white" />
+          </div>
+          <span className="font-bold text-sm tracking-tight" style={{
+            background: 'linear-gradient(90deg, #534AB7, #805da8, #ed2793)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+          }}>HQCMD</span>
+        </button>
+        <span style={{ color: 'var(--border-strong)' }} className="mx-0.5">|</span>
+        <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>My Teams</span>
+      </nav>
+
+      {/* Banner */}
+      <div className="px-6 py-8" style={{ background: 'linear-gradient(135deg, #534AB7 0%, #805da8 50%, #ed2793 100%)' }}>
+        <div className="max-w-5xl mx-auto">
+          <h1 className="text-2xl font-bold text-white mb-1">My Teams</h1>
+          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>Manage your team members across all projects</p>
+        </div>
+      </div>
+
+      <div className="max-w-5xl mx-auto px-6 py-6">
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {[
+            { label: 'Total Projects',      value: totalProjects },
+            { label: 'Team Members',        value: totalMembers },
+            { label: 'Pending Onboarding',  value: pendingOnboardingCount },
+          ].map(({ label, value }) => (
+            <div key={label} className="rounded-lg p-4 text-center" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+              <div className="text-2xl font-bold mb-0.5" style={{ color: ACCENT }}>{value}</div>
+              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Empty state */}
+        {allEntries.length === 0 && (
+          <div className="rounded-lg p-12 flex flex-col items-center text-center" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+            <IconUsers size={40} style={{ color: 'var(--brand-purple)' }} className="mb-3" />
+            <h2 className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>No teams yet</h2>
+            <p className="text-sm mb-4" style={{ color: 'var(--text-tertiary)' }}>Create a project or join one to get started</p>
+            <button onClick={() => navigate('/projects')}
+              className="px-4 py-2 rounded-full text-sm font-medium text-white transition-opacity hover:opacity-80"
+              style={{ backgroundColor: ACCENT }}>
+              My Projects
+            </button>
+          </div>
+        )}
+
+        {/* Project sections */}
+        <div className="space-y-4">
+          {allEntries.map(project => {
+            const isOpen = expanded.has(project.id)
+            const coverImage = getProjectImage?.(project.id)
+            const members = project.members ?? []
+            const pendingOnboarding = getPendingOnboarding(project)
+            const isManager = canManage(project.userRole)
+
+            return (
+              <div key={project.id} className="rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+                {/* Section header */}
+                <button
+                  onClick={() => toggleExpand(project.id)}
+                  className="w-full flex items-center gap-3 px-5 py-4 text-left transition-colors"
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
+                >
+                  <div className="w-10 h-10 rounded-lg flex-shrink-0"
+                    style={coverImage
+                      ? { backgroundImage: `url(${coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                      : { background: 'linear-gradient(135deg, #534AB7, #805da8)' }
+                    }
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{project.title}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: 'var(--brand-accent-glow)', color: ACCENT }}>{project.userRole}</span>
+                      <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{members.length} member{members.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    {!project.isOwned && (
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Owner: {project.ownerName}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={e => {
+                      e.stopPropagation()
+                      setActiveProjectId?.(project.id)
+                      setActiveOwnerUserId?.(project.isOwned ? null : project.ownerUserId)
+                      navigate('/workstation')
+                    }}
+                    className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors flex-shrink-0"
+                    style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                  >
+                    Open Workstation
+                  </button>
+                  {isOpen
+                    ? <IconChevronUp size={16} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+                    : <IconChevronDown size={16} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />}
+                </button>
+
+                {/* Expanded */}
+                {isOpen && (
+                  <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                    {members.length === 0 ? (
+                      <div className="px-5 py-6 text-center">
+                        <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No team members yet.</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                              {['Member', 'Role', 'Agreement', 'Joined', ...(isManager ? ['Actions'] : [])].map(h => (
+                                <th key={h} className="text-left text-xs font-medium px-5 py-2.5" style={{ color: 'var(--text-tertiary)' }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {members.map((m, i) => {
+                              const agStatus = project.isOwned ? getMemberAgreementStatus(m, project.id) : { type: 'unknown' }
+                              const pk = posKey(project.id, m.id)
+                              const pendingPos = pendingPositions[pk]
+                              const feedback = positionFeedback[pk]
+                              const av = m.avatarColor ?? hashColor(m.name)
+
+                              return (
+                                <tr key={m.id} style={{ borderBottom: i < members.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                                  {/* Avatar + Name */}
+                                  <td className="px-5 py-3">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                                        style={{ backgroundColor: av }}>
+                                        {m.initials || initials(m.name)}
+                                      </div>
+                                      <div>
+                                        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{m.name}</p>
+                                        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{m.role}</p>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  {/* Role dropdown (owned only) */}
+                                  <td className="px-5 py-3">
+                                    {project.isOwned ? (
+                                      <div className="flex items-center gap-2">
+                                        <select
+                                          className="text-xs rounded-lg px-2.5 py-1.5 outline-none appearance-none cursor-pointer"
+                                          style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                                          value={pendingPos ?? m.position ?? 'Member'}
+                                          onChange={e => {
+                                            const val = e.target.value
+                                            if (val === (m.position ?? 'Member')) {
+                                              setPendingPositions(prev => { const n = { ...prev }; delete n[pk]; return n })
+                                            } else {
+                                              setPendingPositions(prev => ({ ...prev, [pk]: val }))
+                                            }
+                                          }}
+                                          onFocus={fi} onBlur={fb}
+                                        >
+                                          {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                                        </select>
+                                        {feedback ? (
+                                          <span className="text-xs" style={{ color: 'var(--status-success)' }}>{feedback}</span>
+                                        ) : pendingPos ? (
+                                          <button onClick={() => savePosition(project, m)}
+                                            className="text-xs font-medium px-2.5 py-1 rounded-full text-white transition-opacity hover:opacity-80"
+                                            style={{ backgroundColor: ACCENT }}>
+                                            Save Role
+                                          </button>
+                                        ) : null}
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs px-2 py-0.5 rounded-full"
+                                        style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+                                        {m.position ?? 'Member'}
+                                      </span>
+                                    )}
+                                  </td>
+                                  {/* Agreement Status */}
+                                  <td className="px-5 py-3">
+                                    {agStatus.type === 'signed' ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-xs font-medium" style={{ color: 'var(--status-success)' }}>Signed ✓</span>
+                                        {agStatus.date && <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{formatDate(agStatus.date)}</span>}
+                                      </div>
+                                    ) : agStatus.type === 'sent' ? (
+                                      <div className="flex items-center gap-1">
+                                        <IconClock size={12} style={{ color: 'var(--status-warning)' }} />
+                                        <span className="text-xs font-medium" style={{ color: 'var(--status-warning)' }}>Awaiting Signature</span>
+                                      </div>
+                                    ) : agStatus.type === 'none' ? (
+                                      <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>None</span>
+                                    ) : (
+                                      <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>—</span>
+                                    )}
+                                  </td>
+                                  {/* Joined */}
+                                  <td className="px-5 py-3">
+                                    <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{formatDate(m.joinedAt)}</span>
+                                  </td>
+                                  {/* Actions */}
+                                  {isManager && (
+                                    <td className="px-5 py-3">
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          onClick={() => setSendTarget({ member: m, project })}
+                                          className="text-xs font-medium px-2.5 py-1 rounded-full border transition-colors"
+                                          style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+                                          onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
+                                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                                        >
+                                          Send Agreement
+                                        </button>
+                                        <button
+                                          onClick={() => setRemoveTarget({ member: m, project })}
+                                          className="text-xs font-medium px-2.5 py-1 rounded-full border transition-colors"
+                                          style={{ borderColor: 'rgba(239,68,68,0.3)', color: 'var(--status-error)' }}
+                                          onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--status-error)')}
+                                          onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)')}
+                                        >
+                                          Remove
+                                        </button>
+                                      </div>
+                                    </td>
+                                  )}
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Pending Onboarding subsection */}
+                    {pendingOnboarding.length > 0 && (
+                      <div style={{ borderTop: '1px solid var(--border-subtle)' }} className="px-5 py-4">
+                        <h4 className="text-xs font-semibold mb-3" style={{ color: 'var(--text-tertiary)' }}>
+                          PENDING ONBOARDING ({pendingOnboarding.length})
+                        </h4>
+                        <div className="space-y-2">
+                          {pendingOnboarding.map(app => {
+                            const isSent = app.status === 'agreement_sent'
+                            const stageStyle = isSent
+                              ? { bg: 'rgba(83,74,183,0.12)', color: ACCENT, label: 'Agreement Sent' }
+                              : { bg: 'rgba(34,197,94,0.12)', color: 'var(--status-success)', label: 'Accepted' }
+                            return (
+                              <div key={app.id} className="flex items-center gap-3 rounded-lg px-3 py-2.5"
+                                style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                                  style={{ backgroundColor: hashColor(app.applicantName) }}>
+                                  {initials(app.applicantName)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
+                                  <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
+                                </div>
+                                <span className="text-xs font-medium px-2 py-0.5 rounded-full"
+                                  style={{ backgroundColor: stageStyle.bg, color: stageStyle.color }}>
+                                  {stageStyle.label}
+                                </span>
+                                {!isSent && (
+                                  <button
+                                    onClick={() => setSendTarget({
+                                      member: { name: app.applicantName, userId: app.applicantId, initials: initials(app.applicantName) },
+                                      project,
+                                      app,
+                                    })}
+                                    className="text-xs font-medium px-2.5 py-1 rounded-full text-white transition-opacity hover:opacity-80"
+                                    style={{ backgroundColor: ACCENT }}>
+                                    Send Agreement
+                                  </button>
+                                )}
+                                {isSent && (
+                                  <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Awaiting signature</span>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* AgreementSendModal */}
+      {sendTarget && (
+        <AgreementSendModal
+          recipientName={sendTarget.member.name}
+          recipientEmail={getRecipientEmail(sendTarget.member)}
+          projectTitle={sendTarget.project.title}
+          projectId={sendTarget.project.id}
+          currentUser={currentUser}
+          users={users}
+          setAgreements={setAgreements}
+          onSave={() => setSendTarget(null)}
+          onAddNotificationForUser={onAddNotificationForUser}
+          onAddDirectMessageForUser={onAddDirectMessageForUser}
+          onClose={() => setSendTarget(null)}
+        />
+      )}
+
+      {/* RemoveModal */}
+      {removeTarget && (
+        <RemoveModal
+          member={removeTarget.member}
+          agreements={agreements}
+          projectId={removeTarget.project.id}
+          onConfirm={() => removeMember(removeTarget.project, removeTarget.member)}
+          onClose={() => setRemoveTarget(null)}
+        />
+      )}
+    </div>
+  )
+}

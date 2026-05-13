@@ -188,7 +188,7 @@ export default function TeamMembers({ members, setMembers, projectId, agreements
 
       {projectId && hasPermission(userRole, 'MANAGE_TEAM') && (
         <button
-          onClick={() => navigate(`/team/${projectId}`)}
+          onClick={() => navigate('/teams')}
           className="flex items-center justify-center gap-2 w-full mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors"
           style={{ border: '1px solid var(--border-default)', color: ACCENT, backgroundColor: 'transparent' }}
           onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--brand-accent-glow)')}

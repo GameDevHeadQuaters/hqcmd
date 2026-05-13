@@ -17,6 +17,7 @@ import ManageTeam from './pages/ManageTeam'
 import { IconMessages, IconBriefcase, IconWritingSign } from '@tabler/icons-react'
 import { crossUserPrepend, crossUserMap } from './utils/crossUserWrite'
 import AdminPanel from './pages/AdminPanel'
+import TeamsPage from './pages/TeamsPage'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Contact from './pages/Contact'
@@ -730,6 +731,25 @@ export default function App() {
             onCountersign={countersignAgreement}
             onNotifyOwner={addNotificationForUser}
           />
+        } />
+
+        <Route path="/teams" element={
+          currentUser ? (
+            <TeamsPage
+              currentUser={currentUser}
+              projects={projects}
+              agreements={agreements}
+              setAgreements={setAgreements}
+              applications={applications}
+              users={users}
+              onUpdateProject={updateProject}
+              setActiveProjectId={setActiveProjectId}
+              setActiveOwnerUserId={setActiveOwnerUserId}
+              onAddNotificationForUser={addNotificationForUser}
+              onAddDirectMessageForUser={addDirectMessageForUser}
+              getProjectImage={getProjectImage}
+            />
+          ) : <Navigate to="/login" replace />
         } />
 
         <Route path="/admin" element={

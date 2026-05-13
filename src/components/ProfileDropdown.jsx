@@ -18,12 +18,12 @@ export default function ProfileDropdown({ onClose, currentUser, onSignOut, onGoT
   const profilePath = `/profile/${currentUser?.id ?? 1}`
 
   const mainItems = [
-    { Icon: IconUser,            label: 'View Profile',     action: () => go(profilePath)                              },
-    { Icon: IconLayoutDashboard, label: 'My Projects',      action: () => go('/projects')                              },
-    { Icon: IconUsers,           label: 'My Projects & Teams', action: () => go('/projects')                              },
-    { Icon: IconInbox,           label: 'Inbox',            action: () => go('/inbox')                                 },
-    { Icon: IconFileText,        label: 'Agreements',       action: () => go('/agreements')                            },
-    { Icon: IconSettings,        label: 'Account Settings', action: () => go('/account')                               },
+    { Icon: IconUser,            label: 'View Profile',     action: () => go(profilePath)   },
+    { Icon: IconLayoutDashboard, label: 'My Projects',      action: () => go('/projects')   },
+    { Icon: IconUsers,           label: 'My Teams',         action: () => go('/teams')      },
+    { Icon: IconInbox,           label: 'Inbox',            action: () => go('/inbox')      },
+    { Icon: IconFileText,        label: 'Agreements',       action: () => go('/agreements') },
+    { Icon: IconSettings,        label: 'Account Settings', action: () => go('/account')    },
   ]
 
   return (

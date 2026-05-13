@@ -20,7 +20,9 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
   const navigate = useNavigate()
 
   const memberIdNum = parseInt(memberId, 10)
-  const isOwnProfile = currentUser && currentUser.id === memberIdNum
+  const isOwnProfile = currentUser && (
+    currentUser.id === memberIdNum || String(currentUser.id) === memberId
+  )
   const base = isOwnProfile ? currentUser : null
 
   const [member, setMember] = useState(base ? { ...base } : null)
@@ -28,24 +30,12 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
   const [draft, setDraft] = useState(null)
   const [newSkill, setNewSkill] = useState('')
 
-  if (!member) {
-    return (
-      <div className="min-h-screen flex items-center justify-center"
-        style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)' }}>
-        <div className="text-center">
-          <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>This member hasn't set up their profile yet.</p>
-          <button onClick={() => navigate('/workstation')} className="text-sm font-semibold transition-opacity hover:opacity-80" style={{ color: ACCENT }}>
-            ← Back to workstation
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  const rc = ROLE_COLORS[member.role] || { bg: 'var(--bg-elevated)', text: 'var(--text-tertiary)' }
+  const fa = e => (e.target.style.borderColor = ACCENT)
+  const fb = e => (e.target.style.borderColor = 'var(--border-default)')
 
   function startEdit() {
-    setDraft({ bio: member.bio || '', role: member.role || '', skills: [...(member.skills || [])] })
+    const src = member ?? currentUser
+    setDraft({ bio: src?.bio || '', role: src?.role || '', skills: [...(src?.skills || [])] })
     setNewSkill('')
     setEditing(true)
   }
@@ -57,10 +47,18 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
   }
 
   function saveEdit() {
-    const updated = { ...member, bio: draft.bio, role: draft.role, skills: draft.skills }
+    const updates = { bio: draft.bio, role: draft.role, skills: draft.skills }
+    const updated = { ...(member ?? currentUser), ...updates }
     setMember(updated)
-    if (isOwnProfile) {
-      setCurrentUser?.(prev => ({ ...prev, bio: draft.bio, role: draft.role, skills: draft.skills }))
+    if (currentUser?.id) {
+      setCurrentUser?.(prev => ({ ...prev, ...updates }))
+      try {
+        const raw = localStorage.getItem('hqcmd_users_v3')
+        const list = raw ? JSON.parse(raw) : []
+        localStorage.setItem('hqcmd_users_v3', JSON.stringify(
+          list.map(u => String(u.id) === String(currentUser.id) ? { ...u, ...updates } : u)
+        ))
+      } catch {}
     }
     setEditing(false)
     setDraft(null)
@@ -77,15 +75,159 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
     setNewSkill('')
   }
 
-  const fa = e => (e.target.style.borderColor = ACCENT)
-  const fb = e => (e.target.style.borderColor = 'var(--border-default)')
+  // ── Setup flow: member not found but user is logged in ─────────────────────
+  if (!member) {
+    if (!currentUser) {
+      return (
+        <div className="min-h-screen flex items-center justify-center"
+          style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)' }}>
+          <div className="text-center">
+            <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>This member hasn't set up their profile yet.</p>
+            <button onClick={() => navigate(-1)} className="text-sm font-semibold transition-opacity hover:opacity-80" style={{ color: ACCENT }}>
+              ← Go back
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    const setupInitials = currentUser.initials ||
+      (currentUser.name ?? '').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+
+    return (
+      <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+        <nav className="hq-nav px-6 h-14 flex items-center gap-3 sticky top-0 z-10" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+          <button onClick={() => navigate(-1)} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--text-tertiary)' }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+            <IconArrowLeft size={18} />
+          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate('/')} className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)' }}>
+                <IconCommand size={13} color="white" />
+              </div>
+              <span className="font-bold text-sm tracking-tight" style={{
+                background: 'linear-gradient(90deg, #534AB7, #805da8, #ed2793)',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+              }}>HQCMD</span>
+            </button>
+            <span style={{ color: 'var(--border-strong)' }} className="mx-1">|</span>
+            <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>My Profile</span>
+          </div>
+        </nav>
+
+        <div className="max-w-2xl mx-auto px-6 py-8 space-y-4">
+          {!editing ? (
+            <div className="rounded-lg p-8 flex flex-col items-center text-center" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+              <div className="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-4"
+                style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)' }}>
+                {setupInitials}
+              </div>
+              <h1 className="text-xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{currentUser.name}</h1>
+              <p className="text-sm mb-6" style={{ color: 'var(--text-tertiary)' }}>{currentUser.email}</p>
+              <button onClick={startEdit}
+                className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-80"
+                style={{ backgroundColor: ACCENT }}>
+                Set Up Your Profile
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="rounded-lg p-7" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+                <div className="flex items-start gap-5">
+                  <div className="w-16 h-16 rounded-lg flex items-center justify-center text-white text-xl font-bold flex-shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)' }}>
+                    {setupInitials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h1 className="text-xl font-bold mb-3" style={{ color: 'var(--text-primary)' }}>{currentUser.name}</h1>
+                    <input
+                      className="text-sm rounded-lg px-2.5 py-1.5 outline-none transition-colors mb-3 w-48"
+                      style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                      value={draft?.role ?? ''}
+                      onChange={e => setDraft(d => ({ ...d, role: e.target.value }))}
+                      onFocus={fa} onBlur={fb}
+                      placeholder="Your role / title"
+                    />
+                    <textarea
+                      rows={4}
+                      className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors resize-none"
+                      style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                      value={draft?.bio ?? ''}
+                      onChange={e => setDraft(d => ({ ...d, bio: e.target.value }))}
+                      onFocus={fa} onBlur={fb}
+                      placeholder="Tell the team about yourself…"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-4 pt-4" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                  <button onClick={saveEdit}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-white transition-opacity hover:opacity-80"
+                    style={{ backgroundColor: ACCENT }}>
+                    <IconCheck size={14} /> Save Profile
+                  </button>
+                  <button onClick={cancelEdit}
+                    className="px-4 py-2 rounded-full text-sm transition-colors"
+                    style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+              <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+                <h2 className="font-semibold text-sm mb-3" style={{ color: 'var(--text-primary)' }}>Skills</h2>
+                <div className="flex flex-wrap gap-2">
+                  {(draft?.skills ?? []).map(skill => (
+                    <span key={skill} className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full"
+                      style={{ border: '1px solid var(--border-default)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-elevated)' }}>
+                      {skill}
+                      <button onClick={() => removeSkill(skill)} className="leading-none ml-0.5 transition-colors"
+                        style={{ color: 'var(--text-tertiary)' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--status-error)')}
+                        onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}>
+                        <IconX size={11} />
+                      </button>
+                    </span>
+                  ))}
+                  {(draft?.skills ?? []).length === 0 && (
+                    <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No skills added yet.</p>
+                  )}
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <input
+                    className="flex-1 text-xs rounded-lg px-2.5 py-1.5 outline-none transition-colors"
+                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                    placeholder="Add skill…"
+                    value={newSkill}
+                    onChange={e => setNewSkill(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addSkill()}
+                    onFocus={fa} onBlur={fb}
+                  />
+                  <button onClick={addSkill}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium text-white transition-opacity hover:opacity-80"
+                    style={{ backgroundColor: ACCENT }}>
+                    <IconPlus size={12} /> Add
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Normal profile render ──────────────────────────────────────────────────
+  const rc = ROLE_COLORS[member.role] || { bg: 'var(--bg-elevated)', text: 'var(--text-tertiary)' }
 
   return (
     <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
       {/* Nav */}
       <nav className="hq-nav px-6 h-14 flex items-center gap-3 sticky top-0 z-10" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
         <button
-          onClick={() => navigate('/workstation')}
+          onClick={() => navigate(-1)}
           className="p-1.5 rounded-lg transition-colors"
           style={{ color: 'var(--text-tertiary)' }}
           onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
