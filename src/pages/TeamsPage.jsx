@@ -4,9 +4,10 @@ import {
   IconUsers, IconChevronDown, IconChevronUp,
   IconClock, IconAlertTriangle, IconUserPlus, IconCheck, IconX,
   IconWritingSign, IconUserCheck, IconCircleCheck, IconBriefcase,
-  IconArrowRight,
+  IconArrowRight, IconRefresh,
 } from '@tabler/icons-react'
 import AgreementSendModal from '../components/AgreementSendModal'
+import { sendEmail, accessGrantedEmail } from '../utils/sendEmail'
 
 const ACCENT = '#534AB7'
 const UD_KEY = 'hqcmd_userData_v4'
@@ -121,6 +122,7 @@ export default function TeamsPage({
   const [pendingPositions, setPendingPositions] = useState({})
   const [positionFeedback, setPositionFeedback] = useState({})
   const [pipelineTabs, setPipelineTabs] = useState({}) // projectId → stage tab
+  const [resendFeedback, setResendFeedback] = useState({})
 
   // ── Build combined owned + shared project list ────────────────────────────
   const ownEntries = (projects ?? []).map(p => ({
@@ -262,6 +264,123 @@ export default function TeamsPage({
         text: `Your application for ${app.role} on "${app.projectTitle}" was not accepted at this time.`,
         link: '/browse',
       })
+    }
+  }
+
+  function getAgreementStatus(app) {
+    if (app.agreementId) {
+      const ag = (agreements ?? []).find(a => a.id === app.agreementId)
+      if (ag?.status === 'fully_signed') return 'signed'
+      return 'sent'
+    }
+    if (app.status === 'agreement_sent') return 'sent'
+    return 'none'
+  }
+
+  function resendAgreement(app) {
+    const ag = (agreements ?? []).find(a => a.id === app.agreementId)
+    if (!ag?.shareToken) return
+    const recipientName = ag.counterpartyName || app.applicantName
+    navigator.clipboard.writeText(window.location.origin + '/sign/' + ag.shareToken).catch(() => {})
+    const counterparty = (users ?? []).find(u =>
+      (ag.counterpartyEmail && u.email?.toLowerCase() === ag.counterpartyEmail.toLowerCase()) ||
+      u.name?.toLowerCase() === recipientName.toLowerCase()
+    )
+    if (counterparty) {
+      const notifText = `${currentUser?.name ?? 'Someone'} has resent you an agreement to sign: "${ag.templateName}"`
+      onAddNotificationForUser?.(counterparty.id, { type: 'agreement', text: notifText, link: '/inbox' })
+    }
+    const msg = counterparty ? `Agreement resent to ${recipientName}` : `Link copied — share with ${recipientName}`
+    setResendFeedback(prev => ({ ...prev, [app.id]: msg }))
+    setTimeout(() => setResendFeedback(prev => { const n = { ...prev }; delete n[app.id]; return n }), 4000)
+  }
+
+  function grantAccess(app, project) {
+    if (getAgreementStatus(app) !== 'signed') return
+
+    console.log('[GRANT] Application object:', JSON.stringify(app))
+    const USERDATA_KEY = 'hqcmd_userData_v4'
+    const USERS_KEY = 'hqcmd_users_v3'
+    const allUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
+    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+    console.log('[GRANT] Looking for applicant email:', app.applicantEmail)
+    console.log('[GRANT] Available users:', allUsers.map(u => u.email))
+
+    const applicant = allUsers.find(u =>
+      (app.applicantEmail && u.email?.toLowerCase().trim() === app.applicantEmail.toLowerCase().trim()) ||
+      (app.applicantName && u.name?.toLowerCase().trim() === app.applicantName.toLowerCase().trim())
+    )
+    if (!applicant) {
+      console.error('[GRANT] Applicant not found!')
+      alert('Could not find this user\'s account. Make sure they have registered on HQCMD.')
+      return
+    }
+
+    const applicantId = String(applicant.id)
+    console.log('[GRANT] Found applicant:', applicantId, applicant.name)
+
+    if (!allData[applicantId]) {
+      allData[applicantId] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
+    }
+    if (!Array.isArray(allData[applicantId].sharedProjects)) allData[applicantId].sharedProjects = []
+    if (!Array.isArray(allData[applicantId].notifications)) allData[applicantId].notifications = []
+
+    const alreadyHasAccess = allData[applicantId].sharedProjects.some(sp =>
+      String(sp.projectId) === String(project.id)
+    )
+    if (alreadyHasAccess) {
+      console.log('[GRANT] Already has access — skipping duplicate')
+      alert(`${applicant.name} already has access to this project.`)
+      return
+    }
+
+    const sharedRef = {
+      id: String(Date.now()),
+      projectId: String(project.id),
+      ownerUserId: String(currentUser.id),
+      ownerName: currentUser.name,
+      projectTitle: project.title,
+      role: app.role || 'Member',
+      userRole: app.role || 'Member',
+      joinedAt: new Date().toISOString(),
+    }
+    allData[applicantId].sharedProjects.push(sharedRef)
+    console.log('[GRANT] sharedProjects after push:', allData[applicantId].sharedProjects.length)
+
+    allData[applicantId].notifications.push({
+      id: String(Date.now()) + '_notif',
+      type: 'access_granted',
+      iconType: 'application',
+      text: `You've been granted access to "${project.title}" as ${app.role || 'Member'}. Check My Projects!`,
+      time: 'Just now',
+      read: false,
+      timestamp: new Date().toISOString(),
+      link: '/projects',
+    })
+
+    try {
+      localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+      console.log('[GRANT] Saved successfully')
+      const verify = JSON.parse(localStorage.getItem(USERDATA_KEY))
+      console.log('[GRANT] Verification - sharedProjects:', verify[applicantId]?.sharedProjects)
+
+      if (applicant.email) {
+        const { subject, html } = accessGrantedEmail(applicant.name, project.title, currentUser.name)
+        sendEmail({ to: applicant.email, subject, html })
+      }
+
+      alert(`✓ Access granted! ${applicant.name} will see "${project.title}" in their My Projects.`)
+      onAcceptApplication?.(app)
+      updateApp({ ...app, status: 'access_granted', read: true })
+      onAddNotification?.({
+        type: 'application',
+        text: `${app.applicantName} has been granted access to ${project?.title ?? 'your project'} as ${app.role}.`,
+        link: '/workstation',
+      })
+      setPipelineTab(project.id, 'active')
+    } catch (e) {
+      console.error('[GRANT] Save failed:', e)
+      alert('Failed to save — please try again.')
     }
   }
 
@@ -553,54 +672,89 @@ export default function TeamsPage({
                           }
                           return (
                             <div className="space-y-2">
-                              {stageApps.map(app => (
-                                <div key={app.id} className="flex items-center gap-2.5 rounded-lg px-3 py-2.5" style={{ backgroundColor: 'var(--bg-elevated)' }}>
-                                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0"
-                                    style={{ backgroundColor: hashColor(app.applicantName) }}>
-                                    {initials(app.applicantName)}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
-                                    <p className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
-                                  </div>
-                                  {pipelineTab === 'applied' && (
-                                    <div className="flex items-center gap-1 flex-shrink-0">
-                                      <button
-                                        onClick={e => { e.stopPropagation(); acceptApp(app, project) }}
-                                        className="text-[10px] font-semibold px-2 py-1 rounded-full text-white transition-opacity hover:opacity-80"
-                                        style={{ backgroundColor: '#16a34a' }}>
-                                        Accept
-                                      </button>
-                                      <button
-                                        onClick={e => { e.stopPropagation(); declineApp(app) }}
-                                        className="text-[10px] font-semibold px-2 py-1 rounded-full border transition-colors"
-                                        style={{ borderColor: '#ed2793', color: '#ed2793' }}
-                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)')}
-                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
-                                        Decline
-                                      </button>
+                              {stageApps.map(app => {
+                                const agStatus = getAgreementStatus(app)
+                                const canGrant = agStatus === 'signed'
+                                return (
+                                  <div key={app.id} className="rounded-lg px-3 py-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                                    <div className="flex items-center gap-2.5 flex-wrap">
+                                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0"
+                                        style={{ backgroundColor: hashColor(app.applicantName) }}>
+                                        {initials(app.applicantName)}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
+                                        <p className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
+                                      </div>
+                                      {pipelineTab === 'applied' && (
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                          <button
+                                            onClick={e => { e.stopPropagation(); acceptApp(app, project) }}
+                                            className="text-[10px] font-semibold px-2 py-1 rounded-full text-white transition-opacity hover:opacity-80"
+                                            style={{ backgroundColor: '#16a34a' }}>
+                                            Accept
+                                          </button>
+                                          <button
+                                            onClick={e => { e.stopPropagation(); declineApp(app) }}
+                                            className="text-[10px] font-semibold px-2 py-1 rounded-full border transition-colors"
+                                            style={{ borderColor: '#ed2793', color: '#ed2793' }}
+                                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)')}
+                                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+                                            Decline
+                                          </button>
+                                        </div>
+                                      )}
+                                      {pipelineTab === 'accepted' && (
+                                        <button
+                                          onClick={e => { e.stopPropagation(); setSendTarget({ member: { name: app.applicantName, userId: app.applicantId, initials: initials(app.applicantName) }, project, app }) }}
+                                          className="text-[10px] font-semibold px-2 py-1 rounded-full text-white flex-shrink-0 transition-opacity hover:opacity-80"
+                                          style={{ backgroundColor: ACCENT }}>
+                                          Send Agreement
+                                        </button>
+                                      )}
+                                      {pipelineTab === 'agreement' && (
+                                        <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
+                                          {agStatus === 'sent' ? (
+                                            <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: 'var(--status-warning)' }}>
+                                              <IconClock size={10} /> Awaiting
+                                            </span>
+                                          ) : (
+                                            <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: 'var(--status-success)' }}>
+                                              <IconCircleCheck size={10} /> Signed
+                                            </span>
+                                          )}
+                                          {agStatus === 'sent' && (
+                                            <button
+                                              onClick={e => { e.stopPropagation(); resendAgreement(app) }}
+                                              className="flex items-center gap-0.5 text-[10px] font-medium px-2 py-1 rounded-full transition-colors"
+                                              style={{ border: '1px solid rgba(245,158,11,0.5)', color: 'var(--status-warning)', backgroundColor: 'rgba(245,158,11,0.08)' }}
+                                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.15)')}
+                                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.08)')}>
+                                              <IconRefresh size={9} /> Resend
+                                            </button>
+                                          )}
+                                          {resendFeedback[app.id] && (
+                                            <span className="text-[10px] font-medium" style={{ color: 'var(--status-success)' }}>{resendFeedback[app.id]}</span>
+                                          )}
+                                          <button
+                                            onClick={canGrant ? e => { e.stopPropagation(); grantAccess(app, project) } : undefined}
+                                            className="text-[10px] font-semibold px-2 py-1 rounded-full text-white flex-shrink-0"
+                                            style={{ backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)', cursor: canGrant ? 'pointer' : 'not-allowed' }}
+                                            onMouseEnter={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#15803d' }}
+                                            onMouseLeave={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#16a34a' }}>
+                                            Grant Access
+                                          </button>
+                                        </div>
+                                      )}
+                                      {pipelineTab === 'active' && (
+                                        <span className="flex items-center gap-1 text-[10px] font-semibold flex-shrink-0" style={{ color: 'var(--status-success)' }}>
+                                          <IconCircleCheck size={10} /> Active Member
+                                        </span>
+                                      )}
                                     </div>
-                                  )}
-                                  {pipelineTab === 'accepted' && (
-                                    <button
-                                      onClick={e => { e.stopPropagation(); setSendTarget({ member: { name: app.applicantName, userId: app.applicantId, initials: initials(app.applicantName) }, project, app }) }}
-                                      className="text-[10px] font-semibold px-2 py-1 rounded-full text-white flex-shrink-0 transition-opacity hover:opacity-80"
-                                      style={{ backgroundColor: ACCENT }}>
-                                      Send Agreement
-                                    </button>
-                                  )}
-                                  {pipelineTab === 'agreement' && (
-                                    <span className="flex items-center gap-1 text-[10px] font-medium flex-shrink-0" style={{ color: 'var(--status-warning)' }}>
-                                      <IconClock size={10} /> Awaiting signature
-                                    </span>
-                                  )}
-                                  {pipelineTab === 'active' && (
-                                    <span className="flex items-center gap-1 text-[10px] font-semibold flex-shrink-0" style={{ color: 'var(--status-success)' }}>
-                                      <IconCircleCheck size={10} /> Active
-                                    </span>
-                                  )}
-                                </div>
-                              ))}
+                                  </div>
+                                )
+                              })}
                             </div>
                           )
                         })()}
