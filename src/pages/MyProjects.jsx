@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconPlus, IconUsers, IconFolderOff, IconInbox, IconAlertTriangle, IconFileText, IconShare } from '@tabler/icons-react'
 import ProjectProfile from '../components/ProjectProfile'
@@ -194,18 +194,18 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
   const [creating, setCreating] = useState(false)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
 
-  // Read sharedProjects fresh from localStorage every render so cross-user grants appear immediately
-  const resolvedSharedProjects = useMemo(() => {
+  const [resolvedSharedProjects, setResolvedSharedProjects] = useState([])
+
+  useEffect(() => {
+    if (!currentUser?.id) { setResolvedSharedProjects([]); return }
     try {
       const allUserData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
       const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
-      const myRefs = allUserData[String(currentUser?.id)]?.sharedProjects ?? []
+      const myRefs = allUserData[String(currentUser.id)]?.sharedProjects ?? []
 
-      return myRefs.map(ref => {
+      const resolved = myRefs.map(ref => {
         const ownerData = allUserData[String(ref.ownerUserId)]
-        const project = ownerData?.projects?.find(p =>
-          p.id === ref.projectId || String(p.id) === String(ref.projectId)
-        )
+        const project = (ownerData?.projects ?? []).find(p => String(p.id) === String(ref.projectId))
         const owner = allUsers.find(u => String(u.id) === String(ref.ownerUserId))
         if (!project) return null
         return {
@@ -213,13 +213,12 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
           project,
         }
       }).filter(Boolean)
+      setResolvedSharedProjects(resolved)
     } catch (e) {
       console.warn('MyProjects: failed to read sharedProjects from localStorage', e)
-      return []
+      setResolvedSharedProjects([])
     }
-  // Re-run whenever sharedProjects prop or currentUser changes (prop changes trigger re-render)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sharedProjects, currentUser?.id])
+  }, [currentUser?.id, sharedProjects])
 
   function handleSave(data) {
     const id = Date.now()

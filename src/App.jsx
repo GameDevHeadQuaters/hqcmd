@@ -17,7 +17,7 @@ import BudgetPage from './pages/BudgetPage'
 import ManageTeam from './pages/ManageTeam'
 import { IconMessages, IconBriefcase, IconWritingSign } from '@tabler/icons-react'
 import { writeToUserData, updateUserDataItem, checkUserDataWrite, crossUserPrepend, crossUserMap } from './utils/crossUserWrite'
-import { runIntegrityCheck } from './utils/dataIntegrity'
+import { runIntegrityCheck, migrateUserIds } from './utils/dataIntegrity'
 import AdminPanel from './pages/AdminPanel'
 import TeamsPage from './pages/TeamsPage'
 import Terms from './pages/Terms'
@@ -157,7 +157,19 @@ function cleanOrphanedData() {
 }
 
 cleanOrphanedData()
-runIntegrityCheck()
+migrateUserIds()
+const _integrityResult = runIntegrityCheck()
+if (_integrityResult.fixed > 0) {
+  writeToUserData('superadmin', 'notifications', {
+    id: Date.now().toString(),
+    iconType: 'message',
+    text: `Data integrity check fixed ${_integrityResult.fixed} issue${_integrityResult.fixed !== 1 ? 's' : ''}: ${_integrityResult.report[0]}${_integrityResult.report.length > 1 ? ` and ${_integrityResult.report.length - 1} more` : ''}`,
+    time: 'Just now',
+    read: false,
+    timestamp: new Date().toISOString(),
+    link: '/admin',
+  })
+}
 
 function safeSet(key, value) {
   try {

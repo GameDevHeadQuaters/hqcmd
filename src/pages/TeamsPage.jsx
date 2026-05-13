@@ -115,7 +115,7 @@ export default function TeamsPage({
 }) {
   const navigate = useNavigate()
 
-  const [expanded, setExpanded] = useState(new Set())
+  const [collapsed, setCollapsed] = useState(new Set())
   const [sendTarget, setSendTarget] = useState(null)
   const [removeTarget, setRemoveTarget] = useState(null)
   const [pendingPositions, setPendingPositions] = useState({})
@@ -165,7 +165,7 @@ export default function TeamsPage({
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   function toggleExpand(projectId) {
-    setExpanded(prev => {
+    setCollapsed(prev => {
       const next = new Set(prev)
       next.has(projectId) ? next.delete(projectId) : next.add(projectId)
       return next
@@ -311,7 +311,7 @@ export default function TeamsPage({
         {/* Project sections */}
         <div className="space-y-4">
           {allEntries.map(project => {
-            const isOpen = expanded.has(project.id)
+            const isOpen = !collapsed.has(project.id)
             const coverImage = getProjectImage?.(project.id)
             const members = project.members ?? []
             const pipeline = getProjectPipeline(project)

@@ -1,5 +1,44 @@
 const UD_KEY = 'hqcmd_userData_v4'
-const REQUIRED_ARRAYS = ['projects', 'applications', 'directMessages', 'notifications', 'agreements', 'contacts', 'sharedProjects']
+export const REQUIRED_ARRAYS = ['projects', 'applications', 'directMessages', 'notifications', 'agreements', 'contacts', 'sharedProjects']
+
+export function migrateUserIds() {
+  try {
+    const raw = localStorage.getItem(UD_KEY)
+    if (!raw) return
+    const allData = JSON.parse(raw)
+    const newData = {}
+    let changed = false
+
+    Object.keys(allData).forEach(key => {
+      const stringKey = String(key)
+      newData[stringKey] = { ...allData[key] }
+
+      if (Array.isArray(newData[stringKey].sharedProjects)) {
+        newData[stringKey].sharedProjects = newData[stringKey].sharedProjects.map(sp => ({
+          ...sp,
+          projectId: String(sp.projectId),
+          ownerUserId: String(sp.ownerUserId),
+        }))
+      }
+
+      if (Array.isArray(newData[stringKey].projects)) {
+        newData[stringKey].projects = newData[stringKey].projects.map(p => ({
+          ...p,
+          id: String(p.id),
+        }))
+      }
+
+      if (stringKey !== key) changed = true
+    })
+
+    if (changed || JSON.stringify(newData) !== JSON.stringify(allData)) {
+      localStorage.setItem(UD_KEY, JSON.stringify(newData))
+      console.log('[Migration] User ID types normalised to strings')
+    }
+  } catch (e) {
+    console.warn('[migrateUserIds] failed:', e)
+  }
+}
 
 export function runIntegrityCheck() {
   const report = []

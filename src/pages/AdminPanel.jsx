@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import {
   IconShield, IconUsers, IconMailCheck, IconKey, IconLayoutGrid,
   IconSearch, IconTrash, IconCheck, IconX, IconRefresh, IconCopy, IconPlus,
-  IconEye, IconEyeOff, IconHeartbeat,
+  IconEye, IconEyeOff, IconHeartbeat, IconBug,
 } from '@tabler/icons-react'
-import { runIntegrityCheck } from '../utils/dataIntegrity'
+import { runIntegrityCheck, migrateUserIds, REQUIRED_ARRAYS } from '../utils/dataIntegrity'
 
 const ACCENT = '#534AB7'
 const UD_KEY    = 'hqcmd_userData_v4'
@@ -541,6 +541,334 @@ function DataIntegrityTab() {
   )
 }
 
+// ── System Debug Tab ─────────────────────────────────────────────────────────
+
+function SystemDebugTab() {
+  const [report, setReport] = useState(null)
+  const [actionFeedback, setActionFeedback] = useState('')
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+
+  useEffect(() => { runReport() }, [])
+
+  function runReport() {
+    try {
+      const allUsers = readLS('hqcmd_users_v3', [])
+      const allData  = readLS(UD_KEY, {})
+
+      const userHealth = allUsers.map(u => {
+        const uid = String(u.id)
+        const slot = allData[uid]
+        const hasSlot = !!slot
+        const missingArrays = hasSlot ? REQUIRED_ARRAYS.filter(a => !Array.isArray(slot[a])) : [...REQUIRED_ARRAYS]
+        return { user: u, uid, hasSlot, missingArrays, ok: hasSlot && missingArrays.length === 0 }
+      })
+
+      const sharedRefs = []
+      Object.entries(allData).forEach(([uid, data]) => {
+        ;(data.sharedProjects ?? []).forEach(sp => {
+          const ownerSlot = allData[String(sp.ownerUserId)]
+          const ownerExists = !!ownerSlot
+          const projectExists = ownerExists && (ownerSlot.projects ?? []).some(p => String(p.id) === String(sp.projectId))
+          sharedRefs.push({ uid, sp, ownerExists, projectExists, broken: !ownerExists || !projectExists })
+        })
+      })
+
+      const orphanedAgreements = []
+      Object.entries(allData).forEach(([uid, data]) => {
+        ;(data.agreements ?? []).filter(a => a.isReceived).forEach(a => {
+          const senderId = a.senderId ?? a.originalOwnerId
+          if (!senderId) return
+          const senderSlot = allData[String(senderId)]
+          const originalExists = !!(senderSlot?.agreements?.some(sa => sa.id === a.id || sa.shareToken === a.shareToken))
+          if (!originalExists) orphanedAgreements.push({ uid, agreement: a, senderId })
+        })
+      })
+
+      const now = Date.now()
+      const allApps = []
+      Object.entries(allData).forEach(([uid, data]) => {
+        ;(data.applications ?? []).forEach(app => {
+          const ageMs = now - new Date(app.timestamp ?? 0).getTime()
+          const stuckDays = Math.floor(ageMs / (24 * 60 * 60 * 1000))
+          const isStuck = ageMs > SEVEN_DAYS_MS && app.status !== 'access_granted' && app.status !== 'declined'
+          allApps.push({ uid, app, stuckDays, isStuck })
+        })
+      })
+
+      setReport({ userHealth, sharedRefs, orphanedAgreements, allApps, generatedAt: new Date().toISOString() })
+    } catch (e) {
+      setActionFeedback('Report failed: ' + e.message)
+    }
+  }
+
+  function flash(msg) {
+    setActionFeedback(msg)
+    setTimeout(() => setActionFeedback(''), 3000)
+  }
+
+  function fixRef(uid, spId) {
+    const allData = readLS(UD_KEY, {})
+    if (!allData[uid]) return
+    allData[uid].sharedProjects = (allData[uid].sharedProjects ?? []).filter(sp => String(sp.id) !== String(spId))
+    writeLS(UD_KEY, allData)
+    runReport(); flash('Reference removed')
+  }
+
+  function fixAllBrokenRefs() {
+    const allData = readLS(UD_KEY, {})
+    let removed = 0
+    Object.keys(allData).forEach(uid => {
+      const before = (allData[uid].sharedProjects ?? []).length
+      allData[uid].sharedProjects = (allData[uid].sharedProjects ?? []).filter(sp => {
+        const ownerSlot = allData[String(sp.ownerUserId)]
+        return !!(ownerSlot?.projects?.some(p => String(p.id) === String(sp.projectId)))
+      })
+      removed += before - allData[uid].sharedProjects.length
+    })
+    writeLS(UD_KEY, allData)
+    runReport(); flash(`Fixed ${removed} broken ref${removed !== 1 ? 's' : ''}`)
+  }
+
+  function clearDuplicates() {
+    const result = runIntegrityCheck()
+    runReport(); flash(result.fixed > 0 ? `Cleared ${result.fixed} duplicate${result.fixed !== 1 ? 's' : ''}` : 'No duplicates found')
+  }
+
+  function normaliseIds() {
+    migrateUserIds(); runReport(); flash('IDs normalised to strings')
+  }
+
+  function exportData() {
+    try {
+      const dump = {}
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        try { dump[key] = JSON.parse(localStorage.getItem(key)) } catch { dump[key] = localStorage.getItem(key) }
+      }
+      const blob = new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `hqcmd-debug-${Date.now()}.json`; a.click()
+      URL.revokeObjectURL(url)
+      flash('Exported')
+    } catch (e) { flash('Export failed: ' + e.message) }
+  }
+
+  if (!report) return <div className="text-center py-12 text-sm" style={{ color: 'var(--text-tertiary)' }}>Generating report…</div>
+
+  const brokenRefs = report.sharedRefs.filter(r => r.broken)
+  const stuckApps  = report.allApps.filter(a => a.isStuck)
+
+  return (
+    <>
+      {/* Action bar */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {[
+            ['Clear Duplicates',    clearDuplicates],
+            ['Fix All Broken Refs', fixAllBrokenRefs],
+            ['Normalise IDs',       normaliseIds],
+            ['Export Data',         exportData],
+          ].map(([label, fn]) => (
+            <button key={label} onClick={fn}
+              className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors"
+              style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          {actionFeedback && <span className="text-xs font-medium" style={{ color: 'var(--status-success)' }}>{actionFeedback}</span>}
+          <button onClick={runReport} className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full text-white" style={{ backgroundColor: ACCENT }}>
+            <IconRefresh size={12} /> Refresh
+          </button>
+        </div>
+      </div>
+      <p className="text-xs mb-5" style={{ color: 'var(--text-tertiary)' }}>
+        Report: {new Date(report.generatedAt).toLocaleTimeString()} · {report.userHealth.length} users · {report.sharedRefs.length} shared refs · {report.allApps.length} applications
+      </p>
+
+      <div className="space-y-7">
+        {/* 1. User Account Health */}
+        <section>
+          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-tertiary)' }}>
+            User Account Health
+          </h3>
+          <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-default)' }}>
+            <table className="w-full text-xs">
+              <thead style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                <tr>
+                  {['User', 'UID', 'Slot', 'Arrays', 'Status'].map(h => (
+                    <th key={h} className="px-4 py-2.5 text-left font-semibold" style={{ color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border-subtle)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {report.userHealth.length === 0 ? (
+                  <tr><td colSpan={5} className="px-4 py-6 text-center" style={{ color: 'var(--text-tertiary)' }}>No users found</td></tr>
+                ) : report.userHealth.map((uh, i) => (
+                  <tr key={uh.uid} style={{ borderBottom: i < report.userHealth.length - 1 ? '1px solid var(--border-subtle)' : 'none', backgroundColor: 'var(--bg-surface)' }}>
+                    <td className="px-4 py-2.5 font-medium" style={{ color: 'var(--text-primary)' }}>{uh.user.name}</td>
+                    <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--text-tertiary)' }}>{uh.uid.slice(0, 10)}…</td>
+                    <td className="px-4 py-2.5">
+                      {uh.hasSlot
+                        ? <span style={{ color: 'var(--status-success)' }}>✓</span>
+                        : <span style={{ color: 'var(--status-error)' }}>✗ Missing</span>}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {uh.missingArrays.length === 0
+                        ? <span style={{ color: 'var(--status-success)' }}>All present</span>
+                        : <span style={{ color: 'var(--status-error)' }}>Missing: {uh.missingArrays.join(', ')}</span>}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className="font-semibold" style={{ color: uh.ok ? 'var(--status-success)' : 'var(--status-error)' }}>
+                        {uh.ok ? '✓ OK' : '✗ Issues'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* 2. Shared Project References */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+              Shared Project References
+            </h3>
+            {brokenRefs.length > 0 && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(239,68,68,0.12)', color: 'var(--status-error)' }}>
+                {brokenRefs.length} broken
+              </span>
+            )}
+          </div>
+          {report.sharedRefs.length === 0 ? (
+            <p className="text-xs py-2" style={{ color: 'var(--text-tertiary)' }}>No sharedProject references found.</p>
+          ) : (
+            <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-default)' }}>
+              <table className="w-full text-xs">
+                <thead style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                  <tr>
+                    {['User UID', 'Project ID', 'Owner UID', 'Owner ✓', 'Project ✓', ''].map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left font-semibold" style={{ color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border-subtle)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.sharedRefs.map((r, i) => (
+                    <tr key={r.uid + (r.sp.id ?? i)} style={{ borderBottom: i < report.sharedRefs.length - 1 ? '1px solid var(--border-subtle)' : 'none', backgroundColor: r.broken ? 'rgba(239,68,68,0.04)' : 'var(--bg-surface)' }}>
+                      <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--text-tertiary)' }}>{String(r.uid).slice(0, 10)}…</td>
+                      <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--text-tertiary)' }}>{String(r.sp.projectId).slice(0, 10)}…</td>
+                      <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--text-tertiary)' }}>{String(r.sp.ownerUserId).slice(0, 10)}…</td>
+                      <td className="px-4 py-2.5"><span style={{ color: r.ownerExists ? 'var(--status-success)' : 'var(--status-error)' }}>{r.ownerExists ? '✓' : '✗'}</span></td>
+                      <td className="px-4 py-2.5"><span style={{ color: r.projectExists ? 'var(--status-success)' : 'var(--status-error)' }}>{r.projectExists ? '✓' : '✗'}</span></td>
+                      <td className="px-4 py-2.5">
+                        {r.broken && (
+                          <button onClick={() => fixRef(r.uid, r.sp.id)}
+                            className="text-[10px] font-medium px-2 py-1 rounded-full transition-colors"
+                            style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--status-error)' }}
+                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.2)')}
+                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)')}>
+                            Fix
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* 3. Cross-User Agreement Delivery */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+              Cross-User Agreement Delivery
+            </h3>
+            {report.orphanedAgreements.length > 0 && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: 'var(--status-warning)' }}>
+                {report.orphanedAgreements.length} orphaned
+              </span>
+            )}
+          </div>
+          {report.orphanedAgreements.length === 0 ? (
+            <p className="text-xs py-2" style={{ color: 'var(--status-success)' }}>✓ All received agreements have valid originals</p>
+          ) : (
+            <div className="space-y-2">
+              {report.orphanedAgreements.map((o, i) => (
+                <div key={i} className="rounded-lg px-4 py-3 text-xs leading-relaxed"
+                  style={{ backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                  <span style={{ color: 'var(--status-warning)' }}>⚠ </span>
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    uid:{String(o.uid).slice(0, 8)} has orphaned received agreement &quot;{o.agreement.templateName ?? o.agreement.id}&quot; — original sender uid:{String(o.senderId).slice(0, 8)} not found
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* 4. Application Pipeline */}
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+              Application Pipeline Status
+            </h3>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-tertiary)' }}>
+              {report.allApps.length} total
+            </span>
+            {stuckApps.length > 0 && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: 'var(--status-warning)' }}>
+                {stuckApps.length} stuck &gt;7d
+              </span>
+            )}
+          </div>
+          {report.allApps.length === 0 ? (
+            <p className="text-xs py-2" style={{ color: 'var(--text-tertiary)' }}>No applications found</p>
+          ) : (
+            <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-default)' }}>
+              <table className="w-full text-xs">
+                <thead style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                  <tr>
+                    {['Applicant', 'Role', 'Status', 'Age', 'Flag'].map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left font-semibold" style={{ color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border-subtle)' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.allApps.map((entry, i) => (
+                    <tr key={(entry.app.id ?? i) + entry.uid} style={{ borderBottom: i < report.allApps.length - 1 ? '1px solid var(--border-subtle)' : 'none', backgroundColor: entry.isStuck ? 'rgba(245,158,11,0.04)' : 'var(--bg-surface)' }}>
+                      <td className="px-4 py-2.5 font-medium" style={{ color: 'var(--text-primary)' }}>{entry.app.applicantName ?? '—'}</td>
+                      <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{entry.app.role ?? '—'}</td>
+                      <td className="px-4 py-2.5">
+                        <span className="px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+                          {entry.app.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5" style={{ color: 'var(--text-tertiary)' }}>{entry.stuckDays}d</td>
+                      <td className="px-4 py-2.5">
+                        {entry.isStuck
+                          ? <span style={{ color: 'var(--status-warning)' }}>⚠ Stuck</span>
+                          : <span style={{ color: 'var(--status-success)' }}>✓</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
+    </>
+  )
+}
+
 // ── Main AdminPanel ───────────────────────────────────────────────────────────
 
 export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) {
@@ -557,6 +885,7 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
     { id: 'codes',     label: 'Invite Codes',    Icon: IconKey,         count: null },
     { id: 'projects',  label: 'Public Projects', Icon: IconLayoutGrid,  count: null },
     { id: 'integrity', label: 'Data Integrity',  Icon: IconHeartbeat,   count: null },
+    { id: 'debug',     label: 'System Debug',    Icon: IconBug,         count: null },
   ]
 
   return (
@@ -592,6 +921,7 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
         {tab === 'codes'     && <InviteCodesTab />}
         {tab === 'projects'  && <PublicProjectsTab />}
         {tab === 'integrity' && <DataIntegrityTab />}
+        {tab === 'debug'     && <SystemDebugTab />}
       </div>
     </div>
   )
