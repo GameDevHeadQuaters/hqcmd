@@ -17,6 +17,7 @@ import BudgetPage from './pages/BudgetPage'
 import ManageTeam from './pages/ManageTeam'
 import { IconMessages, IconBriefcase, IconWritingSign } from '@tabler/icons-react'
 import { writeToUserData, updateUserDataItem, checkUserDataWrite, crossUserPrepend, crossUserMap } from './utils/crossUserWrite'
+import { runIntegrityCheck } from './utils/dataIntegrity'
 import AdminPanel from './pages/AdminPanel'
 import TeamsPage from './pages/TeamsPage'
 import Terms from './pages/Terms'
@@ -156,6 +157,7 @@ function cleanOrphanedData() {
 }
 
 cleanOrphanedData()
+runIntegrityCheck()
 
 function safeSet(key, value) {
   try {
@@ -352,6 +354,17 @@ export default function App() {
   // ── Cross-user helpers (Browse Projects → owner's inbox) ─────────────────
 
   function addApplicationForUser(ownerId, application) {
+    const existing = checkUserDataWrite(String(ownerId), 'applications')
+    const isDup = existing.some(a =>
+      String(a.projectId) === String(application.projectId) &&
+      (application.applicantId
+        ? String(a.applicantId) === String(application.applicantId)
+        : a.applicantName === application.applicantName)
+    )
+    if (isDup) {
+      console.warn('[hqcmd] addApplicationForUser: duplicate suppressed for', application.applicantName)
+      return
+    }
     setUserData(prev => {
       const d = prev[ownerId] ?? emptyUserData()
       return { ...prev, [ownerId]: { ...d, applications: [application, ...d.applications] } }

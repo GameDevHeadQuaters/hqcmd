@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import {
   IconShield, IconUsers, IconMailCheck, IconKey, IconLayoutGrid,
   IconSearch, IconTrash, IconCheck, IconX, IconRefresh, IconCopy, IconPlus,
-  IconEye, IconEyeOff,
+  IconEye, IconEyeOff, IconHeartbeat,
 } from '@tabler/icons-react'
+import { runIntegrityCheck } from '../utils/dataIntegrity'
 
 const ACCENT = '#534AB7'
 const UD_KEY    = 'hqcmd_userData_v4'
@@ -464,6 +465,82 @@ function PublicProjectsTab() {
   )
 }
 
+// ── Data Integrity Tab ────────────────────────────────────────────────────────
+
+function DataIntegrityTab() {
+  const [result, setResult] = useState(null)
+  const [running, setRunning] = useState(false)
+
+  function run() {
+    setRunning(true)
+    setTimeout(() => {
+      const r = runIntegrityCheck()
+      setResult(r)
+      setRunning(false)
+    }, 80)
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Self-Healing Data Check</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+            Heals missing arrays, removes duplicate applications, sharedProjects, notifications, and agreements.
+          </p>
+        </div>
+        <button
+          onClick={run}
+          disabled={running}
+          className="flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-full text-white transition-opacity hover:opacity-80"
+          style={{ backgroundColor: ACCENT, opacity: running ? 0.6 : 1 }}
+        >
+          <IconHeartbeat size={13} />
+          {running ? 'Running…' : 'Run Check'}
+        </button>
+      </div>
+
+      {result && (
+        <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-default)' }}>
+          <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div className="flex items-center gap-2">
+              <span
+                className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: result.fixed > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(34,197,94,0.1)',
+                  color: result.fixed > 0 ? 'var(--status-warning)' : 'var(--status-success)',
+                }}
+              >
+                {result.fixed > 0 ? `${result.fixed} issue${result.fixed !== 1 ? 's' : ''} fixed` : 'All clear'}
+              </span>
+            </div>
+            <span className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
+              {new Date(result.checkedAt).toLocaleTimeString()}
+            </span>
+          </div>
+          <div className="p-4 space-y-1.5">
+            {result.report.map((line, i) => (
+              <div key={i} className="flex items-start gap-2">
+                <span className="text-xs mt-0.5 flex-shrink-0" style={{ color: line.includes('Removed') || line.includes('Healed') ? 'var(--status-warning)' : line.includes('Error') ? 'var(--status-error)' : 'var(--status-success)' }}>
+                  {line.includes('Removed') || line.includes('Healed') ? '⚠' : line.includes('Error') ? '✗' : '✓'}
+                </span>
+                <p className="text-xs font-mono leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{line}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!result && (
+        <div className="text-center py-16" style={{ color: 'var(--text-tertiary)' }}>
+          <IconHeartbeat size={36} className="mx-auto mb-3 opacity-30" />
+          <p className="text-sm">Run the check to inspect and repair localStorage data</p>
+        </div>
+      )}
+    </>
+  )
+}
+
 // ── Main AdminPanel ───────────────────────────────────────────────────────────
 
 export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) {
@@ -475,10 +552,11 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
   const pendingBeta = readLS(BETA_KEY, []).filter(r => r.status === 'pending').length
 
   const TABS = [
-    { id: 'users',    label: 'Users',          Icon: IconUsers,     count: users.length },
-    { id: 'beta',     label: 'Beta Requests',  Icon: IconMailCheck, count: pendingBeta > 0 ? pendingBeta : null },
-    { id: 'codes',    label: 'Invite Codes',   Icon: IconKey,       count: null },
-    { id: 'projects', label: 'Public Projects', Icon: IconLayoutGrid, count: null },
+    { id: 'users',     label: 'Users',           Icon: IconUsers,       count: users.length },
+    { id: 'beta',      label: 'Beta Requests',   Icon: IconMailCheck,   count: pendingBeta > 0 ? pendingBeta : null },
+    { id: 'codes',     label: 'Invite Codes',    Icon: IconKey,         count: null },
+    { id: 'projects',  label: 'Public Projects', Icon: IconLayoutGrid,  count: null },
+    { id: 'integrity', label: 'Data Integrity',  Icon: IconHeartbeat,   count: null },
   ]
 
   return (
@@ -509,10 +587,11 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
       </div>
 
       <div className="max-w-6xl mx-auto px-6 py-6">
-        {tab === 'users'    && <UsersTab users={users} setUsers={setUsers} />}
-        {tab === 'beta'     && <BetaRequestsTab />}
-        {tab === 'codes'    && <InviteCodesTab />}
-        {tab === 'projects' && <PublicProjectsTab />}
+        {tab === 'users'     && <UsersTab users={users} setUsers={setUsers} />}
+        {tab === 'beta'      && <BetaRequestsTab />}
+        {tab === 'codes'     && <InviteCodesTab />}
+        {tab === 'projects'  && <PublicProjectsTab />}
+        {tab === 'integrity' && <DataIntegrityTab />}
       </div>
     </div>
   )

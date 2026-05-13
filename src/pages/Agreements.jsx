@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconInbox, IconFileText, IconFileOff,
@@ -75,7 +75,15 @@ export default function Agreements({
   const [viewerAgreement, setViewerAgreement] = useState(null)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
 
-  const myAgreements = agreements ?? []
+  // Read fresh from localStorage so cross-user agreement deliveries appear immediately
+  const myAgreements = useMemo(() => {
+    try {
+      const allUD = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      return allUD[String(currentUser?.id)]?.agreements ?? agreements ?? []
+    } catch { return agreements ?? [] }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agreements, currentUser?.id])
+
   const toSign = myAgreements.filter(a => a.isReceived && a.status === 'awaiting_my_signature')
   const myOwnAgreements = myAgreements.filter(a => !a.isReceived)
 
