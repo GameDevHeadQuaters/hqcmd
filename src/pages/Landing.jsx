@@ -169,22 +169,12 @@ export default function Landing({ userData, currentUser, getProjectImage, betaMo
               )}
             </div>
 
-            <h1
-              className="text-5xl font-bold leading-tight mb-4 max-w-2xl"
-              style={{ letterSpacing: '-1.5px', color: 'white' }}
-            >
-              {isDark ? (
-                <>Command your<br />
-                  <span style={{
-                    background: 'linear-gradient(90deg, #534AB7, #805da8, #ed2793)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                  }}>game dev</span> projects</>
-              ) : (
-                <>Command your<br />game dev projects</>
-              )}
-            </h1>
+            <img
+              src="/logos/logo-hero.png"
+              alt="Head Quarters Command"
+              style={{ height: '120px', width: 'auto', marginBottom: '24px' }}
+              onError={e => { e.target.style.display = 'none' }}
+            />
 
             <p className="text-lg max-w-lg mb-7 leading-relaxed" style={{ color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.85)' }}>
               HQ COMMAND is the all-in-one workstation for indie developers and small studios —
