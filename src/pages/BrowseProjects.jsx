@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import Footer from '../components/Footer'
 import {
   IconCommand, IconSearch, IconX, IconUsers, IconZoom,
   IconCheck, IconSend, IconArrowRight, IconInbox, IconGlobe, IconFileText,
@@ -612,6 +613,7 @@ export default function BrowseProjects({
           onAddNotification={(n) => onAddNotificationToOwner(msgProject.ownerId, n)}
         />
       )}
+      <Footer />
     </div>
   )
 }

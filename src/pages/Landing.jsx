@@ -116,7 +116,7 @@ function FeaturedProjectCard({ project, getProjectImage, onCardClick }) {
   )
 }
 
-export default function Landing({ userData, currentUser, getProjectImage }) {
+export default function Landing({ userData, currentUser, getProjectImage, betaMode = false }) {
   const navigate = useNavigate()
   const { theme } = useTheme()
   const isDark = theme === 'dark'
@@ -154,12 +154,19 @@ export default function Landing({ userData, currentUser, getProjectImage }) {
         {/* Content */}
         <div style={{ position: 'relative', zIndex: 1 }}>
           <div className="flex flex-col items-center text-center max-w-2xl mx-auto">
-            <div
-              className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full mb-5"
-              style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.9)' }}
-            >
-              <IconCommand size={12} />
-              Built for indie game dev teams
+            <div className="flex items-center gap-2 mb-5">
+              <div
+                className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full"
+                style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.9)' }}
+              >
+                <IconCommand size={12} />
+                Built for indie game dev teams
+              </div>
+              {betaMode && (
+                <span className="text-[10px] font-bold px-2 py-1 rounded-full text-white" style={{ backgroundColor: '#ed2793' }}>
+                  PRIVATE BETA
+                </span>
+              )}
             </div>
 
             <h1
@@ -197,10 +204,12 @@ export default function Landing({ userData, currentUser, getProjectImage }) {
                 e.currentTarget.style.boxShadow = 'none'
               }}
             >
-              Get Started Free
+              {betaMode ? 'Request Beta Access' : 'Get Started Free'}
               <IconArrowRight size={16} />
             </button>
-            <p className="text-xs mt-2.5" style={{ color: 'rgba(255,255,255,0.45)' }}>No credit card required</p>
+            <p className="text-xs mt-2.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+              {betaMode ? 'Applications reviewed within 2–3 business days' : 'No credit card required'}
+            </p>
           </div>
 
           {/* Featured projects strip */}

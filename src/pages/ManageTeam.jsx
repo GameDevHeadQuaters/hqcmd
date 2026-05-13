@@ -120,6 +120,8 @@ export default function ManageTeam({
   const [resendFeedback,     setResendFeedback]     = useState({})     // appId → msg
   const [expandedAgreements, setExpandedAgreements] = useState(new Set())
   const [viewerAgreement,    setViewerAgreement]    = useState(null)
+  const [pendingPositions,   setPendingPositions]   = useState({})     // memberId → selected position
+  const [positionFeedback,   setPositionFeedback]   = useState({})     // memberId → success msg
 
   function goBack() {
     if (project) setActiveProjectId?.(project.id)
@@ -132,6 +134,16 @@ export default function ManageTeam({
 
   function updateMemberPosition(memberId, position) {
     onUpdateProject(project.id, { members: members.map(m => m.id === memberId ? { ...m, position } : m) })
+  }
+
+  function savePosition(memberId) {
+    const position = pendingPositions[memberId]
+    if (!position) return
+    updateMemberPosition(memberId, position)
+    const msg = `Role updated to ${position}`
+    setPositionFeedback(prev => ({ ...prev, [memberId]: msg }))
+    setPendingPositions(prev => { const n = { ...prev }; delete n[memberId]; return n })
+    setTimeout(() => setPositionFeedback(prev => { const n = { ...prev }; delete n[memberId]; return n }), 2000)
   }
 
   function removeMember(memberId) {
@@ -350,15 +362,37 @@ export default function ManageTeam({
                       </div>
 
                       {/* Position selector */}
-                      <div className="relative">
-                        <select className="text-xs rounded-lg px-2.5 py-1.5 outline-none pr-6 appearance-none cursor-pointer"
-                          style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
-                          value={m.position ?? 'Member'}
-                          onChange={e => updateMemberPosition(m.id, e.target.value)}
-                          onFocus={fi} onBlur={fb}>
-                          {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                        </select>
-                        <IconChevronDown size={11} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-tertiary)' }} />
+                      <div className="flex items-center gap-1.5">
+                        <div className="relative">
+                          <select className="text-xs rounded-lg px-2.5 py-1.5 outline-none pr-6 appearance-none cursor-pointer"
+                            style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                            value={pendingPositions[m.id] ?? m.position ?? 'Member'}
+                            onChange={e => {
+                              const val = e.target.value
+                              if (val === (m.position ?? 'Member')) {
+                                setPendingPositions(prev => { const n = { ...prev }; delete n[m.id]; return n })
+                              } else {
+                                setPendingPositions(prev => ({ ...prev, [m.id]: val }))
+                              }
+                            }}
+                            onFocus={fi} onBlur={fb}>
+                            {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                          </select>
+                          <IconChevronDown size={11} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-tertiary)' }} />
+                        </div>
+                        {pendingPositions[m.id] && (
+                          <button
+                            onClick={() => savePosition(m.id)}
+                            className="text-[10px] font-semibold px-2 py-1.5 rounded-lg text-white transition-opacity hover:opacity-80 whitespace-nowrap"
+                            style={{ backgroundColor: ACCENT }}>
+                            Save Role
+                          </button>
+                        )}
+                        {positionFeedback[m.id] && (
+                          <span className="text-[10px] font-medium whitespace-nowrap" style={{ color: 'var(--status-success)' }}>
+                            {positionFeedback[m.id]}
+                          </span>
+                        )}
                       </div>
 
                       {/* Send Agreement (ghost icon button) */}

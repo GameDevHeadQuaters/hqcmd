@@ -16,6 +16,21 @@ import BudgetPage from './pages/BudgetPage'
 import ManageTeam from './pages/ManageTeam'
 import { IconMessages, IconBriefcase, IconWritingSign } from '@tabler/icons-react'
 import { crossUserPrepend, crossUserMap } from './utils/crossUserWrite'
+import AdminPanel from './pages/AdminPanel'
+import Terms from './pages/Terms'
+import Privacy from './pages/Privacy'
+import Contact from './pages/Contact'
+
+const BETA_MODE = true
+
+const SUPER_ADMIN = {
+  email: import.meta.env.VITE_ADMIN_EMAIL,
+  password: import.meta.env.VITE_ADMIN_PASSWORD,
+  name: 'HQCMD Admin',
+  id: 'superadmin',
+  isAdmin: true,
+  initials: 'HA',
+}
 
 const STORAGE_KEYS = {
   users:       'hqcmd_users_v3',
@@ -473,9 +488,21 @@ export default function App() {
   }
 
   function handleLogin({ email, password }) {
-    const byEmail = users.find(u => u.email === email.trim().toLowerCase())
+    const normalEmail = email.trim().toLowerCase()
+    if (normalEmail === SUPER_ADMIN.email && password === SUPER_ADMIN.password) {
+      setCurrentUser(SUPER_ADMIN)
+      setActiveProjectId(null)
+      return null
+    }
+    const byEmail = users.find(u => u.email === normalEmail)
     if (!byEmail) return { field: 'email', message: 'No account found with that email address' }
     if (byEmail.password !== password) return { field: 'password', message: 'Incorrect password. Please try again.' }
+    try {
+      const suspended = JSON.parse(localStorage.getItem('hqcmd_suspended') ?? '[]')
+      if (suspended.includes(String(byEmail.id))) {
+        return { field: 'email', message: 'Your account has been suspended. Contact hello@gamedevlocal.com for support.' }
+      }
+    } catch {}
     setCurrentUser(byEmail)
     setActiveProjectId(null)
     return null
@@ -520,6 +547,8 @@ export default function App() {
     unreadInboxCount,
     unreadAgreementsCount,
     onSignOut: handleSignOut,
+    projects,
+    betaMode: BETA_MODE,
   }
 
   return (
@@ -531,10 +560,14 @@ export default function App() {
             userData={userData}
             currentUser={currentUser}
             getProjectImage={getProjectImage}
+            betaMode={BETA_MODE}
           />
         } />
         <Route path="/login"  element={<Login  onLogin={handleLogin}   currentUser={currentUser} />} />
-        <Route path="/signup" element={<Signup onSignup={handleSignup} currentUser={currentUser} users={users} />} />
+        <Route path="/signup" element={<Signup onSignup={handleSignup} currentUser={currentUser} users={users} betaMode={BETA_MODE} />} />
+        <Route path="/terms"   element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/contact" element={<Contact />} />
 
         <Route path="/workstation" element={
           !currentUser ? <Navigate to="/login" replace /> :
@@ -684,6 +717,18 @@ export default function App() {
             onCountersign={countersignAgreement}
             onNotifyOwner={addNotificationForUser}
           />
+        } />
+
+        <Route path="/admin" element={
+          !currentUser ? <Navigate to="/login" replace /> :
+          !currentUser.isAdmin ? <Navigate to="/" replace /> : (
+            <AdminPanel
+              currentUser={currentUser}
+              users={users}
+              setUsers={setUsers}
+              onSignOut={handleSignOut}
+            />
+          )
         } />
       </Routes>
       </AppLayout>

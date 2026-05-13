@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCommand, IconBell, IconInbox, IconFileText, IconSun, IconMoon } from '@tabler/icons-react'
+import { IconCommand, IconBell, IconInbox, IconFileText, IconSun, IconMoon, IconShield } from '@tabler/icons-react'
 import ProfileDropdown from './ProfileDropdown'
 import { useTheme } from '../context/ThemeContext'
 
@@ -12,6 +12,8 @@ export default function TopNav({
   unreadInboxCount,
   unreadAgreementsCount = 0,
   onSignOut,
+  projects = [],
+  betaMode = false,
 }) {
   const navigate = useNavigate()
   const { theme, setTheme } = useTheme()
@@ -25,6 +27,14 @@ export default function TopNav({
 
   function toggleTheme() {
     setTheme(t => t === 'dark' ? 'light' : 'dark')
+  }
+
+  function handleGoToTeam() {
+    if (projects.length === 1) {
+      navigate(`/team/${projects[0].id}`)
+    } else {
+      navigate('/projects')
+    }
   }
 
   return (
@@ -49,6 +59,11 @@ export default function TopNav({
           >
             HQCMD
           </span>
+          {betaMode && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: '#ed2793' }}>
+              BETA
+            </span>
+          )}
         </button>
 
         {/* Right side */}
@@ -97,6 +112,19 @@ export default function TopNav({
                 </span>
               )}
             </button>
+
+            {currentUser?.isAdmin && (
+              <button
+                onClick={() => navigate('/admin')}
+                className="flex items-center gap-1.5 text-sm font-medium transition-colors px-3 py-2 rounded-lg"
+                style={{ color: ACCENT }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(83,74,183,0.08)')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
+              >
+                <IconShield size={15} />
+                Admin
+              </button>
+            )}
 
             {/* Theme toggle */}
             <button
@@ -155,6 +183,7 @@ export default function TopNav({
                       currentUser={currentUser}
                       onSignOut={onSignOut}
                       onClose={closeAll}
+                      onGoToTeam={handleGoToTeam}
                     />
                   </div>
                 </>
