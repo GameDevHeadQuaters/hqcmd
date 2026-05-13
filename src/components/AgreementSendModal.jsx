@@ -110,9 +110,26 @@ export default function AgreementSendModal({
   function sendToInbox() {
     console.log('[AgreementSend] Function called with:', cpEmail, createdAgreement?.templateName)
     if (!cpName.trim() || !cpEmail.trim()) { setSendStatus('field_error'); return }
-    console.log('[AgreementSend] Starting delivery to:', cpEmail.trim())
+
+    // Step 1 — what email are we searching for?
+    console.log('[SEND] Looking for recipient email:', cpEmail.trim())
+
+    // Step 2 — what does the users array look like? (both React state and localStorage)
+    const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+    console.log('[SEND] Users array (localStorage):', allUsers.map(u => ({ id: u.id, email: u.email })))
+    console.log('[SEND] Users array (React prop):', (users ?? []).map(u => ({ id: u.id, email: u.email })))
+
+    // Step 3 — does localStorage find a match?
+    const recipientFromStorage = allUsers.find(u => u.email?.toLowerCase() === cpEmail.trim().toLowerCase())
+    console.log('[SEND] Recipient found (localStorage):', recipientFromStorage)
+
+    // Step 4 — what ID would we write to?
+    console.log('[SEND] Writing to userId:', String(recipientFromStorage?.id))
+
+    // Actual lookup used by the send logic (React state)
     const counterparty = (users ?? []).find(u => u.email?.toLowerCase() === cpEmail.trim().toLowerCase())
-    console.log('[AgreementSend] Found recipient:', counterparty?.id, counterparty?.name)
+    console.log('[AgreementSend] Found recipient (React state):', counterparty?.id, counterparty?.name)
+    console.log('[SEND] ID match between sources:', String(recipientFromStorage?.id) === String(counterparty?.id))
 
     if (!counterparty) { setSendStatus('no_user'); return }
 
@@ -145,12 +162,19 @@ export default function AgreementSendModal({
       status: 'awaiting_my_signature',
       read: false,
     }
-    console.log('[AgreementSend] Agreement object being sent:', receivedAgreement)
-    console.log('[AgreementSend] Calling writeToUserData...')
+    console.log('[AgreementSend] Agreement object fields:', Object.keys(receivedAgreement))
+    console.log('[AgreementSend] counterpartyEmail on object:', receivedAgreement.counterpartyEmail)
+    console.log('[AgreementSend] isReceived on object:', receivedAgreement.isReceived)
+    console.log('[AgreementSend] Calling writeToUserData with userId:', String(counterparty.id))
+
+    // Step 5 — result of writeToUserData
     const result = writeToUserData(String(counterparty.id), 'agreements', receivedAgreement)
-    console.log('[AgreementSend] writeToUserData result:', result)
+    console.log('[SEND] Write result:', result)
+
+    // Step 6 — verify immediately after
     const verify = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-    console.log('[AgreementSend] Recipient agreements after write:', verify[String(counterparty.id)]?.agreements?.length)
+    console.log('[SEND] Recipient agreements after write:', verify[String(counterparty.id)]?.agreements?.length)
+    console.log('[SEND] userData key exists for recipient:', !!(verify[String(counterparty.id)]))
     checkUserDataWrite(String(counterparty.id), 'agreements')
 
     const signLink = `${window.location.origin}/sign/${createdAgreement.shareToken}`
