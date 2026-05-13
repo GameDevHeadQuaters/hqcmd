@@ -15,6 +15,7 @@ import SignAgreement from './pages/SignAgreement'
 import BudgetPage from './pages/BudgetPage'
 import ManageTeam from './pages/ManageTeam'
 import { IconMessages, IconBriefcase, IconWritingSign } from '@tabler/icons-react'
+import { crossUserPrepend } from './utils/crossUserWrite'
 
 const STORAGE_KEYS = {
   users:       'hqcmd_users_v3',
@@ -154,9 +155,24 @@ export default function App() {
     safeSet(STORAGE_KEYS.users, JSON.stringify(users))
   }, [users])
 
+  // Only write the CURRENT user's slot — never overwrite other users' data with stale React state.
+  // Cross-user writes (addApplicationForUser, addNotificationForUser, etc.) go directly to
+  // localStorage via crossUserPrepend so this effect can't clobber them.
   useEffect(() => {
-    safeSet(STORAGE_KEYS.userData, JSON.stringify(serializeUserData(userData)))
-  }, [userData])
+    if (!currentUser) return
+    const uid = String(currentUser.id)
+    const currentSlot = userData[uid]
+    if (!currentSlot) return
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.userData)
+      const allUD = raw ? JSON.parse(raw) : {}
+      const serialized = serializeUserData({ [uid]: currentSlot })
+      allUD[uid] = serialized[uid]
+      safeSet(STORAGE_KEYS.userData, JSON.stringify(allUD))
+    } catch (e) {
+      console.warn('hqcmd: userData persist failed', e)
+    }
+  }, [userData, currentUser])
 
   useEffect(() => {
     safeSet(STORAGE_KEYS.currentUser, JSON.stringify(currentUser))
@@ -269,6 +285,7 @@ export default function App() {
       const d = prev[ownerId] ?? emptyUserData()
       return { ...prev, [ownerId]: { ...d, applications: [application, ...d.applications] } }
     })
+    crossUserPrepend(String(ownerId), 'applications', application)
   }
 
   function addNotificationForUser(ownerId, notifData) {
@@ -277,6 +294,9 @@ export default function App() {
       const d = prev[ownerId] ?? emptyUserData()
       return { ...prev, [ownerId]: { ...d, notifications: [notifObj, ...d.notifications] } }
     })
+    // Strip the Icon React component before writing to localStorage
+    const { Icon: _icon, ...serializedNotif } = notifObj
+    crossUserPrepend(String(ownerId), 'notifications', serializedNotif)
   }
 
   function addDirectMessageForUser(ownerId, message) {
@@ -284,6 +304,7 @@ export default function App() {
       const d = prev[ownerId] ?? emptyUserData()
       return { ...prev, [ownerId]: { ...d, directMessages: [message, ...d.directMessages] } }
     })
+    crossUserPrepend(String(ownerId), 'directMessages', message)
   }
 
   // ── onAddNotification for current user (used by Workstation, Inbox) ───────
@@ -376,9 +397,12 @@ export default function App() {
     directMessages.filter(m => !m.read).length +
     notifications.filter(n => !n.read).length
 
+  const unreadAgreementsCount = (agreements ?? []).filter(a => a.isReceived && !a.read).length
+
   const topNavProps = {
     currentUser,
     unreadInboxCount,
+    unreadAgreementsCount,
     onSignOut: handleSignOut,
   }
 

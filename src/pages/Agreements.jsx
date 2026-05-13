@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconCommand, IconInbox, IconFileText, IconFileOff,
-  IconPlus, IconSearch, IconClock, IconCircleCheck,
+  IconPlus, IconSearch, IconClock, IconCircleCheck, IconWritingSign,
 } from '@tabler/icons-react'
 import { AGREEMENT_TEMPLATES } from '../utils/agreementTemplates'
 import AgreementBuilder from '../components/AgreementBuilder'
@@ -76,13 +76,15 @@ export default function Agreements({
   const [profileDropOpen, setProfileDropOpen] = useState(false)
 
   const myAgreements = agreements ?? []
+  const toSign = myAgreements.filter(a => a.isReceived && a.status === 'awaiting_my_signature')
+  const myOwnAgreements = myAgreements.filter(a => !a.isReceived)
 
   const filteredTemplates = AGREEMENT_TEMPLATES.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase()) ||
     t.description.toLowerCase().includes(search.toLowerCase())
   )
 
-  const filteredAgreements = myAgreements.filter(a =>
+  const filteredAgreements = myOwnAgreements.filter(a =>
     a.templateName.toLowerCase().includes(search.toLowerCase()) ||
     (a.projectTitle ?? '').toLowerCase().includes(search.toLowerCase())
   )
@@ -238,11 +240,59 @@ export default function Agreements({
           />
         </div>
 
+        {/* Agreements to Sign */}
+        {toSign.length > 0 && (
+          <div className="mb-6 rounded-lg p-5" style={{ backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              <IconWritingSign size={15} style={{ color: 'var(--status-warning)' }} />
+              <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Agreements to Sign</h3>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white leading-none" style={{ backgroundColor: '#ed2793' }}>
+                {toSign.length}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {toSign.map(a => (
+                <div
+                  key={a.id}
+                  className="flex items-center gap-3 p-3 rounded-lg"
+                  style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}
+                >
+                  {!a.read && (
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#ed2793' }} />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{a.templateName}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                      From: {a.signerName ?? '—'}
+                      {a.projectTitle ? ` · ${a.projectTitle}` : ''}
+                    </p>
+                  </div>
+                  <span
+                    className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: 'var(--status-warning)' }}
+                  >
+                    Awaiting Your Signature
+                  </span>
+                  <button
+                    onClick={() => navigate(`/sign/${a.shareToken}`)}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-full text-white transition-colors flex-shrink-0"
+                    style={{ backgroundColor: ACCENT }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
+                  >
+                    Review &amp; Sign
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="flex mb-6 gap-0.5" style={{ borderBottom: '1px solid var(--border-default)' }}>
           {[
             { id: 'library', label: 'Template Library' },
-            { id: 'my-agreements', label: `My Agreements${myAgreements.length > 0 ? ` (${myAgreements.length})` : ''}` },
+            { id: 'my-agreements', label: `My Agreements${myOwnAgreements.length > 0 ? ` (${myOwnAgreements.length})` : ''}` },
           ].map(t => (
             <button
               key={t.id}
@@ -316,14 +366,14 @@ export default function Agreements({
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <IconFileOff size={48} style={{ color: 'var(--brand-purple)' }} className="mb-4" />
                 <p className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
-                  {myAgreements.length === 0 ? 'No agreements yet' : 'No matches found'}
+                  {myOwnAgreements.length === 0 ? 'No agreements yet' : 'No matches found'}
                 </p>
                 <p className="text-xs mb-5" style={{ color: 'var(--text-tertiary)' }}>
-                  {myAgreements.length === 0
+                  {myOwnAgreements.length === 0
                     ? 'Choose a template from the library to get started.'
                     : 'Try a different search term.'}
                 </p>
-                {myAgreements.length === 0 && (
+                {myOwnAgreements.length === 0 && (
                   <button
                     onClick={() => setTab('library')}
                     className="text-sm font-semibold px-4 py-2 rounded-full text-white transition-colors"

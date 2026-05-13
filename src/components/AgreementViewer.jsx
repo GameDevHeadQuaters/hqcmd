@@ -4,6 +4,7 @@ import {
   IconSend, IconAlertTriangle,
 } from '@tabler/icons-react'
 import { AGREEMENT_DISCLAIMER } from '../utils/agreementDisclaimer'
+import { crossUserPrepend } from '../utils/crossUserWrite'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -121,27 +122,20 @@ export default function AgreementViewer({
       read: false,
     }
 
-    // Update React state so the sender's session stays consistent
+    // These now write directly to localStorage via crossUserPrepend (in App.jsx)
     onAddNotificationForUser?.(counterparty.id, { type: 'agreement', text: notifText, link: '/inbox' })
     onAddDirectMessageForUser?.(counterparty.id, dmObj)
 
-    // Write directly to localStorage so the recipient sees it in their own session
-    try {
-      const raw = localStorage.getItem('hqcmd_userData_v4')
-      if (raw) {
-        const allUD = JSON.parse(raw)
-        const rid = String(counterparty.id)
-        if (!allUD[rid]) allUD[rid] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [] }
-        allUD[rid].notifications = [
-          { id: Date.now() + 1, iconType: 'agreement', text: notifText, time: 'Just now', read: false, link: '/inbox' },
-          ...(allUD[rid].notifications ?? []),
-        ]
-        allUD[rid].directMessages = [dmObj, ...(allUD[rid].directMessages ?? [])]
-        localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allUD))
-      }
-    } catch (e) {
-      console.warn('hqcmd: failed to write agreement to recipient localStorage', e)
+    // Push a received-agreement copy so the recipient sees it in their Agreements page
+    const receivedAgreement = {
+      ...updated,
+      id: String(updated.id) + '_recv_' + Date.now(),
+      receivedAt: new Date().toISOString(),
+      isReceived: true,
+      status: 'awaiting_my_signature',
+      read: false,
     }
+    crossUserPrepend(String(counterparty.id), 'agreements', receivedAgreement)
 
     setSendStatus('sent')
   }

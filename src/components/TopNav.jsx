@@ -10,6 +10,7 @@ const ACCENT_DARK = '#3C3489'
 export default function TopNav({
   currentUser,
   unreadInboxCount,
+  unreadAgreementsCount = 0,
   onSignOut,
 }) {
   const navigate = useNavigate()
@@ -83,10 +84,18 @@ export default function TopNav({
             </button>
             <button
               onClick={() => navigate('/agreements')}
-              className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors px-3 py-2 rounded-lg hover:bg-gray-100"
+              className="relative flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors px-3 py-2 rounded-lg hover:bg-gray-100"
             >
               <IconFileText size={16} />
               Agreements
+              {unreadAgreementsCount > 0 && (
+                <span
+                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white leading-none"
+                  style={{ backgroundColor: '#ed2793' }}
+                >
+                  {unreadAgreementsCount}
+                </span>
+              )}
             </button>
 
             {/* Theme toggle */}
@@ -130,7 +139,7 @@ export default function TopNav({
             {/* Profile avatar */}
             <div className="relative">
               <button
-                onClick={() => { setProfileDropOpen(v => !v); setNotifOpen(false) }}
+                onClick={() => setProfileDropOpen(v => !v)}
                 className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold transition-colors"
                 style={{ backgroundColor: ACCENT }}
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
