@@ -25,14 +25,27 @@ export default function Workstation({
   onAddNotificationForUser,
   onAddDirectMessageForUser,
   userRole = 'Owner',
+  setActiveProjectId,
+  setActiveOwnerUserId,
 }) {
   const location = useLocation()
 
   const searchParams = new URLSearchParams(location.search)
+  const urlProjectId = searchParams.get('projectId')
   const urlOwnerUserId = searchParams.get('ownerUserId')
   const isSharedProject = !!urlOwnerUserId && urlOwnerUserId !== String(currentUser?.id)
 
-  const ownerUserId = isSharedProject ? urlOwnerUserId : String(currentUser?.id)
+  const effectiveOwnerUserId = urlOwnerUserId || String(currentUser?.id)
+  const ownerUserId = effectiveOwnerUserId
+
+  // Sync URL params → App state (handles page refresh and direct URL access)
+  useEffect(() => {
+    console.log('[Workstation] projectId:', urlProjectId, 'ownerUserId:', urlOwnerUserId)
+    if (urlProjectId && urlOwnerUserId) {
+      setActiveProjectId?.(urlProjectId)
+      setActiveOwnerUserId?.(urlOwnerUserId)
+    }
+  }, [location.search])
 
   const myRole = useMemo(() => {
     if (!isSharedProject) return userRole

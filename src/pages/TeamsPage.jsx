@@ -594,7 +594,11 @@ export default function TeamsPage({
                       e.stopPropagation()
                       setActiveProjectId?.(project.id)
                       setActiveOwnerUserId?.(project.isOwned ? null : project.ownerUserId)
-                      navigate('/workstation')
+                      if (project.isOwned) {
+                        navigate('/workstation')
+                      } else {
+                        navigate(`/workstation?projectId=${project.id}&ownerUserId=${project.ownerUserId}`)
+                      }
                     }}
                     className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors flex-shrink-0"
                     style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}

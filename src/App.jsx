@@ -623,33 +623,37 @@ export default function App() {
 
         <Route path="/workstation" element={
           !currentUser ? <Navigate to="/login" replace /> :
-          !activeProject ? <Navigate to="/projects" replace /> : (
-            <Workstation
-              calendarEvents={calendarEvents}   setCalendarEvents={setCalendarEvents}
-              activeProject={activeProject}
-              onUpdateProject={(data) => {
-                const pid = activeProjectId ?? activeProject?.id
-                if (activeOwnerUserId) {
-                  updateSharedProject(activeOwnerUserId, pid, data)
-                } else {
-                  updateProject(pid, data)
-                }
-              }}
-              notifications={notifications}     setNotifications={setNotifications}
-              applications={applications}       setApplications={setApplications}
-              agreements={agreements}           setAgreements={setAgreements}
-              onAddNotification={onAddNotification}
-              onAcceptApplication={acceptApplication}
-              unreadInboxCount={unreadInboxCount}
-              currentUser={currentUser}
-              onSignOut={handleSignOut}
-              getProjectImage={getProjectImage}
-              users={users}
-              onAddNotificationForUser={addNotificationForUser}
-              onAddDirectMessageForUser={addDirectMessageForUser}
-              userRole={userRole}
-            />
-          )
+          <WorkstationRoute
+            activeProject={activeProject}
+            activeProjectId={activeProjectId}
+            activeOwnerUserId={activeOwnerUserId}
+            readProjectFromOwnerSlot={readProjectFromOwnerSlot}
+            projects={projects}
+            calendarEvents={calendarEvents}   setCalendarEvents={setCalendarEvents}
+            onUpdateProject={(data) => {
+              const pid = activeProjectId ?? activeProject?.id
+              if (activeOwnerUserId) {
+                updateSharedProject(activeOwnerUserId, pid, data)
+              } else {
+                updateProject(pid, data)
+              }
+            }}
+            notifications={notifications}     setNotifications={setNotifications}
+            applications={applications}       setApplications={setApplications}
+            agreements={agreements}           setAgreements={setAgreements}
+            onAddNotification={onAddNotification}
+            onAcceptApplication={acceptApplication}
+            unreadInboxCount={unreadInboxCount}
+            currentUser={currentUser}
+            onSignOut={handleSignOut}
+            getProjectImage={getProjectImage}
+            users={users}
+            onAddNotificationForUser={addNotificationForUser}
+            onAddDirectMessageForUser={addDirectMessageForUser}
+            userRole={userRole}
+            setActiveProjectId={setActiveProjectId}
+            setActiveOwnerUserId={setActiveOwnerUserId}
+          />
         } />
 
         <Route path="/profile/:memberId" element={
@@ -827,6 +831,39 @@ export default function App() {
       </Routes>
       </AppLayout>
     </BrowserRouter>
+  )
+}
+
+function WorkstationRoute({
+  activeProject, activeProjectId, activeOwnerUserId,
+  readProjectFromOwnerSlot, projects,
+  setActiveProjectId, setActiveOwnerUserId,
+  ...workstationProps
+}) {
+  const location = useLocation()
+  const params = new URLSearchParams(location.search)
+  const urlProjectId = params.get('projectId')
+  const urlOwnerUserId = params.get('ownerUserId')
+
+  // Resolve project: prefer React state, fall back to URL params (handles refresh)
+  const resolvedProject = activeProject || (() => {
+    if (urlProjectId && urlOwnerUserId) {
+      return readProjectFromOwnerSlot(urlOwnerUserId, urlProjectId)
+        || readProjectFromOwnerSlot(urlOwnerUserId, Number(urlProjectId))
+    }
+    if (urlProjectId) return projects.find(p => String(p.id) === urlProjectId) ?? null
+    return null
+  })()
+
+  if (!resolvedProject) return <Navigate to="/projects" replace />
+
+  return (
+    <Workstation
+      activeProject={resolvedProject}
+      setActiveProjectId={setActiveProjectId}
+      setActiveOwnerUserId={setActiveOwnerUserId}
+      {...workstationProps}
+    />
   )
 }
 
