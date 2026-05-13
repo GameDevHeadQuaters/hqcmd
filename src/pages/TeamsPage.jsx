@@ -384,6 +384,108 @@ export default function TeamsPage({
     }
   }
 
+  function handleGrantAccess(application, project) {
+    console.log('[GRANT] Application:', JSON.stringify(application))
+    console.log('[GRANT] Project:', project.id, project.title)
+
+    const USERDATA_KEY = 'hqcmd_userData_v4'
+    const USERS_KEY = 'hqcmd_users_v3'
+
+    const allUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
+    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+
+    const applicant = allUsers.find(u =>
+      (application.applicantEmail && u.email?.toLowerCase().trim() === application.applicantEmail.toLowerCase().trim()) ||
+      (application.counterpartyEmail && u.email?.toLowerCase().trim() === application.counterpartyEmail.toLowerCase().trim()) ||
+      (application.applicantName && u.name?.toLowerCase().trim() === application.applicantName.toLowerCase().trim())
+    )
+
+    console.log('[GRANT] Applicant found:', applicant?.name, applicant?.id)
+
+    if (!applicant) {
+      alert('Could not find this user\'s account. Make sure they have registered on HQCMD.')
+      return
+    }
+
+    const applicantId = String(applicant.id)
+
+    const alreadyHasAccess = (allData[applicantId]?.sharedProjects || []).some(sp =>
+      String(sp.projectId) === String(project.id)
+    )
+    if (alreadyHasAccess) {
+      alert(`${applicant.name} already has access to this project.`)
+      return
+    }
+
+    if (!allData[applicantId]) allData[applicantId] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
+    if (!Array.isArray(allData[applicantId].sharedProjects)) allData[applicantId].sharedProjects = []
+    if (!Array.isArray(allData[applicantId].notifications)) allData[applicantId].notifications = []
+
+    allData[applicantId].sharedProjects.push({
+      id: String(Date.now()),
+      projectId: String(project.id),
+      ownerUserId: String(currentUser.id),
+      ownerName: currentUser.name,
+      projectTitle: project.title,
+      role: application.role || 'Member',
+      userRole: application.role || 'Member',
+      joinedAt: new Date().toISOString(),
+    })
+
+    allData[applicantId].notifications.push({
+      id: String(Date.now()) + '_n',
+      type: 'access_granted',
+      iconType: 'application',
+      text: `You've been granted access to "${project.title}" as ${application.role || 'Member'}. Check My Projects!`,
+      time: 'Just now',
+      read: false,
+      timestamp: new Date().toISOString(),
+      link: '/projects',
+    })
+
+    const ownerData = allData[String(currentUser.id)]
+    if (ownerData) {
+      const projectIndex = (ownerData.projects ?? []).findIndex(p => String(p.id) === String(project.id))
+      if (projectIndex !== -1) {
+        if (!Array.isArray(ownerData.projects[projectIndex].members)) ownerData.projects[projectIndex].members = []
+        const alreadyMember = ownerData.projects[projectIndex].members.some(m => String(m.id) === applicantId || String(m.userId) === applicantId)
+        if (!alreadyMember) {
+          ownerData.projects[projectIndex].members.push({
+            id: applicantId,
+            userId: applicantId,
+            name: applicant.name,
+            role: application.role || 'Member',
+            position: application.role || 'Member',
+            initials: applicant.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+            joinedAt: new Date().toISOString(),
+          })
+        }
+      }
+    }
+
+    localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+    const verify = JSON.parse(localStorage.getItem(USERDATA_KEY))
+    console.log('[GRANT] Verification:', verify[applicantId]?.sharedProjects?.length, 'shared projects')
+
+    if (applicant.email) {
+      const { subject, html } = accessGrantedEmail(applicant.name, project.title, currentUser.name)
+      sendEmail({ to: applicant.email, subject, html })
+    }
+
+    window.dispatchEvent(new Event('storage'))
+
+    onAcceptApplication?.(app)
+    updateApp({ ...application, status: 'access_granted', read: true })
+    onAddNotification?.({
+      type: 'application',
+      text: `${application.applicantName} has been granted access to "${project.title}" as ${application.role}.`,
+      link: '/workstation',
+    })
+    setPipelineTab(project.id, 'active')
+
+    alert(`✓ Access granted! ${applicant.name} will see "${project.title}" in their My Projects.`)
+  }
+
   const fi = e => (e.target.style.borderColor = ACCENT)
   const fb = e => (e.target.style.borderColor = 'var(--border-default)')
 
@@ -820,7 +922,7 @@ export default function TeamsPage({
                                             </button>
                                           )}
                                           <button
-                                            onClick={canGrant ? e => { e.stopPropagation(); grantAccess(app, project) } : undefined}
+                                            onClick={canGrant ? e => { e.stopPropagation(); handleGrantAccess(app, project) } : undefined}
                                             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white transition-colors"
                                             style={{ backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)', cursor: canGrant ? 'pointer' : 'not-allowed' }}
                                             onMouseEnter={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#15803d' }}

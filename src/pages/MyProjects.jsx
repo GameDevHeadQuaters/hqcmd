@@ -224,6 +224,35 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
     setSharedProjects(resolved)
   }, [currentUser])
 
+  useEffect(() => {
+    if (!currentUser) return
+    function handleStorage() {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+      const myId = String(currentUser.id)
+      const refs = allData[myId]?.sharedProjects || []
+      const resolved = refs.map(ref => {
+        const ownerId = String(ref.ownerUserId)
+        const projectId = String(ref.projectId)
+        const ownerProjects = allData[ownerId]?.projects || []
+        const project = ownerProjects.find(p => String(p.id) === projectId)
+        const owner = allUsers.find(u => String(u.id) === ownerId)
+        if (!project) return null
+        return {
+          ...project,
+          _isShared: true,
+          _role: ref.role,
+          _ownerName: owner?.name || 'Unknown',
+          _ownerUserId: ownerId,
+          _sharedRef: ref,
+        }
+      }).filter(Boolean)
+      setSharedProjects(resolved)
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [currentUser])
+
   function handleSave(data) {
     const id = Date.now()
     if (data.coverImage) {
