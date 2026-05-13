@@ -197,43 +197,31 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
   const [sharedProjects, setSharedProjects] = useState([])
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('hqcmd_userData_v4')
-      const allData = raw ? JSON.parse(raw) : {}
-      const allUsersRaw = localStorage.getItem('hqcmd_users_v3')
-      const allUsers = allUsersRaw ? JSON.parse(allUsersRaw) : []
+    if (!currentUser) return
 
-      const myId = String(currentUser.id)
-      const myData = allData[myId] || {}
-      const refs = myData.sharedProjects || []
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+    const myId = String(currentUser.id)
+    const refs = allData[myId]?.sharedProjects || []
 
-      console.log('[MyProjects] myId:', myId)
-      console.log('[MyProjects] sharedProjects refs:', refs)
+    const resolved = refs.map(ref => {
+      const ownerId = String(ref.ownerUserId)
+      const projectId = String(ref.projectId)
+      const ownerProjects = allData[ownerId]?.projects || []
+      const project = ownerProjects.find(p => String(p.id) === projectId)
+      const owner = allUsers.find(u => String(u.id) === ownerId)
+      if (!project) return null
+      return {
+        ...project,
+        _isShared: true,
+        _role: ref.role,
+        _ownerName: owner?.name || 'Unknown',
+        _ownerUserId: ownerId,
+        _sharedRef: ref,
+      }
+    }).filter(Boolean)
 
-      const resolved = refs.map(ref => {
-        const ownerId = String(ref.ownerUserId)
-        const projectId = String(ref.projectId)
-        const ownerData = allData[ownerId] || {}
-        const project = (ownerData.projects || []).find(p => String(p.id) === projectId)
-        const owner = allUsers.find(u => String(u.id) === ownerId)
-
-        console.log('[MyProjects] ref:', ref, '→ project found:', !!project)
-
-        if (!project) return null
-        return {
-          ...project,
-          _isShared: true,
-          _sharedRef: ref,
-          _ownerName: owner?.name || 'Unknown',
-          _role: ref.role,
-        }
-      }).filter(Boolean)
-
-      console.log('[MyProjects] resolved shared projects:', resolved.length)
-      setSharedProjects(resolved)
-    } catch(e) {
-      console.error('[MyProjects] Error reading shared projects:', e)
-    }
+    setSharedProjects(resolved)
   }, [currentUser])
 
   function handleSave(data) {
@@ -319,21 +307,50 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
 
             {/* ── Shared With Me ── */}
             {sharedProjects.length > 0 && (
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <IconShare size={14} style={{ color: 'var(--text-tertiary)' }} />
-                  <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>Shared With Me</h2>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {sharedProjects.map((p, i) => (
-                    <SharedProjectCard
-                      key={String(p._sharedRef.projectId) + '_' + String(p._sharedRef.ownerUserId)}
-                      project={{ ...p, coverImage: getProjectImage(p.id) }}
-                      ref_={{ ...p._sharedRef, ownerName: p._ownerName, userRole: p._role }}
-                      topBorder={CARD_BORDERS[i % 3]}
-                      onOpen={() => { setActiveOwnerUserId?.(p._sharedRef.ownerUserId); setActiveProjectId(p._sharedRef.projectId); navigate('/workstation') }}
-                    />
-                  ))}
+              <div style={{ marginTop: '32px' }}>
+                <h2 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>
+                  Shared With Me
+                </h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                  {sharedProjects.map(project => {
+                    const coverImage = localStorage.getItem('hqcmd_img_' + project.id)
+                    return (
+                      <div key={project.id} style={{
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        borderTop: '2px solid var(--brand-purple)'
+                      }}>
+                        {coverImage
+                          ? <img src={coverImage} alt={project.title} style={{ width: '100%', height: '120px', objectFit: 'cover' }} />
+                          : <div style={{ width: '100%', height: '120px', background: 'linear-gradient(135deg, #534AB7, #805da8)' }} />
+                        }
+                        <div style={{ padding: '14px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                            <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>{project.title}</span>
+                            <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '99px', background: 'var(--brand-purple-glow)', color: 'var(--brand-purple)', border: '1px solid var(--brand-purple)' }}>{project._role}</span>
+                          </div>
+                          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Owned by {project._ownerName}</p>
+                          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '12px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span>Progress</span>
+                              <span>{project.progress || 0}%</span>
+                            </div>
+                            <div style={{ height: '4px', background: 'var(--bg-elevated)', borderRadius: '99px', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${project.progress || 0}%`, background: 'linear-gradient(90deg, var(--brand-accent), var(--brand-pink))' }} />
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => navigate(`/workstation?projectId=${project.id}&ownerUserId=${project._ownerUserId}`)}
+                            style={{ width: '100%', padding: '8px', borderRadius: '9999px', border: 'none', background: 'var(--brand-accent)', color: 'white', fontSize: '12px', fontWeight: '500', cursor: 'pointer' }}
+                          >
+                            Open Workstation
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
