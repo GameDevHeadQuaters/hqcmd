@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCheck, IconAlertTriangle } from '@tabler/icons-react'
+import { IconCheck, IconAlertTriangle, IconBrandGoogle } from '@tabler/icons-react'
 
 const ACCENT = '#534AB7'
 const BETA_REQUESTS_KEY = 'hqcmd_beta_requests'
@@ -148,6 +148,25 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
           className="rounded-2xl p-6"
           style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)', boxShadow: '0 4px 24px rgba(0,0,0,0.15)' }}
         >
+          {/* Google OAuth — always visible */}
+          {!requestSent && (
+            <>
+              <button
+                onClick={() => { window.location.href = '/api/auth/google' }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors mb-4"
+                style={{ border: '1px solid var(--border-default)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-elevated)' }}
+              >
+                <IconBrandGoogle size={16} />
+                Continue with Google
+              </button>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-default)' }} />
+                <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>or</span>
+                <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-default)' }} />
+              </div>
+            </>
+          )}
+
           {showSignupForm ? (
             <>
               {betaMode && inviteVerified && (

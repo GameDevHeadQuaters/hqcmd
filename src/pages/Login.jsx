@@ -72,6 +72,7 @@ export default function Login({ onLogin, currentUser }) {
           {/* OAuth buttons */}
           <div className="grid grid-cols-2 gap-3 mb-5">
             <button
+              onClick={() => { window.location.href = '/api/auth/google' }}
               className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors"
               style={{ border: '1px solid var(--border-default)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-elevated)' }}
             >

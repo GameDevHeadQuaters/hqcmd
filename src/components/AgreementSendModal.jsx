@@ -6,6 +6,7 @@ import {
 import { AGREEMENT_TEMPLATES } from '../utils/agreementTemplates'
 import { AGREEMENT_DISCLAIMER } from '../utils/agreementDisclaimer'
 import { writeToUserData, checkUserDataWrite } from '../utils/crossUserWrite'
+import { sendEmail, agreementReceivedEmail } from '../utils/sendEmail'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -143,6 +144,10 @@ export default function AgreementSendModal({
     }
     writeToUserData(String(counterparty.id), 'agreements', receivedAgreement)
     checkUserDataWrite(String(counterparty.id), 'agreements')
+
+    const signLink = `${window.location.origin}/sign/${createdAgreement.shareToken}`
+    const { subject, html } = agreementReceivedEmail(cpName.trim(), currentUser?.name ?? 'Someone', projectTitle, signLink)
+    sendEmail({ to: cpEmail.trim(), subject, html })
 
     const updated = { ...createdAgreement, counterpartyName: cpName.trim(), counterpartyEmail: cpEmail.trim(), sentToInbox: true }
     setCreated(updated)

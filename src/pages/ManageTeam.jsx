@@ -10,6 +10,7 @@ import { AGREEMENT_TEMPLATES } from '../utils/agreementTemplates'
 import AgreementSendModal from '../components/AgreementSendModal'
 import AgreementViewer from '../components/AgreementViewer'
 import { writeToUserData, checkUserDataWrite } from '../utils/crossUserWrite'
+import { sendEmail, accessGrantedEmail } from '../utils/sendEmail'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -219,6 +220,11 @@ export default function ManageTeam({
     const writeSuccess = writeToUserData(String(applicant.id), 'sharedProjects', sharedRef)
     console.log('[grantAccess] sharedProject write success:', writeSuccess)
     checkUserDataWrite(String(applicant.id), 'sharedProjects')
+
+    if (applicant.email) {
+      const { subject, html } = accessGrantedEmail(applicant.name, project.title, currentUser.name)
+      sendEmail({ to: applicant.email, subject, html })
+    }
 
     // Write notification directly to applicant's localStorage slot
     writeToUserData(String(applicant.id), 'notifications', {

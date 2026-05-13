@@ -23,6 +23,7 @@ import TeamsPage from './pages/TeamsPage'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Contact from './pages/Contact'
+import GoogleAuthSuccess from './pages/GoogleAuthSuccess'
 
 const BETA_MODE = true
 
@@ -777,6 +778,16 @@ export default function App() {
             users={users}
             onCountersign={countersignAgreement}
             onNotifyOwner={addNotificationForUser}
+          />
+        } />
+
+        <Route path="/auth/google/success" element={
+          <GoogleAuthSuccess
+            users={users}
+            setUsers={setUsers}
+            setCurrentUser={setCurrentUser}
+            userData={userData}
+            setUserData={setUserData}
           />
         } />
 

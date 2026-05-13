@@ -6,6 +6,7 @@ import {
   IconEye, IconEyeOff, IconHeartbeat, IconBug,
 } from '@tabler/icons-react'
 import { runIntegrityCheck, migrateUserIds, REQUIRED_ARRAYS } from '../utils/dataIntegrity'
+import { sendEmail, betaApprovedEmail } from '../utils/sendEmail'
 
 const ACCENT = '#534AB7'
 const UD_KEY    = 'hqcmd_userData_v4'
@@ -234,6 +235,8 @@ function BetaRequestsTab() {
     codes.push({ code, createdAt: new Date().toISOString(), used: false, usedBy: null, usedAt: null, forEmail: req.email })
     writeLS(CODE_KEY, codes)
     setGeneratedCodes(p => ({ ...p, [req.id]: code }))
+    const { subject, html } = betaApprovedEmail(req.name, code)
+    sendEmail({ to: req.email, subject, html })
     persist(requests.map(r => r.id === req.id ? { ...r, status: 'approved', inviteCode: code, reviewedAt: new Date().toISOString() } : r))
   }
 
