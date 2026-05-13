@@ -9,7 +9,7 @@ import {
 import { AGREEMENT_TEMPLATES } from '../utils/agreementTemplates'
 import AgreementSendModal from '../components/AgreementSendModal'
 import AgreementViewer from '../components/AgreementViewer'
-import { crossUserPrepend } from '../utils/crossUserWrite'
+import { writeToUserData, checkUserDataWrite } from '../utils/crossUserWrite'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -101,6 +101,7 @@ export default function ManageTeam({
   setActiveProjectId,
   onAcceptApplication,
   onAddNotification,
+  onRefreshUserData,
   users,
   onAddNotificationForUser,
   onAddDirectMessageForUser,
@@ -187,31 +188,61 @@ export default function ManageTeam({
 
   function grantAccess(app) {
     if (getAgreementStatus(app) !== 'signed') return
-    onAcceptApplication?.(app)
-    updateApp({ ...app, status: 'access_granted', read: true })
-    onAddNotification?.({ type: 'application', text: `${app.applicantName} has been added to ${project?.title ?? 'your project'} as ${app.role}.`, link: '/workstation' })
 
-    // Push a sharedProject reference to the member's userData so they see it under "Shared With Me"
-    const memberUser = (users ?? []).find(u =>
+    // Look up applicant from localStorage for maximum reliability
+    const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+    const applicant = allUsers.find(u =>
       (app.applicantId && String(u.id) === String(app.applicantId)) ||
       u.name?.toLowerCase() === app.applicantName?.toLowerCase()
     )
-    if (memberUser && project && currentUser) {
-      const sharedRef = {
-        projectId: project.id,
-        ownerUserId: currentUser.id,
-        ownerName: currentUser.name,
-        projectTitle: project.title,
-        userRole: app.role,
-        joinedAt: new Date().toISOString(),
-      }
-      crossUserPrepend(String(memberUser.id), 'sharedProjects', sharedRef)
-      onAddNotificationForUser?.(memberUser.id, {
-        type: 'application',
-        text: `You've been granted access to "${project.title}". Check My Projects to get started!`,
-        link: '/projects',
-      })
+
+    if (!applicant) {
+      console.error('[grantAccess] Could not find applicant in users', app)
+      alert(`Could not find an account for ${app.applicantName}. They may need to register first.`)
+      return
     }
+
+    console.log('[grantAccess] Found applicant:', applicant.id, applicant.name)
+
+    // Write sharedProject reference directly to applicant's localStorage slot
+    const sharedRef = {
+      id: Date.now().toString(),
+      projectId: project.id,
+      ownerUserId: currentUser.id,
+      ownerName: currentUser.name,
+      projectTitle: project.title,
+      role: app.role,
+      userRole: app.role,
+      joinedAt: new Date().toISOString(),
+    }
+    const writeSuccess = writeToUserData(String(applicant.id), 'sharedProjects', sharedRef)
+    console.log('[grantAccess] sharedProject write success:', writeSuccess)
+    checkUserDataWrite(String(applicant.id), 'sharedProjects')
+
+    // Write notification directly to applicant's localStorage slot
+    writeToUserData(String(applicant.id), 'notifications', {
+      id: Date.now().toString() + '_notif',
+      type: 'access_granted',
+      iconType: 'application',
+      text: `You've been granted access to "${project.title}" as ${app.role}. Check My Projects!`,
+      time: 'Just now',
+      read: false,
+      timestamp: new Date().toISOString(),
+      link: '/projects',
+    })
+
+    // Update React state (adds member to project, contacts both ways)
+    onAcceptApplication?.(app)
+    updateApp({ ...app, status: 'access_granted', read: true })
+    onAddNotification?.({
+      type: 'application',
+      text: `${app.applicantName} has been granted access to ${project?.title ?? 'your project'} as ${app.role}.`,
+      link: '/workstation',
+    })
+
+    // Force re-read so owner's UI reflects the latest state
+    onRefreshUserData?.()
+    setPipelineTab('active')
   }
 
   function getRecipientEmail(name, id) {

@@ -16,7 +16,7 @@ import SignAgreement from './pages/SignAgreement'
 import BudgetPage from './pages/BudgetPage'
 import ManageTeam from './pages/ManageTeam'
 import { IconMessages, IconBriefcase, IconWritingSign } from '@tabler/icons-react'
-import { crossUserPrepend, crossUserMap } from './utils/crossUserWrite'
+import { writeToUserData, updateUserDataItem, checkUserDataWrite, crossUserPrepend, crossUserMap } from './utils/crossUserWrite'
 import AdminPanel from './pages/AdminPanel'
 import TeamsPage from './pages/TeamsPage'
 import Terms from './pages/Terms'
@@ -337,6 +337,18 @@ export default function App() {
     })
   }
 
+  // ── Force re-read from localStorage (call after cross-user writes) ─────────
+
+  function refreshUserData() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.userData)
+      const allData = raw ? JSON.parse(raw) : {}
+      setUserData(deserializeUserData(allData))
+    } catch (e) {
+      console.warn('hqcmd: refreshUserData failed', e)
+    }
+  }
+
   // ── Cross-user helpers (Browse Projects → owner's inbox) ─────────────────
 
   function addApplicationForUser(ownerId, application) {
@@ -344,7 +356,7 @@ export default function App() {
       const d = prev[ownerId] ?? emptyUserData()
       return { ...prev, [ownerId]: { ...d, applications: [application, ...d.applications] } }
     })
-    crossUserPrepend(String(ownerId), 'applications', application)
+    writeToUserData(String(ownerId), 'applications', application)
   }
 
   function addNotificationForUser(ownerId, notifData) {
@@ -353,9 +365,8 @@ export default function App() {
       const d = prev[ownerId] ?? emptyUserData()
       return { ...prev, [ownerId]: { ...d, notifications: [notifObj, ...d.notifications] } }
     })
-    // Strip the Icon React component before writing to localStorage
     const { Icon: _icon, ...serializedNotif } = notifObj
-    crossUserPrepend(String(ownerId), 'notifications', serializedNotif)
+    writeToUserData(String(ownerId), 'notifications', serializedNotif)
   }
 
   function addDirectMessageForUser(ownerId, message) {
@@ -363,29 +374,25 @@ export default function App() {
       const d = prev[ownerId] ?? emptyUserData()
       return { ...prev, [ownerId]: { ...d, directMessages: [message, ...d.directMessages] } }
     })
-    crossUserPrepend(String(ownerId), 'directMessages', message)
+    writeToUserData(String(ownerId), 'directMessages', message)
   }
 
-  // ── Cross-user contact upsert ─────────────────────────────────────────────
-  // Writes directly to localStorage — always dedupes by userId/email.
+  // ── Cross-user contact upsert — dedupes by userId/email ──────────────────
+
   function addContactForUser(recipientId, contactUser, source, projectTitle) {
     if (!contactUser?.id) return
-    if (!users.find(u => String(u.id) === String(contactUser.id))) return
-    crossUserMap(String(recipientId), 'contacts', (existing = []) => {
-      const dup = existing.find(c =>
-        String(c.userId) === String(contactUser.id) || c.email === contactUser.email
-      )
-      if (dup) {
-        return existing.map(c => {
-          if (String(c.userId) !== String(contactUser.id) && c.email !== contactUser.email) return c
-          const projects = projectTitle && !(c.projectsInCommon ?? []).includes(projectTitle)
-            ? [...(c.projectsInCommon ?? []), projectTitle]
-            : c.projectsInCommon ?? []
-          return { ...c, projectsInCommon: projects }
-        })
-      }
-      return [makeContact(contactUser, source, projectTitle), ...existing]
-    })
+    const existing = checkUserDataWrite(String(recipientId), 'contacts')
+    const dup = existing.find(c =>
+      String(c.userId) === String(contactUser.id) || c.email === contactUser.email
+    )
+    if (dup) {
+      const projects = projectTitle && !(dup.projectsInCommon ?? []).includes(projectTitle)
+        ? [...(dup.projectsInCommon ?? []), projectTitle]
+        : dup.projectsInCommon ?? []
+      updateUserDataItem(String(recipientId), 'contacts', dup.id, { projectsInCommon: projects })
+    } else {
+      writeToUserData(String(recipientId), 'contacts', makeContact(contactUser, source, projectTitle))
+    }
   }
 
   // ── Read a project from another user's localStorage slot ─────────────────
@@ -402,9 +409,7 @@ export default function App() {
   // ── Update a project in another user's localStorage slot ─────────────────
 
   function updateSharedProject(ownerUserId, projectId, changes) {
-    crossUserMap(String(ownerUserId), 'projects', (ps = []) =>
-      ps.map(p => p.id === projectId ? { ...p, ...changes } : p)
-    )
+    updateUserDataItem(String(ownerUserId), 'projects', projectId, changes)
   }
 
   // ── onAddNotification for current user (used by Workstation, Inbox) ───────
@@ -716,6 +721,7 @@ export default function App() {
               setActiveProjectId={setActiveProjectId}
               onAcceptApplication={acceptApplication}
               onAddNotification={onAddNotification}
+              onRefreshUserData={refreshUserData}
               users={users}
               onAddNotificationForUser={addNotificationForUser}
               onAddDirectMessageForUser={addDirectMessageForUser}

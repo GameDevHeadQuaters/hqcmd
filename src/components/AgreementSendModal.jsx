@@ -5,7 +5,7 @@ import {
 } from '@tabler/icons-react'
 import { AGREEMENT_TEMPLATES } from '../utils/agreementTemplates'
 import { AGREEMENT_DISCLAIMER } from '../utils/agreementDisclaimer'
-import { crossUserPrepend } from '../utils/crossUserWrite'
+import { writeToUserData, checkUserDataWrite } from '../utils/crossUserWrite'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -126,11 +126,11 @@ export default function AgreementSendModal({
       read: false,
     }
 
-    // These now write directly to localStorage via crossUserPrepend (in App.jsx)
+    // Write notification and DM through App.jsx handlers (handles React state + localStorage)
     onAddNotificationForUser?.(counterparty.id, { type: 'agreement', text: notifText, link: '/inbox' })
     onAddDirectMessageForUser?.(counterparty.id, dmObj)
 
-    // Push a received-agreement copy so the recipient sees it in their Agreements page
+    // Write received-agreement copy directly so the recipient sees it in their Agreements page
     const receivedAgreement = {
       ...createdAgreement,
       id: String(createdAgreement.id) + '_recv_' + Date.now(),
@@ -141,7 +141,8 @@ export default function AgreementSendModal({
       status: 'awaiting_my_signature',
       read: false,
     }
-    crossUserPrepend(String(counterparty.id), 'agreements', receivedAgreement)
+    writeToUserData(String(counterparty.id), 'agreements', receivedAgreement)
+    checkUserDataWrite(String(counterparty.id), 'agreements')
 
     const updated = { ...createdAgreement, counterpartyName: cpName.trim(), counterpartyEmail: cpEmail.trim(), sentToInbox: true }
     setCreated(updated)

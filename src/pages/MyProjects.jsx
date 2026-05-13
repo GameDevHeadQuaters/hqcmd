@@ -194,21 +194,30 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
   const [creating, setCreating] = useState(false)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
 
-  // Read sharedProjects fresh from localStorage so cross-user grants are visible immediately
+  // Read sharedProjects fresh from localStorage every render so cross-user grants appear immediately
   const resolvedSharedProjects = useMemo(() => {
     try {
-      const allUD = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
-      const refs = allUD[String(currentUser?.id)]?.sharedProjects ?? sharedProjects ?? []
-      return refs.map(ref => ({
-        ref,
-        project: (allUD[String(ref.ownerUserId)]?.projects ?? []).find(p => p.id === ref.projectId) ?? null,
-      })).filter(({ project }) => project !== null)
-    } catch {
-      return (sharedProjects ?? []).map(ref => ({
-        ref,
-        project: readProjectFromOwnerSlot(ref.ownerUserId, ref.projectId),
-      })).filter(({ project }) => project !== null)
+      const allUserData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+      const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+      const myRefs = allUserData[String(currentUser?.id)]?.sharedProjects ?? []
+
+      return myRefs.map(ref => {
+        const ownerData = allUserData[String(ref.ownerUserId)]
+        const project = ownerData?.projects?.find(p =>
+          p.id === ref.projectId || String(p.id) === String(ref.projectId)
+        )
+        const owner = allUsers.find(u => String(u.id) === String(ref.ownerUserId))
+        if (!project) return null
+        return {
+          ref: { ...ref, ownerName: ref.ownerName ?? owner?.name ?? 'Unknown', userRole: ref.userRole ?? ref.role ?? 'Member' },
+          project,
+        }
+      }).filter(Boolean)
+    } catch (e) {
+      console.warn('MyProjects: failed to read sharedProjects from localStorage', e)
+      return []
     }
+  // Re-run whenever sharedProjects prop or currentUser changes (prop changes trigger re-render)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sharedProjects, currentUser?.id])
 

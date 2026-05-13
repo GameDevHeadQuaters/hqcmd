@@ -4,7 +4,7 @@ import {
   IconSend, IconAlertTriangle,
 } from '@tabler/icons-react'
 import { AGREEMENT_DISCLAIMER } from '../utils/agreementDisclaimer'
-import { crossUserPrepend } from '../utils/crossUserWrite'
+import { writeToUserData, checkUserDataWrite } from '../utils/crossUserWrite'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -122,11 +122,11 @@ export default function AgreementViewer({
       read: false,
     }
 
-    // These now write directly to localStorage via crossUserPrepend (in App.jsx)
+    // Write notification and DM through App.jsx handlers (handles React state + localStorage)
     onAddNotificationForUser?.(counterparty.id, { type: 'agreement', text: notifText, link: '/inbox' })
     onAddDirectMessageForUser?.(counterparty.id, dmObj)
 
-    // Push a received-agreement copy so the recipient sees it in their Agreements page
+    // Write received-agreement copy directly so the recipient sees it in their Agreements page
     const receivedAgreement = {
       ...updated,
       id: String(updated.id) + '_recv_' + Date.now(),
@@ -135,7 +135,8 @@ export default function AgreementViewer({
       status: 'awaiting_my_signature',
       read: false,
     }
-    crossUserPrepend(String(counterparty.id), 'agreements', receivedAgreement)
+    writeToUserData(String(counterparty.id), 'agreements', receivedAgreement)
+    checkUserDataWrite(String(counterparty.id), 'agreements')
 
     setSendStatus('sent')
   }
