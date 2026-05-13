@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { IconCheck, IconAlertTriangle, IconBrandGoogle } from '@tabler/icons-react'
 
 const ACCENT = '#534AB7'
@@ -18,6 +18,15 @@ function blurReset(e)   { e.target.style.borderColor = '' }
 
 export default function Signup({ onSignup, currentUser, users, betaMode = false }) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+
+  const googleEmail = searchParams.get('google_email') || ''
+  const googleName  = searchParams.get('google_name')  || ''
+  const isGoogleFlow = !!(googleEmail && searchParams.get('needs_code') === 'true')
+
+  // Google-flow invite code state
+  const [googleCode,      setGoogleCode]      = useState('')
+  const [googleCodeError, setGoogleCodeError] = useState('')
 
   // Beta gate state
   const [betaTab,       setBetaTab]       = useState('request') // 'request' | 'code'
@@ -110,6 +119,25 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
     setRequestSent(true)
   }
 
+  function submitGoogleWithCode() {
+    const code = googleCode.trim().toUpperCase()
+    if (!code) { setGoogleCodeError('Please enter your invite code'); return }
+    try {
+      const codes = JSON.parse(localStorage.getItem(INVITE_CODES_KEY) ?? '[]')
+      const found = codes.find(c => c.code === code && !c.used)
+      if (!found) { setGoogleCodeError('Invalid or already used invite code. Please check and try again.'); return }
+      const updated = codes.map(c =>
+        c.code === code ? { ...c, used: true, usedBy: googleEmail.toLowerCase(), usedAt: new Date().toISOString() } : c
+      )
+      localStorage.setItem(INVITE_CODES_KEY, JSON.stringify(updated))
+    } catch {
+      setGoogleCodeError('Something went wrong. Please try again.')
+      return
+    }
+    onSignup?.({ name: googleName, email: googleEmail, password: '' })
+    navigate('/projects')
+  }
+
   const showSignupForm = !betaMode || inviteVerified
 
   return (
@@ -126,7 +154,12 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: '#ed2793' }}>BETA</span>
             )}
           </div>
-          {showSignupForm ? (
+          {isGoogleFlow ? (
+            <>
+              <h1 className="font-bold text-xl" style={{ color: 'var(--text-primary)' }}>Almost there!</h1>
+              <p className="text-sm mt-1 text-center" style={{ color: 'var(--text-secondary)' }}>Enter your invite code to complete signup</p>
+            </>
+          ) : showSignupForm ? (
             <>
               <h1 className="font-bold text-xl" style={{ color: 'var(--text-primary)' }}>Create your account</h1>
               <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Start commanding your projects</p>
@@ -148,8 +181,8 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
           className="rounded-2xl p-6"
           style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)', boxShadow: '0 4px 24px rgba(0,0,0,0.15)' }}
         >
-          {/* Google OAuth — always visible */}
-          {!requestSent && (
+          {/* Google OAuth — hidden when already in the Google flow */}
+          {!requestSent && !isGoogleFlow && (
             <>
               <button
                 onClick={() => { window.location.href = '/api/auth/google' }}
@@ -167,7 +200,49 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
             </>
           )}
 
-          {showSignupForm ? (
+          {isGoogleFlow ? (
+            <div className="space-y-4">
+              <div className="flex items-start gap-2 px-3 py-3 rounded-lg text-xs" style={{ backgroundColor: 'rgba(83,74,183,0.12)', color: ACCENT }}>
+                <IconBrandGoogle size={14} className="flex-shrink-0 mt-0.5" />
+                <span>You signed in with Google but still need a beta invite code to join. Enter your code below to complete registration.</span>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Name</label>
+                <input readOnly value={googleName} className="w-full text-sm rounded-lg px-3 py-2.5 outline-none"
+                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-tertiary)', cursor: 'default' }} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Email</label>
+                <input readOnly value={googleEmail} className="w-full text-sm rounded-lg px-3 py-2.5 outline-none"
+                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-tertiary)', cursor: 'default' }} />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Invite Code</label>
+                <input
+                  type="text"
+                  className="w-full text-sm rounded-lg px-3 py-2.5 outline-none font-mono tracking-widest"
+                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)', textTransform: 'uppercase' }}
+                  placeholder="XXXXXXXX"
+                  value={googleCode}
+                  onChange={e => { setGoogleCode(e.target.value); setGoogleCodeError('') }}
+                  onFocus={focusAccent} onBlur={blurReset}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submitGoogleWithCode() } }}
+                  autoFocus
+                />
+                {googleCodeError && (
+                  <div className="flex items-start gap-1.5 mt-1.5">
+                    <IconAlertTriangle size={12} style={{ color: 'var(--status-error)', flexShrink: 0, marginTop: 1 }} />
+                    <p className="text-xs" style={{ color: 'var(--status-error)' }}>{googleCodeError}</p>
+                  </div>
+                )}
+              </div>
+              <button onClick={submitGoogleWithCode}
+                className="w-full py-2.5 rounded-full text-sm font-semibold text-white hover:opacity-80 transition-opacity"
+                style={{ backgroundColor: ACCENT }}>
+                Complete Registration
+              </button>
+            </div>
+          ) : showSignupForm ? (
             <>
               {betaMode && inviteVerified && (
                 <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg mb-4 text-sm"
