@@ -1,21 +1,35 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { IconPlus, IconCalendarPlus, IconCalendarCheck, IconCheckbox } from '@tabler/icons-react'
 import { hasPermission } from '../utils/permissions'
+import { readProject, appendToProjectArray, updateProjectArrayItem } from '../utils/projectData'
 
 const ACCENT = '#534AB7'
 
-export default function TodoList({ todos, setTodos, userRole = 'Owner' }) {
+export default function TodoList({ projectId, ownerUserId, userRole = 'Owner' }) {
+  const [todos, setTodos] = useState([])
   const [newText, setNewText] = useState('')
   const [calAdded, setCalAdded] = useState({})
 
+  useEffect(() => {
+    function load() {
+      const proj = readProject(projectId, ownerUserId)
+      setTodos(proj?.todos || [])
+    }
+    load()
+    window.addEventListener('storage', load)
+    return () => window.removeEventListener('storage', load)
+  }, [projectId, ownerUserId])
+
   function toggle(id) {
-    setTodos(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
+    const todo = todos.find(t => t.id === id)
+    if (!todo) return
+    updateProjectArrayItem(projectId, ownerUserId, 'todos', id, { done: !todo.done })
   }
 
   function add() {
     const text = newText.trim()
-    if (!text) return
-    setTodos(prev => [...prev, { id: Date.now(), text, done: false }])
+    if (!text || !projectId || !ownerUserId) return
+    appendToProjectArray(projectId, ownerUserId, 'todos', { id: Date.now(), text, done: false })
     setNewText('')
   }
 

@@ -1,6 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { IconBell, IconInbox, IconSun, IconMoon } from '@tabler/icons-react'
 import ProjectHeader from './ProjectHeader'
 import TabPanel from './TabPanel'
 import BudgetCard from './BudgetCard'
@@ -8,12 +7,7 @@ import TeamMembers from './TeamMembers'
 import ProjectProfile from './ProjectProfile'
 import CalendarModal from './CalendarModal'
 import ScheduleMeetingModal from './ScheduleMeetingModal'
-import ProfileDropdown from './ProfileDropdown'
-import { useTheme } from '../context/ThemeContext'
-import { hasPermission } from '../utils/permissions'
-
-const ACCENT = '#534AB7'
-const ACCENT_DARK = '#3C3489'
+import { writeProjectField } from '../utils/projectData'
 
 export default function Workstation({
   calendarEvents, setCalendarEvents,
@@ -32,25 +26,13 @@ export default function Workstation({
   onAddDirectMessageForUser,
   userRole = 'Owner',
 }) {
-  const navigate = useNavigate()
   const location = useLocation()
-  const { theme, setTheme } = useTheme()
-  const isDark = theme === 'dark'
 
   const searchParams = new URLSearchParams(location.search)
   const urlOwnerUserId = searchParams.get('ownerUserId')
   const isSharedProject = !!urlOwnerUserId && urlOwnerUserId !== String(currentUser?.id)
 
-  const projectMembers = useMemo(() => {
-    try {
-      const ownerId = isSharedProject ? urlOwnerUserId : String(currentUser?.id)
-      const pid = String(activeProject?.id)
-      if (!ownerId || !pid) return activeProject?.members ?? []
-      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-      const proj = (allData[ownerId]?.projects || []).find(p => String(p.id) === pid)
-      return proj?.members || activeProject?.members || []
-    } catch { return activeProject?.members ?? [] }
-  }, [activeProject, isSharedProject, urlOwnerUserId, currentUser])
+  const ownerUserId = isSharedProject ? urlOwnerUserId : String(currentUser?.id)
 
   const myRole = useMemo(() => {
     if (!isSharedProject) return userRole
@@ -62,20 +44,26 @@ export default function Workstation({
     } catch { return userRole || 'Member' }
   }, [activeProject, isSharedProject, currentUser, userRole])
 
-  const allMembers = useMemo(() => {
-    if (!isSharedProject || !currentUser) return projectMembers
-    const existingIds = projectMembers.map(m => String(m.userId || m.id))
-    if (existingIds.includes(String(currentUser.id))) return projectMembers
-    return [...projectMembers, {
-      id: String(currentUser.id),
-      userId: String(currentUser.id),
-      name: currentUser.name,
-      role: myRole,
-      position: myRole,
-      initials: currentUser.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
-      joinedAt: new Date().toISOString(),
-    }]
-  }, [projectMembers, currentUser, isSharedProject, myRole])
+  // Seed calendarEvents from localStorage on first mount (handles page refresh)
+  useEffect(() => {
+    if (!activeProject?.id || !ownerUserId) return
+    try {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const proj = (allData[ownerUserId]?.projects || []).find(p => String(p.id) === String(activeProject.id))
+      if (proj?.calendarEvents?.length && calendarEvents.length === 0) {
+        setCalendarEvents(proj.calendarEvents)
+      }
+    } catch {}
+  }, [activeProject?.id, ownerUserId])
+
+  // Mirror calendarEvents to localStorage whenever they change
+  function handleSetCalendarEvents(updaterOrValue) {
+    setCalendarEvents(prev => {
+      const next = typeof updaterOrValue === 'function' ? updaterOrValue(prev) : updaterOrValue
+      writeProjectField(activeProject?.id, ownerUserId, 'calendarEvents', next)
+      return next
+    })
+  }
 
   const [project, setProject] = useState(() => ({
     title:          activeProject?.title          ?? '',
@@ -98,29 +86,14 @@ export default function Workstation({
     createdAt:      activeProject?.createdAt      ?? null,
   }))
 
-  function setMembers(updater) {
-    const next = typeof updater === 'function' ? updater(allMembers) : updater
-    onUpdateProject?.({ members: next })
-  }
-  const [messages, setMessages] = useState([])
-  const [todos,    setTodos]    = useState([])
-  const [links,    setLinks]    = useState([])
-
   const [profileOpen,         setProfileOpen]         = useState(false)
   const [calendarOpen,        setCalendarOpen]        = useState(false)
   const [scheduleMeetingOpen, setScheduleMeetingOpen] = useState(false)
-  const [profileDropOpen,     setProfileDropOpen]     = useState(false)
-
-  const unreadNotifCount = (notifications ?? []).filter(n => !n.read).length
-
-  function toggleProfileDrop() {
-    setProfileDropOpen(v => !v)
-  }
 
   return (
     <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
 
-{/* Observer read-only banner */}
+      {/* Observer read-only banner */}
       {myRole === 'Observer' && (
         <div className="max-w-7xl mx-auto px-6 pt-4">
           <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm" style={{ backgroundColor: 'rgba(83,74,183,0.08)', border: '1px solid rgba(83,74,183,0.2)', color: '#534AB7' }}>
@@ -142,22 +115,19 @@ export default function Workstation({
             setProject={setProject}
             onOpenProfile={() => setProfileOpen(true)}
             onScheduleMeeting={() => setScheduleMeetingOpen(true)}
-            onAddCalendarEvent={(ev) => setCalendarEvents(prev => [...prev, ev])}
+            onAddCalendarEvent={(ev) => handleSetCalendarEvents(prev => [...prev, ev])}
             onMilestonesChange={(milestones) => onUpdateProject?.({ milestones })}
             userRole={myRole}
           />
           <TabPanel
-            messages={messages}     setMessages={setMessages}
-            todos={todos}           setTodos={setTodos}
-            events={calendarEvents} setEvents={setCalendarEvents}
-            links={links}           setLinks={setLinks}
             onOpenCalendar={() => setCalendarOpen(true)}
-            members={allMembers}
+            members={[]}
             applications={applications}
             setApplications={setApplications}
             agreements={agreements}
             setAgreements={setAgreements}
             projectId={activeProject?.id}
+            ownerUserId={ownerUserId}
             projectTitle={project.title}
             currentUser={currentUser}
             onAddNotification={onAddNotification}
@@ -237,7 +207,7 @@ export default function Workstation({
       {calendarOpen && (
         <CalendarModal
           events={calendarEvents}
-          setEvents={setCalendarEvents}
+          setEvents={handleSetCalendarEvents}
           onClose={() => setCalendarOpen(false)}
         />
       )}
@@ -245,7 +215,7 @@ export default function Workstation({
         <ScheduleMeetingModal
           onClose={() => setScheduleMeetingOpen(false)}
           onSave={(meeting) => {
-            setCalendarEvents(prev => [...prev, { ...meeting, id: Date.now() }])
+            handleSetCalendarEvents(prev => [...prev, { ...meeting, id: Date.now() }])
             setScheduleMeetingOpen(false)
           }}
         />

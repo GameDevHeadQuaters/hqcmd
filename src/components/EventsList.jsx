@@ -1,21 +1,33 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { IconCalendar, IconPlus, IconClock, IconCalendarOff } from '@tabler/icons-react'
+import { readProject, appendToProjectArray } from '../utils/projectData'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
 
-export default function EventsList({ events, setEvents, onOpenCalendar }) {
+export default function EventsList({ projectId, ownerUserId, onOpenCalendar }) {
+  const [events, setEvents] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', date: '', time: '' })
 
+  useEffect(() => {
+    function load() {
+      const proj = readProject(projectId, ownerUserId)
+      setEvents(proj?.calendarEvents || [])
+    }
+    load()
+    window.addEventListener('storage', load)
+    return () => window.removeEventListener('storage', load)
+  }, [projectId, ownerUserId])
+
   function add() {
-    if (!form.title || !form.date) return
-    setEvents(prev => [...prev, { ...form, id: Date.now() }])
+    if (!form.title || !form.date || !projectId || !ownerUserId) return
+    appendToProjectArray(projectId, ownerUserId, 'calendarEvents', { ...form, id: Date.now() })
     setForm({ title: '', date: '', time: '' })
     setShowForm(false)
   }
 
-  const sorted = [...events].sort((a, b) => a.date.localeCompare(b.date))
+  const sorted = [...events].sort((a, b) => (a.date || '').localeCompare(b.date || ''))
 
   return (
     <div className="flex flex-col" style={{ minHeight: 300 }}>

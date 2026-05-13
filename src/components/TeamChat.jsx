@@ -1,18 +1,30 @@
 import { useState, useRef, useEffect } from 'react'
 import { IconSend, IconMessages } from '@tabler/icons-react'
 import { hasPermission } from '../utils/permissions'
+import { readProject, appendToProjectArray } from '../utils/projectData'
 
 const ACCENT = '#534AB7'
 const AVATAR_COLORS = ['#534AB7', '#7c3aed', '#0891b2', '#059669', '#d97706']
 
-function avatarColor(initials) {
+function avatarColor(initials = 'A') {
   const n = (initials.charCodeAt(0) + (initials.charCodeAt(1) || 0)) % AVATAR_COLORS.length
   return AVATAR_COLORS[n]
 }
 
-export default function TeamChat({ messages, setMessages, userRole = 'Owner' }) {
+export default function TeamChat({ projectId, ownerUserId, currentUser, userRole = 'Owner' }) {
+  const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const bottomRef = useRef(null)
+
+  useEffect(() => {
+    function load() {
+      const proj = readProject(projectId, ownerUserId)
+      setMessages(proj?.chatMessages || [])
+    }
+    load()
+    window.addEventListener('storage', load)
+    return () => window.removeEventListener('storage', load)
+  }, [projectId, ownerUserId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -20,9 +32,17 @@ export default function TeamChat({ messages, setMessages, userRole = 'Owner' }) 
 
   function send() {
     const text = input.trim()
-    if (!text) return
+    if (!text || !projectId || !ownerUserId) return
+    const initials = currentUser?.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || 'ME'
     const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-    setMessages(prev => [...prev, { id: Date.now(), author: 'You', initials: 'AC', text, time, own: true }])
+    appendToProjectArray(projectId, ownerUserId, 'chatMessages', {
+      id: Date.now(),
+      author: currentUser?.name || 'You',
+      initials,
+      text,
+      time,
+      senderId: String(currentUser?.id),
+    })
     setInput('')
   }
 
@@ -43,32 +63,35 @@ export default function TeamChat({ messages, setMessages, userRole = 'Owner' }) 
             <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>Be the first to say something 👋</p>
           </div>
         ) : (
-          messages.map(msg => (
-            <div key={msg.id} className={`flex items-end gap-2 ${msg.own ? 'flex-row-reverse' : ''}`}>
-              {!msg.own && (
-                <div
-                  className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold"
-                  style={{ backgroundColor: avatarColor(msg.initials) }}
-                >
-                  {msg.initials}
+          messages.map(msg => {
+            const isOwn = String(msg.senderId) === String(currentUser?.id)
+            return (
+              <div key={msg.id} className={`flex items-end gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}>
+                {!isOwn && (
+                  <div
+                    className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold"
+                    style={{ backgroundColor: avatarColor(msg.initials) }}
+                  >
+                    {msg.initials}
+                  </div>
+                )}
+                <div className={`flex flex-col gap-0.5 max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}>
+                  {!isOwn && <span className="text-xs px-1" style={{ color: 'var(--text-tertiary)' }}>{msg.author}</span>}
+                  <div
+                    className="px-3 py-2 rounded-2xl text-sm leading-snug"
+                    style={
+                      isOwn
+                        ? { background: 'linear-gradient(135deg, #534AB7, #805da8)', color: 'white', borderBottomRightRadius: 4 }
+                        : { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', borderBottomLeftRadius: 4 }
+                    }
+                  >
+                    {msg.text}
+                  </div>
+                  <span className="text-xs px-1" style={{ color: 'var(--text-tertiary)' }}>{msg.time}</span>
                 </div>
-              )}
-              <div className={`flex flex-col gap-0.5 max-w-[70%] ${msg.own ? 'items-end' : 'items-start'}`}>
-                {!msg.own && <span className="text-xs px-1" style={{ color: 'var(--text-tertiary)' }}>{msg.author}</span>}
-                <div
-                  className="px-3 py-2 rounded-2xl text-sm leading-snug"
-                  style={
-                    msg.own
-                      ? { background: 'linear-gradient(135deg, #534AB7, #805da8)', color: 'white', borderBottomRightRadius: 4 }
-                      : { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', borderBottomLeftRadius: 4 }
-                  }
-                >
-                  {msg.text}
-                </div>
-                <span className="text-xs px-1" style={{ color: 'var(--text-tertiary)' }}>{msg.time}</span>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
         <div ref={bottomRef} />
       </div>

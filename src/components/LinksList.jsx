@@ -1,24 +1,36 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { IconPlus, IconExternalLink, IconTrash, IconLink } from '@tabler/icons-react'
 import { hasPermission } from '../utils/permissions'
+import { readProject, appendToProjectArray, removeFromProjectArray } from '../utils/projectData'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
 
-export default function LinksList({ links, setLinks, userRole = 'Owner' }) {
+export default function LinksList({ projectId, ownerUserId, userRole = 'Owner' }) {
+  const [links, setLinks] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', url: '' })
 
+  useEffect(() => {
+    function load() {
+      const proj = readProject(projectId, ownerUserId)
+      setLinks(proj?.links || [])
+    }
+    load()
+    window.addEventListener('storage', load)
+    return () => window.removeEventListener('storage', load)
+  }, [projectId, ownerUserId])
+
   function add() {
-    if (!form.title || !form.url) return
+    if (!form.title || !form.url || !projectId || !ownerUserId) return
     const url = /^https?:\/\//i.test(form.url) ? form.url : `https://${form.url}`
-    setLinks(prev => [...prev, { id: Date.now(), title: form.title, url }])
+    appendToProjectArray(projectId, ownerUserId, 'links', { id: Date.now(), title: form.title, url })
     setForm({ title: '', url: '' })
     setShowForm(false)
   }
 
   function remove(id) {
-    setLinks(prev => prev.filter(l => l.id !== id))
+    removeFromProjectArray(projectId, ownerUserId, 'links', id)
   }
 
   return (
@@ -79,69 +91,71 @@ export default function LinksList({ links, setLinks, userRole = 'Owner' }) {
         ))}
       </div>
 
-      {hasPermission(userRole, 'ADD_LINK') && <div className="px-4 pb-4 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-        {showForm ? (
-          <div className="space-y-2">
-            <input
-              className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
-              style={{
-                backgroundColor: 'var(--bg-elevated)',
-                border: '1px solid var(--border-default)',
-                color: 'var(--text-primary)',
-              }}
-              placeholder="Link title"
-              value={form.title}
-              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              onFocus={e => (e.target.style.borderColor = ACCENT)}
-              onBlur={e => (e.target.style.borderColor = 'var(--border-default)')}
-            />
-            <input
-              className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
-              style={{
-                backgroundColor: 'var(--bg-elevated)',
-                border: '1px solid var(--border-default)',
-                color: 'var(--text-primary)',
-              }}
-              placeholder="URL (e.g. github.com/repo)"
-              value={form.url}
-              onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
-              onKeyDown={e => e.key === 'Enter' && add()}
-              onFocus={e => (e.target.style.borderColor = ACCENT)}
-              onBlur={e => (e.target.style.borderColor = 'var(--border-default)')}
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={add}
-                className="flex-1 py-2 rounded-full text-sm font-medium text-white transition-colors"
-                style={{ backgroundColor: ACCENT }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
-              >
-                Save Link
-              </button>
-              <button
-                onClick={() => setShowForm(false)}
-                className="px-4 py-2 rounded-full text-sm font-medium transition-colors"
-                style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
-              >
-                Cancel
-              </button>
+      {hasPermission(userRole, 'ADD_LINK') && (
+        <div className="px-4 pb-4 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+          {showForm ? (
+            <div className="space-y-2">
+              <input
+                className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-default)',
+                  color: 'var(--text-primary)',
+                }}
+                placeholder="Link title"
+                value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                onFocus={e => (e.target.style.borderColor = ACCENT)}
+                onBlur={e => (e.target.style.borderColor = 'var(--border-default)')}
+              />
+              <input
+                className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-default)',
+                  color: 'var(--text-primary)',
+                }}
+                placeholder="URL (e.g. github.com/repo)"
+                value={form.url}
+                onChange={e => setForm(f => ({ ...f, url: e.target.value }))}
+                onKeyDown={e => e.key === 'Enter' && add()}
+                onFocus={e => (e.target.style.borderColor = ACCENT)}
+                onBlur={e => (e.target.style.borderColor = 'var(--border-default)')}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={add}
+                  className="flex-1 py-2 rounded-full text-sm font-medium text-white transition-colors"
+                  style={{ backgroundColor: ACCENT }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
+                >
+                  Save Link
+                </button>
+                <button
+                  onClick={() => setShowForm(false)}
+                  className="px-4 py-2 rounded-full text-sm font-medium transition-colors"
+                  style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 text-sm transition-colors"
-            style={{ color: 'var(--text-tertiary)' }}
-            onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}
-          >
-            <IconPlus size={15} /> Add link
-          </button>
-        )}
-      </div>}
+          ) : (
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex items-center gap-1.5 text-sm transition-colors"
+              style={{ color: 'var(--text-tertiary)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-secondary)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}
+            >
+              <IconPlus size={15} /> Add link
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

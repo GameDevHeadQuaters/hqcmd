@@ -20,15 +20,12 @@ const ALL_TABS = [
 ]
 
 export default function TabPanel({
-  messages, setMessages,
-  todos, setTodos,
-  events, setEvents,
-  links, setLinks,
   onOpenCalendar,
   members,
   applications, setApplications,
   agreements, setAgreements,
   projectId,
+  ownerUserId,
   projectTitle,
   currentUser,
   onAddNotification,
@@ -77,10 +74,10 @@ export default function TabPanel({
         })}
       </div>
 
-      {activeTab === 'chat'   && <TeamChat   messages={messages} setMessages={setMessages} members={members} userRole={userRole} />}
-      {activeTab === 'todos'  && <TodoList   todos={todos}       setTodos={setTodos}       userRole={userRole} />}
-      {activeTab === 'events' && <EventsList events={events}     setEvents={setEvents} onOpenCalendar={onOpenCalendar} />}
-      {activeTab === 'links'  && <LinksList  links={links}       setLinks={setLinks}       userRole={userRole} />}
+      {activeTab === 'chat'   && <TeamChat   projectId={projectId} ownerUserId={ownerUserId} currentUser={currentUser} userRole={userRole} />}
+      {activeTab === 'todos'  && <TodoList   projectId={projectId} ownerUserId={ownerUserId} userRole={userRole} />}
+      {activeTab === 'events' && <EventsList projectId={projectId} ownerUserId={ownerUserId} onOpenCalendar={onOpenCalendar} />}
+      {activeTab === 'links'  && <LinksList  projectId={projectId} ownerUserId={ownerUserId} userRole={userRole} />}
       {activeTab === 'applications' && (
         <div className="px-4 py-4 overflow-y-auto" style={{ minHeight: 300 }}>
           <ApplicationsPanel
