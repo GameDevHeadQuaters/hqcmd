@@ -22,11 +22,17 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
 
   const googleEmail = searchParams.get('google_email') || ''
   const googleName  = searchParams.get('google_name')  || ''
-  const isGoogleFlow = !!(googleEmail && searchParams.get('needs_code') === 'true')
+  const isGoogleFlow    = !!(googleEmail && searchParams.get('needs_code') === 'true')
+  const isGoogleRequest = !!(googleEmail && searchParams.get('request') === 'true')
 
   // Google-flow invite code state
-  const [googleCode,      setGoogleCode]      = useState('')
-  const [googleCodeError, setGoogleCodeError] = useState('')
+  const [googleCode,        setGoogleCode]        = useState('')
+  const [googleCodeError,   setGoogleCodeError]   = useState('')
+
+  // Google-flow request access state
+  const [googleReason,      setGoogleReason]      = useState('')
+  const [googleReasonError, setGoogleReasonError] = useState('')
+  const [googleRequestSent, setGoogleRequestSent] = useState(false)
 
   // Beta gate state
   const [betaTab,       setBetaTab]       = useState('request') // 'request' | 'code'
@@ -119,6 +125,25 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
     setRequestSent(true)
   }
 
+  function submitGoogleRequest() {
+    const reason = googleReason.trim()
+    if (!reason || reason.length < 10) { setGoogleReasonError('Please tell us a bit more (at least 10 characters)'); return }
+    try {
+      const requests = JSON.parse(localStorage.getItem(BETA_REQUESTS_KEY) ?? '[]')
+      requests.push({
+        id: Date.now(),
+        name: googleName,
+        email: googleEmail.toLowerCase(),
+        reason,
+        requestedAt: new Date().toISOString(),
+        status: 'pending',
+        googleAuth: true,
+      })
+      localStorage.setItem(BETA_REQUESTS_KEY, JSON.stringify(requests))
+    } catch {}
+    setGoogleRequestSent(true)
+  }
+
   function submitGoogleWithCode() {
     const code = googleCode.trim().toUpperCase()
     if (!code) { setGoogleCodeError('Please enter your invite code'); return }
@@ -154,7 +179,19 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: '#ed2793' }}>BETA</span>
             )}
           </div>
-          {isGoogleFlow ? (
+          {isGoogleRequest ? (
+            googleRequestSent ? (
+              <>
+                <h1 className="font-bold text-xl" style={{ color: 'var(--text-primary)' }}>Request received!</h1>
+                <p className="text-sm mt-1 text-center" style={{ color: 'var(--text-secondary)' }}>We'll review and send your invite code.</p>
+              </>
+            ) : (
+              <>
+                <h1 className="font-bold text-xl" style={{ color: 'var(--text-primary)' }}>Request Beta Access</h1>
+                <p className="text-sm mt-1 text-center" style={{ color: 'var(--text-secondary)' }}>Tell us why you'd like to join</p>
+              </>
+            )
+          ) : isGoogleFlow ? (
             <>
               <h1 className="font-bold text-xl" style={{ color: 'var(--text-primary)' }}>Almost there!</h1>
               <p className="text-sm mt-1 text-center" style={{ color: 'var(--text-secondary)' }}>Enter your invite code to complete signup</p>
@@ -182,7 +219,7 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
           style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)', boxShadow: '0 4px 24px rgba(0,0,0,0.15)' }}
         >
           {/* Google OAuth — hidden when already in the Google flow */}
-          {!requestSent && !isGoogleFlow && (
+          {!requestSent && !isGoogleFlow && !isGoogleRequest && (
             <>
               <button
                 onClick={() => { window.location.href = '/api/auth/google' }}
@@ -241,7 +278,75 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
                 style={{ backgroundColor: ACCENT }}>
                 Complete Registration
               </button>
+              <div style={{ textAlign: 'center', marginTop: '24px', paddingTop: '24px', borderTop: '1px solid var(--border-subtle)' }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '12px' }}>
+                  Don't have an invite code yet?
+                </p>
+                <button
+                  onClick={() => navigate(`/signup?request=true&google_email=${encodeURIComponent(googleEmail)}&google_name=${encodeURIComponent(googleName)}`)}
+                  style={{ background: 'none', border: '1px solid var(--border-default)', color: 'var(--text-primary)', padding: '10px 20px', borderRadius: '9999px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}
+                >
+                  Request Beta Access
+                </button>
+              </div>
             </div>
+          ) : isGoogleRequest ? (
+            googleRequestSent ? (
+              <div className="text-center py-4">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style={{ backgroundColor: 'rgba(34,197,94,0.12)' }}>
+                  <IconCheck size={24} style={{ color: 'var(--status-success)' }} />
+                </div>
+                <p className="text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Request received!</p>
+                <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  We'll review your application and send your invite code to{' '}
+                  <strong style={{ color: 'var(--text-primary)' }}>{googleEmail}</strong>.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-start gap-2 px-3 py-3 rounded-lg text-xs" style={{ backgroundColor: 'rgba(83,74,183,0.12)', color: ACCENT }}>
+                  <IconBrandGoogle size={14} className="flex-shrink-0 mt-0.5" />
+                  <span>You're signed in with Google. Tell us about yourself and we'll send your invite code to your Google email.</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Name</label>
+                  <input readOnly value={googleName} className="w-full text-sm rounded-lg px-3 py-2.5 outline-none"
+                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-tertiary)', cursor: 'default' }} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Email</label>
+                  <input readOnly value={googleEmail} className="w-full text-sm rounded-lg px-3 py-2.5 outline-none"
+                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-tertiary)', cursor: 'default' }} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Why do you want to join?</label>
+                  <textarea rows={3} className="w-full text-sm rounded-lg px-3 py-2.5 outline-none resize-none"
+                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                    placeholder="Tell us about your game dev project or studio…"
+                    value={googleReason}
+                    onChange={e => { setGoogleReason(e.target.value); setGoogleReasonError('') }}
+                    onFocus={focusAccent} onBlur={blurReset}
+                    autoFocus
+                  />
+                  {googleReasonError && (
+                    <div className="flex items-start gap-1.5 mt-1.5">
+                      <IconAlertTriangle size={12} style={{ color: 'var(--status-error)', flexShrink: 0, marginTop: 1 }} />
+                      <p className="text-xs" style={{ color: 'var(--status-error)' }}>{googleReasonError}</p>
+                    </div>
+                  )}
+                </div>
+                <button onClick={submitGoogleRequest}
+                  className="w-full py-2.5 rounded-full text-sm font-semibold text-white hover:opacity-80 transition-opacity"
+                  style={{ backgroundColor: ACCENT }}>
+                  Request Beta Access
+                </button>
+                <button onClick={() => navigate(`/signup?needs_code=true&google_email=${encodeURIComponent(googleEmail)}&google_name=${encodeURIComponent(googleName)}`)}
+                  className="w-full py-2 text-xs font-medium transition-opacity hover:opacity-70"
+                  style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  ← Back (I have a code)
+                </button>
+              </div>
+            )
           ) : showSignupForm ? (
             <>
               {betaMode && inviteVerified && (
@@ -390,7 +495,7 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
           )}
         </div>
 
-        {!requestSent && (
+        {!requestSent && !googleRequestSent && (
           <p className="text-center text-sm mt-5" style={{ color: 'var(--text-secondary)' }}>
             Already have an account?{' '}
             <button onClick={() => navigate('/login')} className="font-semibold hover:opacity-80 transition-opacity" style={{ color: ACCENT }}>
