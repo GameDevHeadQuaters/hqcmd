@@ -49,8 +49,8 @@ function getPublicProjects(userData, getProjectImage) {
     .slice(0, 3)
 }
 
-function FeaturedProjectCard({ project, getProjectImage, onCardClick }) {
-  const coverImage = getProjectImage?.(project.id)
+function FeaturedProjectCard({ project, onCardClick }) {
+  const coverImage = localStorage.getItem('hqcmd_img_' + project.id)
   const roles = project.roles ?? []
   const compensation = (project.compensation ?? [])[0] ?? null
 
@@ -68,17 +68,15 @@ function FeaturedProjectCard({ project, getProjectImage, onCardClick }) {
       onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
     >
       {/* Cover */}
-      <div
-        style={{
-          height: 48,
-          backgroundImage: coverImage ? `url(${coverImage})` : undefined,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          background: coverImage
-            ? undefined
-            : 'linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)',
-        }}
-      />
+      {coverImage ? (
+        <img
+          src={coverImage}
+          alt={project.title}
+          style={{ width: '100%', height: '80px', objectFit: 'cover', borderRadius: '8px 8px 0 0', display: 'block' }}
+        />
+      ) : (
+        <div style={{ width: '100%', height: '80px', background: 'linear-gradient(135deg, #534AB7, #805da8, #ed2793)', borderRadius: '8px 8px 0 0' }} />
+      )}
       {/* Body */}
       <div className="px-3 pt-2.5 pb-3">
         <p className="text-sm font-semibold truncate mb-1.5" style={{ color: 'rgba(255,255,255,0.9)' }}>
@@ -226,7 +224,6 @@ export default function Landing({ userData, currentUser, getProjectImage, betaMo
                   <FeaturedProjectCard
                     key={p.id}
                     project={p}
-                    getProjectImage={getProjectImage}
                     onCardClick={handleProjectClick}
                   />
                 ))}
