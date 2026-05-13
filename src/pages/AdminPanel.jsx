@@ -485,26 +485,9 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
     <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-        <div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '28px', width: 'auto', cursor: 'pointer' }} onClick={() => navigate('/')} onError={e => { e.target.style.display = 'none' }} />
-            <span className="text-white/30">|</span>
-            <div className="flex items-center gap-2">
-              <IconShield size={18} style={{ color: '#ed2793' }} />
-              <span className="font-bold text-white text-lg">HQCMD Admin Panel</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ backgroundColor: 'rgba(237,39,147,0.2)', color: '#ed2793' }}>
-              {currentUser.name}
-            </span>
-            <button onClick={() => { onSignOut?.(); navigate('/') }} className="text-xs px-3 py-1.5 rounded-full transition-colors"
-              style={{ border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.7)' }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)')}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
-              Sign Out
-            </button>
-          </div>
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-2">
+          <IconShield size={18} style={{ color: '#ed2793' }} />
+          <span className="font-bold text-white text-lg">Admin Panel</span>
         </div>
 
         {/* Tab bar */}

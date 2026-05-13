@@ -227,19 +227,8 @@ export default function TeamsPage({
 
   return (
     <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-      {/* Nav */}
-      <nav className="hq-nav px-6 h-14 flex items-center gap-3 sticky top-0 z-10" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <button onClick={() => navigate(-1)} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--text-tertiary)' }}
-          onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-          onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
-          <IconArrowLeft size={18} />
-        </button>
-        <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '28px', width: 'auto', cursor: 'pointer' }} onClick={() => navigate('/')} onError={e => { e.target.style.display = 'none' }} />
-        <span style={{ color: 'var(--border-strong)' }} className="mx-0.5">|</span>
-        <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>My Teams</span>
-      </nav>
 
-      {/* Banner */}
+{/* Banner */}
       <div className="px-6 py-8" style={{ background: 'linear-gradient(135deg, #534AB7 0%, #805da8 50%, #ed2793 100%)' }}>
         <div className="max-w-5xl mx-auto">
           <h1 className="text-2xl font-bold text-white mb-1">My Teams</h1>

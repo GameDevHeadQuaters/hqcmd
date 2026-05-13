@@ -306,23 +306,8 @@ export default function ManageTeam({
 
   return (
     <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-      {/* Nav */}
-      <nav className="hq-nav px-6 h-14 flex items-center justify-between sticky top-0 z-10" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <div className="flex items-center gap-3">
-          <button onClick={goBack} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--text-tertiary)' }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
-            <IconArrowLeft size={18} />
-          </button>
-          <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '28px', width: 'auto', cursor: 'pointer' }} onClick={() => navigate('/')} onError={e => { e.target.style.display = 'none' }} />
-          <span style={{ color: 'var(--border-strong)' }} className="mx-0.5">|</span>
-          <span className="text-sm truncate max-w-36" style={{ color: 'var(--text-tertiary)' }}>{project.title}</span>
-          <span style={{ color: 'var(--border-strong)' }}>›</span>
-          <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Manage Team</span>
-        </div>
-      </nav>
 
-      <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
+<div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
 
         {/* ── Active Members ── */}
         <section>

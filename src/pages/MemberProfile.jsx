@@ -96,20 +96,8 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
 
     return (
       <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-        <nav className="hq-nav px-6 h-14 flex items-center gap-3 sticky top-0 z-10" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-          <button onClick={() => navigate(-1)} className="p-1.5 rounded-lg transition-colors" style={{ color: 'var(--text-tertiary)' }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
-            <IconArrowLeft size={18} />
-          </button>
-          <div className="flex items-center gap-2">
-            <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '28px', width: 'auto', cursor: 'pointer' }} onClick={() => navigate('/')} onError={e => { e.target.style.display = 'none' }} />
-            <span style={{ color: 'var(--border-strong)' }} className="mx-1">|</span>
-            <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>My Profile</span>
-          </div>
-        </nav>
 
-        <div className="max-w-2xl mx-auto px-6 py-8 space-y-4">
+<div className="max-w-2xl mx-auto px-6 py-8 space-y-4">
           {!editing ? (
             <div className="rounded-lg p-8 flex flex-col items-center text-center" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
               <div className="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-4"
@@ -216,23 +204,6 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
 
   return (
     <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-      {/* Nav */}
-      <nav className="hq-nav px-6 h-14 flex items-center gap-3 sticky top-0 z-10" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-        <button
-          onClick={() => navigate(-1)}
-          className="p-1.5 rounded-lg transition-colors"
-          style={{ color: 'var(--text-tertiary)' }}
-          onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-          onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
-        >
-          <IconArrowLeft size={18} />
-        </button>
-        <div className="flex items-center gap-2">
-          <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '28px', width: 'auto', cursor: 'pointer' }} onClick={() => navigate('/')} onError={e => { e.target.style.display = 'none' }} />
-          <span style={{ color: 'var(--border-strong)' }} className="mx-1">|</span>
-          <span className="text-sm" style={{ color: 'var(--text-tertiary)' }}>Member Profile</span>
-        </div>
-      </nav>
 
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-4">
         {/* Profile card */}

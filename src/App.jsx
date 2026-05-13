@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import TopNav from './components/TopNav'
+import Sidebar from './components/Sidebar'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -556,9 +557,19 @@ export default function App() {
     betaMode: BETA_MODE,
   }
 
+  const sidebarProps = {
+    currentUser,
+    projects,
+    activeProjectId,
+    setActiveProjectId,
+    setActiveOwnerUserId,
+    unreadInboxCount,
+    onSignOut: handleSignOut,
+  }
+
   return (
     <BrowserRouter>
-      <AppLayout topNavProps={topNavProps}>
+      <AppLayout topNavProps={topNavProps} sidebarProps={sidebarProps}>
       <Routes>
         <Route path="/"       element={
           <Landing
@@ -769,12 +780,55 @@ export default function App() {
   )
 }
 
-function AppLayout({ children, topNavProps }) {
+const PUBLIC_PATHS = ['/', '/browse', '/login', '/signup', '/terms', '/privacy', '/contact']
+
+function AppLayout({ children, topNavProps, sidebarProps }) {
   const { pathname } = useLocation()
+  const { currentUser } = sidebarProps
+
+  const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/sign/')
+  const showSidebar = !!currentUser && !isPublic
+
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('hqcmd_sidebar_collapsed') === 'true' } catch { return false }
+  })
+
+  const sidebarWidth = collapsed ? 56 : 240
+
+  function handleSetCollapsed(val) {
+    setCollapsed(val)
+    try { localStorage.setItem('hqcmd_sidebar_collapsed', String(val)) } catch {}
+  }
+
+  if (pathname === '/') {
+    return (
+      <>
+        <TopNav {...topNavProps} />
+        {children}
+      </>
+    )
+  }
+
+  if (!showSidebar) {
+    return <>{children}</>
+  }
+
   return (
-    <>
-      {pathname === '/' && <TopNav {...topNavProps} />}
-      {children}
-    </>
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
+      <Sidebar
+        {...sidebarProps}
+        collapsed={collapsed}
+        setCollapsed={handleSetCollapsed}
+      />
+      <div style={{
+        marginLeft: sidebarWidth,
+        transition: 'margin-left 0.2s ease',
+        flex: 1,
+        minWidth: 0,
+        minHeight: '100vh',
+      }}>
+        {children}
+      </div>
+    </div>
   )
 }

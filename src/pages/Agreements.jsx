@@ -121,69 +121,6 @@ export default function Agreements({
 
   return (
     <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
-      {/* Nav */}
-      <div className="sticky top-0 z-20">
-        <nav className="hq-nav px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-5">
-            <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '28px', width: 'auto', cursor: 'pointer' }} onClick={() => navigate('/')} onError={e => { e.target.style.display = 'none' }} />
-            <div className="flex items-center gap-0.5">
-              <button onClick={() => navigate('/projects')} className="text-xs font-medium px-2.5 py-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: 'var(--text-secondary)' }}>
-                My Projects
-              </button>
-              <button onClick={() => navigate('/browse')} className="text-xs font-medium px-2.5 py-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: 'var(--text-secondary)' }}>
-                Browse
-              </button>
-              <button
-                onClick={() => navigate('/inbox')}
-                className="relative flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
-                style={{ color: 'var(--text-secondary)' }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
-              >
-                <IconInbox size={14} />
-                Inbox
-                {unreadInboxCount > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white leading-none" style={{ backgroundColor: '#ed2793' }}>
-                    {unreadInboxCount}
-                  </span>
-                )}
-              </button>
-              <button
-                onClick={() => navigate('/agreements')}
-                className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors"
-                style={{ color: ACCENT, backgroundColor: 'var(--brand-accent-glow)' }}
-              >
-                <IconFileText size={14} />
-                Agreements
-              </button>
-            </div>
-          </div>
-          <div className="relative">
-            <button
-              onClick={() => setProfileDropOpen(v => !v)}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold transition-colors"
-              style={{ backgroundColor: ACCENT }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
-            >
-              {currentUser?.initials ?? 'AC'}
-            </button>
-            {profileDropOpen && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setProfileDropOpen(false)} />
-                <div className="absolute top-full mt-1 right-0 z-40">
-                  <ProfileDropdown
-                    currentUser={currentUser}
-                    onSignOut={onSignOut}
-                    onClose={() => setProfileDropOpen(false)}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        </nav>
-        <div style={{ height: '3px', background: 'linear-gradient(90deg, #534AB7, #805da8, #ed2793)' }} />
-      </div>
 
       <div className="max-w-4xl mx-auto px-6 py-8">
         {/* Hero banner */}
