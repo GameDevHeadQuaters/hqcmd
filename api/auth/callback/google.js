@@ -7,8 +7,8 @@ export default async function handler(req, res) {
 
   const clientId = process.env.GOOGLE_CLIENT_ID
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET
-  const baseUrl = process.env.VERCEL_URL ? 'https://' + process.env.VERCEL_URL : 'http://localhost:5173'
-  const redirectUri = `${baseUrl}/api/auth/callback/google`
+  const baseUrl = process.env.VITE_APP_URL || 'https://hqcmd.vercel.app'
+  const redirectUri = 'https://hqcmd.vercel.app/api/auth/callback/google'
 
   try {
     // Exchange code for tokens
