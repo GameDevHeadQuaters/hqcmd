@@ -614,20 +614,18 @@ export default function TeamsPage({
 
                     {/* ── Subsection 2: Application Pipeline ── */}
                     {project.isOwned && (
-                      <div style={{ borderTop: '1px solid var(--border-subtle)' }} className="px-5 py-4">
+                      <div style={{ borderTop: '1px solid var(--border-subtle)' }} className="px-5 py-5">
 
                         {/* Pipeline header */}
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <IconBriefcase size={13} style={{ color: 'var(--text-tertiary)' }} />
-                            <h4 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>Application Pipeline</h4>
-                            {totalPipelineApps > 0 && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(83,74,183,0.15)', color: ACCENT }}>{totalPipelineApps}</span>
-                            )}
-                          </div>
+                        <div className="flex items-center gap-2 mb-4">
+                          <IconBriefcase size={16} style={{ color: ACCENT }} />
+                          <h4 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Application Pipeline</h4>
+                          <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-tertiary)' }}>
+                            {pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + pipeline.active.length}
+                          </span>
                           <button
                             onClick={e => { e.stopPropagation(); navigate(`/team/${project.id}`) }}
-                            className="flex items-center gap-1 text-xs font-medium"
+                            className="ml-auto flex items-center gap-1 text-xs font-medium"
                             style={{ color: ACCENT }}
                             onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
                             onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
@@ -635,118 +633,260 @@ export default function TeamsPage({
                           </button>
                         </div>
 
-                        {/* Stage tabs */}
-                        <div className="flex gap-1 mb-3 flex-wrap">
+                        {/* Stepper tabs */}
+                        <div className="flex gap-0 mb-5 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-default)' }}>
                           {[
-                            { id: 'applied',   label: 'Applied',   count: pipeline.applied.length,   color: 'rgba(245,158,11,0.15)',  text: 'var(--status-warning)' },
-                            { id: 'accepted',  label: 'Accepted',  count: pipeline.accepted.length,  color: 'rgba(34,197,94,0.12)',   text: 'var(--status-success)' },
-                            { id: 'agreement', label: 'Agreement', count: pipeline.agreement.length, color: 'rgba(83,74,183,0.12)',   text: ACCENT },
-                            { id: 'active',    label: 'Active',    count: pipeline.active.length,    color: 'rgba(34,197,94,0.12)',   text: 'var(--status-success)' },
-                          ].map(s => (
+                            { id: 'applied',   label: 'Applied',   count: pipeline.applied.length,   icon: IconUserPlus },
+                            { id: 'accepted',  label: 'Accepted',  count: pipeline.accepted.length,  icon: IconCheck },
+                            { id: 'agreement', label: 'Agreement', count: pipeline.agreement.length, icon: IconWritingSign },
+                            { id: 'active',    label: 'Active',    count: pipeline.active.length,    icon: IconUserCheck },
+                          ].map((stage, idx, arr) => (
                             <button
-                              key={s.id}
-                              onClick={e => { e.stopPropagation(); setPipelineTab(project.id, s.id) }}
-                              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+                              key={stage.id}
+                              onClick={e => { e.stopPropagation(); setPipelineTab(project.id, stage.id) }}
+                              className="flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors relative"
                               style={{
-                                backgroundColor: pipelineTab === s.id ? s.color : 'var(--bg-elevated)',
-                                color: pipelineTab === s.id ? s.text : 'var(--text-tertiary)',
-                                border: pipelineTab === s.id ? `1px solid ${s.text}` : '1px solid transparent',
+                                backgroundColor: pipelineTab === stage.id ? ACCENT : 'var(--bg-surface)',
+                                color: pipelineTab === stage.id ? 'white' : 'var(--text-tertiary)',
+                                borderRight: idx < arr.length - 1 ? '1px solid var(--border-default)' : 'none',
                               }}>
-                              {s.label} <span className="font-bold">{s.count}</span>
+                              <stage.icon size={14} />
+                              <span>{stage.label}</span>
+                              {stage.count > 0 && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none"
+                                  style={{ backgroundColor: pipelineTab === stage.id ? 'rgba(255,255,255,0.25)' : 'rgba(83,74,183,0.15)', color: pipelineTab === stage.id ? 'white' : ACCENT }}>
+                                  {stage.count}
+                                </span>
+                              )}
                             </button>
                           ))}
+                          {pipeline.declined.length > 0 && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setPipelineTab(project.id, 'declined') }}
+                              className="flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors"
+                              style={{
+                                backgroundColor: pipelineTab === 'declined' ? 'rgba(239,68,68,0.12)' : 'var(--bg-surface)',
+                                color: pipelineTab === 'declined' ? 'var(--status-error)' : 'var(--text-tertiary)',
+                                borderLeft: '1px solid var(--border-default)',
+                              }}>
+                              <IconX size={14} />
+                              <span>Declined</span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none"
+                                style={{ backgroundColor: 'rgba(239,68,68,0.12)', color: 'var(--status-error)' }}>
+                                {pipeline.declined.length}
+                              </span>
+                            </button>
+                          )}
                         </div>
 
-                        {/* Stage content — inline, no IIFE */}
-                        {(pipeline[pipelineTab] ?? []).length === 0 ? (
-                          <p className="text-xs text-center py-4" style={{ color: 'var(--text-tertiary)' }}>
-                            No applications in this stage.
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {(pipeline[pipelineTab] ?? []).map(app => {
-                              const agStatus = getAgreementStatus(app)
-                              const canGrant = agStatus === 'signed'
-                              return (
-                                <div key={app.id} className="rounded-lg px-3 py-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
-                                  <div className="flex items-center gap-2.5 flex-wrap">
-                                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0"
-                                      style={{ backgroundColor: hashColor(app.applicantName) }}>
+                        {/* Stage 1: Applied */}
+                        {pipelineTab === 'applied' && (
+                          pipeline.applied.length === 0 ? (
+                            <div className="rounded-lg p-10 text-center" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                              <IconUserPlus size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-2" />
+                              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No new applications.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {pipeline.applied.map(app => (
+                                <div key={app.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                                  <div className="flex items-start justify-between gap-3 mb-2">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: ACCENT }}>
+                                        {initials(app.applicantName)}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
+                                        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                                          Applied for <span className="font-medium" style={{ color: 'var(--text-secondary)' }}>{app.role}</span>
+                                        </p>
+                                        {app.timestamp && <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{formatDate(app.timestamp)}</p>}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                      <button onClick={e => { e.stopPropagation(); acceptApp(app, project) }}
+                                        className="px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-colors"
+                                        style={{ backgroundColor: '#16a34a' }}
+                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#15803d')}
+                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#16a34a')}>
+                                        Accept
+                                      </button>
+                                      <button onClick={e => { e.stopPropagation(); declineApp(app) }}
+                                        className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+                                        style={{ borderColor: '#ed2793', color: '#ed2793' }}
+                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)')}
+                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+                                        Decline
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {app.message && (
+                                    <p className="text-sm leading-relaxed pl-12" style={{ color: 'var(--text-secondary)' }}>{app.message}</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        )}
+
+                        {/* Stage 2: Accepted */}
+                        {pipelineTab === 'accepted' && (
+                          pipeline.accepted.length === 0 ? (
+                            <div className="rounded-lg p-10 text-center" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                              <IconCheck size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-2" />
+                              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No accepted applicants awaiting agreement.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {pipeline.accepted.map(app => (
+                                <div key={app.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                                  <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: '#16a34a' }}>
                                       {initials(app.applicantName)}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
-                                      <p className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
+                                      <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
+                                      <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
                                     </div>
-                                    {pipelineTab === 'applied' && (
-                                      <div className="flex items-center gap-1 flex-shrink-0">
-                                        <button
-                                          onClick={e => { e.stopPropagation(); acceptApp(app, project) }}
-                                          className="text-[10px] font-semibold px-2 py-1 rounded-full text-white transition-opacity hover:opacity-80"
-                                          style={{ backgroundColor: '#16a34a' }}>
-                                          Accept
-                                        </button>
-                                        <button
-                                          onClick={e => { e.stopPropagation(); declineApp(app) }}
-                                          className="text-[10px] font-semibold px-2 py-1 rounded-full border transition-colors"
-                                          style={{ borderColor: '#ed2793', color: '#ed2793' }}
-                                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)')}
-                                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
-                                          Decline
-                                        </button>
-                                      </div>
-                                    )}
-                                    {pipelineTab === 'accepted' && (
-                                      <button
-                                        onClick={e => { e.stopPropagation(); setSendTarget({ member: { name: app.applicantName, userId: app.applicantId, initials: initials(app.applicantName) }, project, app }) }}
-                                        className="text-[10px] font-semibold px-2 py-1 rounded-full text-white flex-shrink-0 transition-opacity hover:opacity-80"
-                                        style={{ backgroundColor: ACCENT }}>
-                                        Send Agreement
-                                      </button>
-                                    )}
-                                    {pipelineTab === 'agreement' && (
-                                      <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
-                                        {agStatus === 'sent' ? (
-                                          <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: 'var(--status-warning)' }}>
-                                            <IconClock size={10} /> Awaiting
-                                          </span>
-                                        ) : (
-                                          <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: 'var(--status-success)' }}>
-                                            <IconCircleCheck size={10} /> Signed
-                                          </span>
-                                        )}
-                                        {agStatus === 'sent' && (
-                                          <button
-                                            onClick={e => { e.stopPropagation(); resendAgreement(app) }}
-                                            className="flex items-center gap-0.5 text-[10px] font-medium px-2 py-1 rounded-full transition-colors"
-                                            style={{ border: '1px solid rgba(245,158,11,0.5)', color: 'var(--status-warning)', backgroundColor: 'rgba(245,158,11,0.08)' }}
-                                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.15)')}
-                                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.08)')}>
-                                            <IconRefresh size={9} /> Resend
-                                          </button>
-                                        )}
-                                        {resendFeedback[app.id] && (
-                                          <span className="text-[10px] font-medium" style={{ color: 'var(--status-success)' }}>{resendFeedback[app.id]}</span>
-                                        )}
-                                        <button
-                                          onClick={canGrant ? e => { e.stopPropagation(); grantAccess(app, project) } : undefined}
-                                          className="text-[10px] font-semibold px-2 py-1 rounded-full text-white flex-shrink-0"
-                                          style={{ backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)', cursor: canGrant ? 'pointer' : 'not-allowed' }}
-                                          onMouseEnter={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#15803d' }}
-                                          onMouseLeave={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#16a34a' }}>
-                                          Grant Access
-                                        </button>
-                                      </div>
-                                    )}
-                                    {pipelineTab === 'active' && (
-                                      <span className="flex items-center gap-1 text-[10px] font-semibold flex-shrink-0" style={{ color: 'var(--status-success)' }}>
-                                        <IconCircleCheck size={10} /> Active Member
-                                      </span>
-                                    )}
+                                    <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+                                      style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: 'var(--status-success)' }}>
+                                      Accepted
+                                    </span>
+                                  </div>
+                                  <div className="pl-12">
+                                    <p className="text-xs mb-3" style={{ color: 'var(--text-tertiary)' }}>Send a signed agreement before granting project access.</p>
+                                    <button
+                                      onClick={e => { e.stopPropagation(); setSendTarget({ member: { name: app.applicantName, userId: app.applicantId, initials: initials(app.applicantName) }, project, app }) }}
+                                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white transition-colors"
+                                      style={{ backgroundColor: ACCENT }}
+                                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#3C3489')}
+                                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}>
+                                      <IconWritingSign size={12} />
+                                      Send Agreement
+                                    </button>
                                   </div>
                                 </div>
-                              )
-                            })}
+                              ))}
+                            </div>
+                          )
+                        )}
+
+                        {/* Stage 3: Agreement */}
+                        {pipelineTab === 'agreement' && (
+                          pipeline.agreement.length === 0 ? (
+                            <div className="rounded-lg p-10 text-center" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                              <IconWritingSign size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-2" />
+                              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No agreements awaiting signature.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {pipeline.agreement.map(app => {
+                                const agStatus = getAgreementStatus(app)
+                                const canGrant = agStatus === 'signed'
+                                return (
+                                  <div key={app.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                                    <div className="flex items-start gap-3">
+                                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 mt-0.5" style={{ backgroundColor: ACCENT }}>
+                                        {initials(app.applicantName)}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
+                                        <p className="text-xs mb-2" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
+                                        {agStatus === 'sent' && (
+                                          <div className="flex items-center gap-1.5 mb-2">
+                                            <IconClock size={12} style={{ color: 'var(--status-warning)' }} />
+                                            <span className="text-xs font-medium" style={{ color: 'var(--status-warning)' }}>Awaiting Signature</span>
+                                          </div>
+                                        )}
+                                        {agStatus === 'signed' && (
+                                          <div className="flex items-center gap-1.5 mb-2">
+                                            <IconCircleCheck size={12} style={{ color: 'var(--status-success)' }} />
+                                            <span className="text-xs font-medium" style={{ color: 'var(--status-success)' }}>Agreement Signed ✓</span>
+                                          </div>
+                                        )}
+                                        {resendFeedback[app.id] && (
+                                          <p className="text-xs font-medium mb-2" style={{ color: 'var(--status-success)' }}>{resendFeedback[app.id]}</p>
+                                        )}
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          {agStatus === 'sent' && (
+                                            <button
+                                              onClick={e => { e.stopPropagation(); resendAgreement(app) }}
+                                              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
+                                              style={{ border: '1px solid rgba(245,158,11,0.5)', color: 'var(--status-warning)', backgroundColor: 'rgba(245,158,11,0.08)' }}
+                                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.15)')}
+                                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.08)')}>
+                                              <IconRefresh size={12} />
+                                              Resend Agreement
+                                            </button>
+                                          )}
+                                          <button
+                                            onClick={canGrant ? e => { e.stopPropagation(); grantAccess(app, project) } : undefined}
+                                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white transition-colors"
+                                            style={{ backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)', cursor: canGrant ? 'pointer' : 'not-allowed' }}
+                                            onMouseEnter={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#15803d' }}
+                                            onMouseLeave={e => { if (canGrant) e.currentTarget.style.backgroundColor = canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)' }}>
+                                            <IconUserCheck size={12} />
+                                            Grant Access
+                                          </button>
+                                        </div>
+                                        {!canGrant && (
+                                          <p className="text-[10px] mt-1" style={{ color: 'var(--text-tertiary)' }}>Requires a fully signed agreement.</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )
+                        )}
+
+                        {/* Stage 4: Active */}
+                        {pipelineTab === 'active' && (
+                          pipeline.active.length === 0 ? (
+                            <div className="rounded-lg p-10 text-center" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                              <IconUserCheck size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-2" />
+                              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No applications have been fully onboarded yet.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {pipeline.active.map(app => (
+                                <div key={app.id} className="rounded-lg p-5 flex items-center gap-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: '#16a34a' }}>
+                                    {initials(app.applicantName)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
+                                    <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
+                                  </div>
+                                  <span className="text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1"
+                                    style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: 'var(--status-success)' }}>
+                                    <IconCircleCheck size={11} /> Active Member
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        )}
+
+                        {/* Declined */}
+                        {pipelineTab === 'declined' && (
+                          <div className="space-y-2">
+                            {pipeline.declined.map(app => (
+                              <div key={app.id} className="rounded-lg px-5 py-3.5 flex items-center gap-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', opacity: 0.7 }}>
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ backgroundColor: 'rgba(107,114,128,0.6)' }}>
+                                  {initials(app.applicantName)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{app.applicantName}</p>
+                                  <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
+                                </div>
+                                <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--status-error)' }}>
+                                  Declined
+                                </span>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
