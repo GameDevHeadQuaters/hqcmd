@@ -23,13 +23,13 @@ import Contact from './pages/Contact'
 
 const BETA_MODE = true
 
-if (!import.meta.env.VITE_ADMIN_EMAIL || !import.meta.env.VITE_ADMIN_PASSWORD) {
-  console.warn('hqcmd: VITE_ADMIN_EMAIL or VITE_ADMIN_PASSWORD not set in .env — admin login disabled')
+if (!import.meta.env.VITE_ADMIN_PASSWORD) {
+  console.warn('hqcmd: VITE_ADMIN_PASSWORD not set in .env — admin login disabled')
 }
 
 const SUPER_ADMIN = {
-  email:    import.meta.env.VITE_ADMIN_EMAIL    ?? null,
-  password: import.meta.env.VITE_ADMIN_PASSWORD ?? null,
+  email:    import.meta.env.VITE_ADMIN_EMAIL    || 'admin@hqcmd.app',
+  password: import.meta.env.VITE_ADMIN_PASSWORD || '',
   name: 'HQCMD Admin',
   id: 'superadmin',
   isAdmin: true,
