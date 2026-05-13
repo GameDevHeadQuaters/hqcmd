@@ -65,6 +65,7 @@ function ApplyModal({ project, currentUser, onClose, onAddApplication, onAddNoti
       projectTitle: project.title,
       applicantName,
       applicantId: currentUser?.id ?? null,
+      applicantEmail: currentUser?.email ?? null,
       role,
       message: message.trim(),
       status: 'pending',
@@ -424,10 +425,10 @@ export default function BrowseProjects({
 
   const allProjects = []
   Object.entries(userData).forEach(([uid, data]) => {
-    const ownerId = parseInt(uid, 10)
-    const ownerUser = users.find(u => u.id === ownerId)
+    const ownerId = uid
+    const ownerUser = users.find(u => String(u.id) === String(ownerId))
     if (!ownerUser) return // skip orphaned userData entries with no matching user account
-    const ownerName = ownerId === currentUser?.id ? 'You' : ownerUser.name
+    const ownerName = String(ownerId) === String(currentUser?.id) ? 'You' : ownerUser.name
     ;(data.projects ?? [])
       .filter(p => p.visibility === 'Public')
       .forEach(p => {
@@ -626,7 +627,7 @@ export default function BrowseProjects({
                 key={p.id}
                 project={p}
                 borderColor={CARD_BORDERS[i % 3]}
-                isOwnProject={currentUser?.id === p.ownerId}
+                isOwnProject={String(currentUser?.id) === String(p.ownerId)}
                 onApply={() => handleApply(p)}
                 onMessage={() => requireAuth(() => setMsgProject(p))}
               />

@@ -223,20 +223,20 @@ export default function App() {
 
   function getUserData() {
     if (!currentUser) return emptyUserData()
-    return userData[currentUser.id] ?? emptyUserData()
+    return userData[String(currentUser.id)] ?? emptyUserData()
   }
 
   // Functional updater for current user's slice
   function patchUserData(uid, patch) {
     setUserData(prev => {
-      const d = prev[uid] ?? emptyUserData()
-      return { ...prev, [uid]: { ...d, ...patch } }
+      const d = prev[String(uid)] ?? emptyUserData()
+      return { ...prev, [String(uid)]: { ...d, ...patch } }
     })
   }
 
   function updateProject(id, changes) {
     if (!currentUser) return
-    const uid = currentUser.id
+    const uid = String(currentUser.id)
     setUserData(prev => {
       const d = prev[uid] ?? emptyUserData()
       return { ...prev, [uid]: { ...d, projects: d.projects.map(p => p.id === id ? { ...p, ...changes } : p) } }
@@ -245,7 +245,7 @@ export default function App() {
 
   function addNotification(notifObj) {
     if (!currentUser) return
-    const uid = currentUser.id
+    const uid = String(currentUser.id)
     setUserData(prev => {
       const d = prev[uid] ?? emptyUserData()
       return { ...prev, [uid]: { ...d, notifications: [notifObj, ...d.notifications].slice(0, 10) } }
@@ -256,7 +256,7 @@ export default function App() {
 
   function setApplications(updater) {
     if (!currentUser) return
-    const uid = currentUser.id
+    const uid = String(currentUser.id)
     setUserData(prev => {
       const d = prev[uid] ?? emptyUserData()
       const next = typeof updater === 'function' ? updater(d.applications) : updater
@@ -266,7 +266,7 @@ export default function App() {
 
   function setDirectMessages(updater) {
     if (!currentUser) return
-    const uid = currentUser.id
+    const uid = String(currentUser.id)
     setUserData(prev => {
       const d = prev[uid] ?? emptyUserData()
       const next = typeof updater === 'function' ? updater(d.directMessages) : updater
@@ -276,7 +276,7 @@ export default function App() {
 
   function setNotifications(updater) {
     if (!currentUser) return
-    const uid = currentUser.id
+    const uid = String(currentUser.id)
     setUserData(prev => {
       const d = prev[uid] ?? emptyUserData()
       const next = typeof updater === 'function' ? updater(d.notifications) : updater
@@ -286,7 +286,7 @@ export default function App() {
 
   function setAgreements(updater) {
     if (!currentUser) return
-    const uid = currentUser.id
+    const uid = String(currentUser.id)
     setUserData(prev => {
       const d = prev[uid] ?? emptyUserData()
       const next = typeof updater === 'function' ? updater(d.agreements ?? []) : updater
@@ -296,7 +296,7 @@ export default function App() {
 
   function setContacts(updater) {
     if (!currentUser) return
-    const uid = currentUser.id
+    const uid = String(currentUser.id)
     setUserData(prev => {
       const d = prev[uid] ?? emptyUserData()
       const next = typeof updater === 'function' ? updater(d.contacts ?? []) : updater
@@ -306,7 +306,7 @@ export default function App() {
 
   function setSharedProjects(updater) {
     if (!currentUser) return
-    const uid = currentUser.id
+    const uid = String(currentUser.id)
     setUserData(prev => {
       const d = prev[uid] ?? emptyUserData()
       const next = typeof updater === 'function' ? updater(d.sharedProjects ?? []) : updater
@@ -316,10 +316,10 @@ export default function App() {
 
   function countersignAgreement(ownerId, agreementId, updates) {
     setUserData(prev => {
-      const d = prev[ownerId] ?? emptyUserData()
+      const d = prev[String(ownerId)] ?? emptyUserData()
       return {
         ...prev,
-        [ownerId]: {
+        [String(ownerId)]: {
           ...d,
           agreements: (d.agreements ?? []).map(a =>
             a.id === agreementId ? { ...a, ...updates } : a
@@ -331,7 +331,7 @@ export default function App() {
 
   function setProjects(updater) {
     if (!currentUser) { console.error('hqcmd: setProjects called without a logged-in user'); return }
-    const uid = currentUser.id
+    const uid = String(currentUser.id)
     setUserData(prev => {
       const d = prev[uid] ?? emptyUserData()
       const next = typeof updater === 'function' ? updater(d.projects) : updater
@@ -354,7 +354,8 @@ export default function App() {
   // ── Cross-user helpers (Browse Projects → owner's inbox) ─────────────────
 
   function addApplicationForUser(ownerId, application) {
-    const existing = checkUserDataWrite(String(ownerId), 'applications')
+    const sid = String(ownerId)
+    const existing = checkUserDataWrite(sid, 'applications')
     const isDup = existing.some(a =>
       String(a.projectId) === String(application.projectId) &&
       (application.applicantId
@@ -366,28 +367,30 @@ export default function App() {
       return
     }
     setUserData(prev => {
-      const d = prev[ownerId] ?? emptyUserData()
-      return { ...prev, [ownerId]: { ...d, applications: [application, ...d.applications] } }
+      const d = prev[sid] ?? emptyUserData()
+      return { ...prev, [sid]: { ...d, applications: [application, ...d.applications] } }
     })
-    writeToUserData(String(ownerId), 'applications', application)
+    writeToUserData(sid, 'applications', application)
   }
 
   function addNotificationForUser(ownerId, notifData) {
+    const sid = String(ownerId)
     const notifObj = makeNotifObj(notifData)
     setUserData(prev => {
-      const d = prev[ownerId] ?? emptyUserData()
-      return { ...prev, [ownerId]: { ...d, notifications: [notifObj, ...d.notifications] } }
+      const d = prev[sid] ?? emptyUserData()
+      return { ...prev, [sid]: { ...d, notifications: [notifObj, ...d.notifications] } }
     })
     const { Icon: _icon, ...serializedNotif } = notifObj
-    writeToUserData(String(ownerId), 'notifications', serializedNotif)
+    writeToUserData(sid, 'notifications', serializedNotif)
   }
 
   function addDirectMessageForUser(ownerId, message) {
+    const sid = String(ownerId)
     setUserData(prev => {
-      const d = prev[ownerId] ?? emptyUserData()
-      return { ...prev, [ownerId]: { ...d, directMessages: [message, ...d.directMessages] } }
+      const d = prev[sid] ?? emptyUserData()
+      return { ...prev, [sid]: { ...d, directMessages: [message, ...d.directMessages] } }
     })
-    writeToUserData(String(ownerId), 'directMessages', message)
+    writeToUserData(sid, 'directMessages', message)
   }
 
   // ── Cross-user contact upsert — dedupes by userId/email ──────────────────
@@ -449,7 +452,10 @@ export default function App() {
       return
     }
 
-    const accepteeUser = users.find(u => u.name === app.applicantName)
+    const accepteeUser = users.find(u =>
+      (app.applicantId && String(u.id) === String(app.applicantId)) ||
+      u.name?.toLowerCase() === app.applicantName?.toLowerCase()
+    )
     const initials = app.applicantName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
     const newMember = {
       id: Date.now(),
@@ -506,7 +512,7 @@ export default function App() {
     }
     setUsers(prev => [...prev, newUser])
     setCurrentUser(newUser)
-    setUserData(prev => ({ ...prev, [newUser.id]: emptyUserData() }))
+    setUserData(prev => ({ ...prev, [String(newUser.id)]: emptyUserData() }))
     setActiveProjectId(null)
     setCalendarEvents([])
   }

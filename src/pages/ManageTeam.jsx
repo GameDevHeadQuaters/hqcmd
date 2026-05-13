@@ -193,6 +193,7 @@ export default function ManageTeam({
     const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
     const applicant = allUsers.find(u =>
       (app.applicantId && String(u.id) === String(app.applicantId)) ||
+      (app.applicantEmail && u.email?.toLowerCase() === app.applicantEmail.toLowerCase()) ||
       u.name?.toLowerCase() === app.applicantName?.toLowerCase()
     )
 
@@ -208,7 +209,7 @@ export default function ManageTeam({
     const sharedRef = {
       id: Date.now().toString(),
       projectId: project.id,
-      ownerUserId: currentUser.id,
+      ownerUserId: String(currentUser.id),
       ownerName: currentUser.name,
       projectTitle: project.title,
       role: app.role,
@@ -312,7 +313,7 @@ export default function ManageTeam({
         if (raw) {
           const allUD = JSON.parse(raw)
           const rid = String(counterparty.id)
-          if (!allUD[rid]) allUD[rid] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [] }
+          if (!allUD[rid]) allUD[rid] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
           allUD[rid].notifications = [
             { id: Date.now() + 1, iconType: 'agreement', text: notifText, time: 'Just now', read: false, link: '/inbox' },
             ...(allUD[rid].notifications ?? []),
