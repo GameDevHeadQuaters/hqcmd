@@ -189,36 +189,52 @@ function SharedProjectCard({ project, ref_, topBorder, onOpen }) {
   )
 }
 
-export default function MyProjects({ projects, setProjects, setActiveProjectId, setActiveOwnerUserId, sharedProjects, unreadInboxCount, currentUser, onSignOut, getProjectImage }) {
+export default function MyProjects({ projects, setProjects, setActiveProjectId, setActiveOwnerUserId, unreadInboxCount, currentUser, onSignOut, getProjectImage }) {
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
 
-  const [resolvedSharedProjects, setResolvedSharedProjects] = useState([])
+  const [sharedProjects, setSharedProjects] = useState([])
 
   useEffect(() => {
-    if (!currentUser?.id) { setResolvedSharedProjects([]); return }
     try {
-      const allUserData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
-      const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
-      const myRefs = allUserData[String(currentUser.id)]?.sharedProjects ?? []
+      const raw = localStorage.getItem('hqcmd_userData_v4')
+      const allData = raw ? JSON.parse(raw) : {}
+      const allUsersRaw = localStorage.getItem('hqcmd_users_v3')
+      const allUsers = allUsersRaw ? JSON.parse(allUsersRaw) : []
 
-      const resolved = myRefs.map(ref => {
-        const ownerData = allUserData[String(ref.ownerUserId)]
-        const project = (ownerData?.projects ?? []).find(p => String(p.id) === String(ref.projectId))
-        const owner = allUsers.find(u => String(u.id) === String(ref.ownerUserId))
+      const myId = String(currentUser.id)
+      const myData = allData[myId] || {}
+      const refs = myData.sharedProjects || []
+
+      console.log('[MyProjects] myId:', myId)
+      console.log('[MyProjects] sharedProjects refs:', refs)
+
+      const resolved = refs.map(ref => {
+        const ownerId = String(ref.ownerUserId)
+        const projectId = String(ref.projectId)
+        const ownerData = allData[ownerId] || {}
+        const project = (ownerData.projects || []).find(p => String(p.id) === projectId)
+        const owner = allUsers.find(u => String(u.id) === ownerId)
+
+        console.log('[MyProjects] ref:', ref, '→ project found:', !!project)
+
         if (!project) return null
         return {
-          ref: { ...ref, ownerName: ref.ownerName ?? owner?.name ?? 'Unknown', userRole: ref.userRole ?? ref.role ?? 'Member' },
-          project,
+          ...project,
+          _isShared: true,
+          _sharedRef: ref,
+          _ownerName: owner?.name || 'Unknown',
+          _role: ref.role,
         }
       }).filter(Boolean)
-      setResolvedSharedProjects(resolved)
-    } catch (e) {
-      console.warn('MyProjects: failed to read sharedProjects from localStorage', e)
-      setResolvedSharedProjects([])
+
+      console.log('[MyProjects] resolved shared projects:', resolved.length)
+      setSharedProjects(resolved)
+    } catch(e) {
+      console.error('[MyProjects] Error reading shared projects:', e)
     }
-  }, [currentUser?.id, sharedProjects])
+  }, [currentUser])
 
   function handleSave(data) {
     const id = Date.now()
@@ -274,7 +290,7 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
         </div>
 
         {/* ── My Projects (owned) ── */}
-        {projects.length === 0 && resolvedSharedProjects.length === 0 ? (
+        {projects.length === 0 && sharedProjects.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <IconFolderOff size={48} style={{ color: 'var(--brand-accent)' }} className="mb-4" />
             <p className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>No projects yet</p>
@@ -284,7 +300,7 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
           <>
             {projects.length > 0 && (
               <div className="mb-8">
-                {resolvedSharedProjects.length > 0 && (
+                {sharedProjects.length > 0 && (
                   <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-tertiary)' }}>My Projects</h2>
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -302,20 +318,20 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
             )}
 
             {/* ── Shared With Me ── */}
-            {resolvedSharedProjects.length > 0 && (
+            {sharedProjects.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <IconShare size={14} style={{ color: 'var(--text-tertiary)' }} />
                   <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>Shared With Me</h2>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {resolvedSharedProjects.map(({ ref, project: p }, i) => (
+                  {sharedProjects.map((p, i) => (
                     <SharedProjectCard
-                      key={ref.projectId + '_' + ref.ownerUserId}
+                      key={String(p._sharedRef.projectId) + '_' + String(p._sharedRef.ownerUserId)}
                       project={{ ...p, coverImage: getProjectImage(p.id) }}
-                      ref_={ref}
+                      ref_={{ ...p._sharedRef, ownerName: p._ownerName, userRole: p._role }}
                       topBorder={CARD_BORDERS[i % 3]}
-                      onOpen={() => { setActiveOwnerUserId?.(ref.ownerUserId); setActiveProjectId(ref.projectId); navigate('/workstation') }}
+                      onOpen={() => { setActiveOwnerUserId?.(p._sharedRef.ownerUserId); setActiveProjectId(p._sharedRef.projectId); navigate('/workstation') }}
                     />
                   ))}
                 </div>

@@ -485,8 +485,16 @@ export default function TeamsPage({
                 {/* Expanded */}
                 {isOpen && (
                   <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
+
+                    {/* ── Subsection 1: Active Members ── */}
+                    <div className="px-5 pt-4 pb-1 flex items-center gap-2">
+                      <IconUsers size={13} style={{ color: 'var(--text-tertiary)' }} />
+                      <h4 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>Active Members</h4>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-tertiary)' }}>{members.length}</span>
+                    </div>
+
                     {members.length === 0 ? (
-                      <div className="px-5 py-6 text-center">
+                      <div className="px-5 py-4 text-center">
                         <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No team members yet.</p>
                       </div>
                     ) : (
@@ -506,14 +514,11 @@ export default function TeamsPage({
                               const pendingPos = pendingPositions[pk]
                               const feedback = positionFeedback[pk]
                               const av = m.avatarColor ?? hashColor(m.name)
-
                               return (
                                 <tr key={m.id} style={{ borderBottom: i < members.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                                  {/* Avatar + Name */}
                                   <td className="px-5 py-3">
                                     <div className="flex items-center gap-2.5">
-                                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-                                        style={{ backgroundColor: av }}>
+                                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ backgroundColor: av }}>
                                         {m.initials || initials(m.name)}
                                       </div>
                                       <div>
@@ -522,7 +527,6 @@ export default function TeamsPage({
                                       </div>
                                     </div>
                                   </td>
-                                  {/* Role dropdown (owned only) */}
                                   <td className="px-5 py-3">
                                     {project.isOwned ? (
                                       <div className="flex items-center gap-2">
@@ -553,13 +557,11 @@ export default function TeamsPage({
                                         ) : null}
                                       </div>
                                     ) : (
-                                      <span className="text-xs px-2 py-0.5 rounded-full"
-                                        style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+                                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
                                         {m.position ?? 'Member'}
                                       </span>
                                     )}
                                   </td>
-                                  {/* Agreement Status */}
                                   <td className="px-5 py-3">
                                     {agStatus.type === 'signed' ? (
                                       <div className="flex items-center gap-1.5">
@@ -577,11 +579,9 @@ export default function TeamsPage({
                                       <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>—</span>
                                     )}
                                   </td>
-                                  {/* Joined */}
                                   <td className="px-5 py-3">
                                     <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{formatDate(m.joinedAt)}</span>
                                   </td>
-                                  {/* Actions */}
                                   {isManager && (
                                     <td className="px-5 py-3">
                                       <div className="flex items-center gap-2">
@@ -590,8 +590,7 @@ export default function TeamsPage({
                                           className="text-xs font-medium px-2.5 py-1 rounded-full border transition-colors"
                                           style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
                                           onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
-                                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
-                                        >
+                                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)' }}>
                                           Send Agreement
                                         </button>
                                         <button
@@ -599,8 +598,7 @@ export default function TeamsPage({
                                           className="text-xs font-medium px-2.5 py-1 rounded-full border transition-colors"
                                           style={{ borderColor: 'rgba(239,68,68,0.3)', color: 'var(--status-error)' }}
                                           onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--status-error)')}
-                                          onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)')}
-                                        >
+                                          onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(239,68,68,0.3)')}>
                                           Remove
                                         </button>
                                       </div>
@@ -614,24 +612,25 @@ export default function TeamsPage({
                       </div>
                     )}
 
-                    {/* Application Pipeline */}
+                    {/* ── Subsection 2: Application Pipeline ── */}
                     {project.isOwned && (
                       <div style={{ borderTop: '1px solid var(--border-subtle)' }} className="px-5 py-4">
+
+                        {/* Pipeline header */}
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
                             <IconBriefcase size={13} style={{ color: 'var(--text-tertiary)' }} />
-                            <h4 className="text-xs font-semibold" style={{ color: 'var(--text-tertiary)' }}>APPLICATION PIPELINE</h4>
+                            <h4 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>Application Pipeline</h4>
                             {totalPipelineApps > 0 && (
                               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(83,74,183,0.15)', color: ACCENT }}>{totalPipelineApps}</span>
                             )}
                           </div>
                           <button
                             onClick={e => { e.stopPropagation(); navigate(`/team/${project.id}`) }}
-                            className="flex items-center gap-1 text-xs font-medium transition-colors"
+                            className="flex items-center gap-1 text-xs font-medium"
                             style={{ color: ACCENT }}
                             onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
-                            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
-                          >
+                            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
                             Manage <IconArrowRight size={11} />
                           </button>
                         </div>
@@ -639,10 +638,10 @@ export default function TeamsPage({
                         {/* Stage tabs */}
                         <div className="flex gap-1 mb-3 flex-wrap">
                           {[
-                            { id: 'applied',   label: 'Applied',   count: pipeline.applied.length,   color: 'rgba(245,158,11,0.15)',   text: 'var(--status-warning)' },
-                            { id: 'accepted',  label: 'Accepted',  count: pipeline.accepted.length,  color: 'rgba(34,197,94,0.12)',    text: 'var(--status-success)' },
-                            { id: 'agreement', label: 'Agreement', count: pipeline.agreement.length, color: 'rgba(83,74,183,0.12)',    text: ACCENT },
-                            { id: 'active',    label: 'Active',    count: pipeline.active.length,    color: 'rgba(34,197,94,0.12)',    text: 'var(--status-success)' },
+                            { id: 'applied',   label: 'Applied',   count: pipeline.applied.length,   color: 'rgba(245,158,11,0.15)',  text: 'var(--status-warning)' },
+                            { id: 'accepted',  label: 'Accepted',  count: pipeline.accepted.length,  color: 'rgba(34,197,94,0.12)',   text: 'var(--status-success)' },
+                            { id: 'agreement', label: 'Agreement', count: pipeline.agreement.length, color: 'rgba(83,74,183,0.12)',   text: ACCENT },
+                            { id: 'active',    label: 'Active',    count: pipeline.active.length,    color: 'rgba(34,197,94,0.12)',   text: 'var(--status-success)' },
                           ].map(s => (
                             <button
                               key={s.id}
@@ -652,112 +651,104 @@ export default function TeamsPage({
                                 backgroundColor: pipelineTab === s.id ? s.color : 'var(--bg-elevated)',
                                 color: pipelineTab === s.id ? s.text : 'var(--text-tertiary)',
                                 border: pipelineTab === s.id ? `1px solid ${s.text}` : '1px solid transparent',
-                              }}
-                            >
-                              {s.label}
-                              <span className="font-bold">{s.count}</span>
+                              }}>
+                              {s.label} <span className="font-bold">{s.count}</span>
                             </button>
                           ))}
                         </div>
 
-                        {/* Stage content */}
-                        {(() => {
-                          const stageApps = pipeline[pipelineTab] ?? []
-                          if (stageApps.length === 0) {
-                            return (
-                              <p className="text-xs text-center py-4" style={{ color: 'var(--text-tertiary)' }}>
-                                No applications in this stage.
-                              </p>
-                            )
-                          }
-                          return (
-                            <div className="space-y-2">
-                              {stageApps.map(app => {
-                                const agStatus = getAgreementStatus(app)
-                                const canGrant = agStatus === 'signed'
-                                return (
-                                  <div key={app.id} className="rounded-lg px-3 py-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
-                                    <div className="flex items-center gap-2.5 flex-wrap">
-                                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0"
-                                        style={{ backgroundColor: hashColor(app.applicantName) }}>
-                                        {initials(app.applicantName)}
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
-                                        <p className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
-                                      </div>
-                                      {pipelineTab === 'applied' && (
-                                        <div className="flex items-center gap-1 flex-shrink-0">
-                                          <button
-                                            onClick={e => { e.stopPropagation(); acceptApp(app, project) }}
-                                            className="text-[10px] font-semibold px-2 py-1 rounded-full text-white transition-opacity hover:opacity-80"
-                                            style={{ backgroundColor: '#16a34a' }}>
-                                            Accept
-                                          </button>
-                                          <button
-                                            onClick={e => { e.stopPropagation(); declineApp(app) }}
-                                            className="text-[10px] font-semibold px-2 py-1 rounded-full border transition-colors"
-                                            style={{ borderColor: '#ed2793', color: '#ed2793' }}
-                                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)')}
-                                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
-                                            Decline
-                                          </button>
-                                        </div>
-                                      )}
-                                      {pipelineTab === 'accepted' && (
-                                        <button
-                                          onClick={e => { e.stopPropagation(); setSendTarget({ member: { name: app.applicantName, userId: app.applicantId, initials: initials(app.applicantName) }, project, app }) }}
-                                          className="text-[10px] font-semibold px-2 py-1 rounded-full text-white flex-shrink-0 transition-opacity hover:opacity-80"
-                                          style={{ backgroundColor: ACCENT }}>
-                                          Send Agreement
-                                        </button>
-                                      )}
-                                      {pipelineTab === 'agreement' && (
-                                        <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
-                                          {agStatus === 'sent' ? (
-                                            <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: 'var(--status-warning)' }}>
-                                              <IconClock size={10} /> Awaiting
-                                            </span>
-                                          ) : (
-                                            <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: 'var(--status-success)' }}>
-                                              <IconCircleCheck size={10} /> Signed
-                                            </span>
-                                          )}
-                                          {agStatus === 'sent' && (
-                                            <button
-                                              onClick={e => { e.stopPropagation(); resendAgreement(app) }}
-                                              className="flex items-center gap-0.5 text-[10px] font-medium px-2 py-1 rounded-full transition-colors"
-                                              style={{ border: '1px solid rgba(245,158,11,0.5)', color: 'var(--status-warning)', backgroundColor: 'rgba(245,158,11,0.08)' }}
-                                              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.15)')}
-                                              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.08)')}>
-                                              <IconRefresh size={9} /> Resend
-                                            </button>
-                                          )}
-                                          {resendFeedback[app.id] && (
-                                            <span className="text-[10px] font-medium" style={{ color: 'var(--status-success)' }}>{resendFeedback[app.id]}</span>
-                                          )}
-                                          <button
-                                            onClick={canGrant ? e => { e.stopPropagation(); grantAccess(app, project) } : undefined}
-                                            className="text-[10px] font-semibold px-2 py-1 rounded-full text-white flex-shrink-0"
-                                            style={{ backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)', cursor: canGrant ? 'pointer' : 'not-allowed' }}
-                                            onMouseEnter={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#15803d' }}
-                                            onMouseLeave={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#16a34a' }}>
-                                            Grant Access
-                                          </button>
-                                        </div>
-                                      )}
-                                      {pipelineTab === 'active' && (
-                                        <span className="flex items-center gap-1 text-[10px] font-semibold flex-shrink-0" style={{ color: 'var(--status-success)' }}>
-                                          <IconCircleCheck size={10} /> Active Member
-                                        </span>
-                                      )}
+                        {/* Stage content — inline, no IIFE */}
+                        {(pipeline[pipelineTab] ?? []).length === 0 ? (
+                          <p className="text-xs text-center py-4" style={{ color: 'var(--text-tertiary)' }}>
+                            No applications in this stage.
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {(pipeline[pipelineTab] ?? []).map(app => {
+                              const agStatus = getAgreementStatus(app)
+                              const canGrant = agStatus === 'signed'
+                              return (
+                                <div key={app.id} className="rounded-lg px-3 py-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                                  <div className="flex items-center gap-2.5 flex-wrap">
+                                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0"
+                                      style={{ backgroundColor: hashColor(app.applicantName) }}>
+                                      {initials(app.applicantName)}
                                     </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
+                                      <p className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
+                                    </div>
+                                    {pipelineTab === 'applied' && (
+                                      <div className="flex items-center gap-1 flex-shrink-0">
+                                        <button
+                                          onClick={e => { e.stopPropagation(); acceptApp(app, project) }}
+                                          className="text-[10px] font-semibold px-2 py-1 rounded-full text-white transition-opacity hover:opacity-80"
+                                          style={{ backgroundColor: '#16a34a' }}>
+                                          Accept
+                                        </button>
+                                        <button
+                                          onClick={e => { e.stopPropagation(); declineApp(app) }}
+                                          className="text-[10px] font-semibold px-2 py-1 rounded-full border transition-colors"
+                                          style={{ borderColor: '#ed2793', color: '#ed2793' }}
+                                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)')}
+                                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+                                          Decline
+                                        </button>
+                                      </div>
+                                    )}
+                                    {pipelineTab === 'accepted' && (
+                                      <button
+                                        onClick={e => { e.stopPropagation(); setSendTarget({ member: { name: app.applicantName, userId: app.applicantId, initials: initials(app.applicantName) }, project, app }) }}
+                                        className="text-[10px] font-semibold px-2 py-1 rounded-full text-white flex-shrink-0 transition-opacity hover:opacity-80"
+                                        style={{ backgroundColor: ACCENT }}>
+                                        Send Agreement
+                                      </button>
+                                    )}
+                                    {pipelineTab === 'agreement' && (
+                                      <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
+                                        {agStatus === 'sent' ? (
+                                          <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: 'var(--status-warning)' }}>
+                                            <IconClock size={10} /> Awaiting
+                                          </span>
+                                        ) : (
+                                          <span className="flex items-center gap-1 text-[10px] font-medium" style={{ color: 'var(--status-success)' }}>
+                                            <IconCircleCheck size={10} /> Signed
+                                          </span>
+                                        )}
+                                        {agStatus === 'sent' && (
+                                          <button
+                                            onClick={e => { e.stopPropagation(); resendAgreement(app) }}
+                                            className="flex items-center gap-0.5 text-[10px] font-medium px-2 py-1 rounded-full transition-colors"
+                                            style={{ border: '1px solid rgba(245,158,11,0.5)', color: 'var(--status-warning)', backgroundColor: 'rgba(245,158,11,0.08)' }}
+                                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.15)')}
+                                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.08)')}>
+                                            <IconRefresh size={9} /> Resend
+                                          </button>
+                                        )}
+                                        {resendFeedback[app.id] && (
+                                          <span className="text-[10px] font-medium" style={{ color: 'var(--status-success)' }}>{resendFeedback[app.id]}</span>
+                                        )}
+                                        <button
+                                          onClick={canGrant ? e => { e.stopPropagation(); grantAccess(app, project) } : undefined}
+                                          className="text-[10px] font-semibold px-2 py-1 rounded-full text-white flex-shrink-0"
+                                          style={{ backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)', cursor: canGrant ? 'pointer' : 'not-allowed' }}
+                                          onMouseEnter={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#15803d' }}
+                                          onMouseLeave={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#16a34a' }}>
+                                          Grant Access
+                                        </button>
+                                      </div>
+                                    )}
+                                    {pipelineTab === 'active' && (
+                                      <span className="flex items-center gap-1 text-[10px] font-semibold flex-shrink-0" style={{ color: 'var(--status-success)' }}>
+                                        <IconCircleCheck size={10} /> Active Member
+                                      </span>
+                                    )}
                                   </div>
-                                )
-                              })}
-                            </div>
-                          )
-                        })()}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
