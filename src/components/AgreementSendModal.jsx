@@ -109,6 +109,7 @@ export default function AgreementSendModal({
   function sendToInbox() {
     if (!cpName.trim() || !cpEmail.trim()) { setSendStatus('field_error'); return }
     const counterparty = (users ?? []).find(u => u.email?.toLowerCase() === cpEmail.trim().toLowerCase())
+
     if (!counterparty) { setSendStatus('no_user'); return }
 
     const notifText = `${currentUser?.name ?? 'Someone'} has sent you an agreement to sign: "${createdAgreement.templateName}"`
