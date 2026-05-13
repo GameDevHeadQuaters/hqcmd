@@ -57,16 +57,19 @@ export default function Workstation({
     } catch { return userRole || 'Member' }
   }, [activeProject, isSharedProject, currentUser, userRole])
 
-  // Seed calendarEvents from localStorage on first mount (handles page refresh)
+  // Seed calendarEvents from localStorage on first mount and keep in sync with TodoList writes
   useEffect(() => {
     if (!activeProject?.id || !ownerUserId) return
-    try {
-      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-      const proj = (allData[ownerUserId]?.projects || []).find(p => String(p.id) === String(activeProject.id))
-      if (proj?.calendarEvents?.length && calendarEvents.length === 0) {
-        setCalendarEvents(proj.calendarEvents)
-      }
-    } catch {}
+    function syncCalEvents() {
+      try {
+        const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+        const proj = (allData[ownerUserId]?.projects || []).find(p => String(p.id) === String(activeProject.id))
+        if (proj?.calendarEvents) setCalendarEvents(proj.calendarEvents)
+      } catch {}
+    }
+    syncCalEvents()
+    window.addEventListener('storage', syncCalEvents)
+    return () => window.removeEventListener('storage', syncCalEvents)
   }, [activeProject?.id, ownerUserId])
 
   // Mirror calendarEvents to localStorage whenever they change

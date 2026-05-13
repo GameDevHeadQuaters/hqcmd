@@ -57,8 +57,9 @@ export default function TodoList({ projectId, ownerUserId, currentUser, userRole
   function add() {
     const text = newText.trim()
     if (!text || !projectId || !ownerUserId) return
+    const todoId = String(Date.now())
     appendToProjectArray(projectId, ownerUserId, 'todos', {
-      id: String(Date.now()),
+      id: todoId,
       text,
       done: false,
       createdBy: String(currentUser?.id),
@@ -66,10 +67,21 @@ export default function TodoList({ projectId, ownerUserId, currentUser, userRole
       dueDate: newDueDate || null,
       assignedTo: null,
     })
+    if (newDueDate) {
+      appendToProjectArray(projectId, ownerUserId, 'calendarEvents', {
+        id: todoId + '_todo',
+        title: 'TODO: ' + text,
+        date: newDueDate,
+        type: 'todo',
+        todoId,
+        createdBy: String(currentUser?.id),
+      })
+    }
     setNewText('')
     setNewDueDate('')
     const updated = readProject(projectId, ownerUserId)
     setTodos(updated?.todos || [])
+    setCalEvents(updated?.calendarEvents || [])
   }
 
   function claim(todoId) {
@@ -105,19 +117,17 @@ export default function TodoList({ projectId, ownerUserId, currentUser, userRole
   function applyDueDate(todoId, date) {
     const todo = todos.find(t => t.id === todoId)
     updateProjectArrayItem(projectId, ownerUserId, 'todos', todoId, { dueDate: date })
-    // Add calendar event if not already present
-    const existing = calEvents.find(e => e.todoId === todoId)
-    if (!existing) {
-      appendToProjectArray(projectId, ownerUserId, 'calendarEvents', {
-        id: String(Date.now()),
-        title: 'TODO: ' + (todo?.text || ''),
-        date,
-        type: 'todo',
-        todoId,
-      })
-    } else {
-      updateProjectArrayItem(projectId, ownerUserId, 'calendarEvents', existing.id, { date })
-    }
+    const proj = readProject(projectId, ownerUserId)
+    const existing = (proj?.calendarEvents || []).find(e => e.todoId === todoId)
+    if (existing) removeFromProjectArray(projectId, ownerUserId, 'calendarEvents', existing.id)
+    appendToProjectArray(projectId, ownerUserId, 'calendarEvents', {
+      id: String(Date.now()) + '_todo',
+      title: 'TODO: ' + (todo?.text || ''),
+      date,
+      type: 'todo',
+      todoId,
+      createdBy: String(currentUser?.id),
+    })
     const updated = readProject(projectId, ownerUserId)
     setTodos(updated?.todos || [])
     setCalEvents(updated?.calendarEvents || [])
@@ -126,8 +136,9 @@ export default function TodoList({ projectId, ownerUserId, currentUser, userRole
 
   function clearDueDate(todoId) {
     updateProjectArrayItem(projectId, ownerUserId, 'todos', todoId, { dueDate: null })
-    const evt = calEvents.find(e => e.todoId === todoId)
-    if (evt) removeFromProjectArray(projectId, ownerUserId, 'calendarEvents', evt.id)
+    const proj = readProject(projectId, ownerUserId)
+    const existing = (proj?.calendarEvents || []).find(e => e.todoId === todoId)
+    if (existing) removeFromProjectArray(projectId, ownerUserId, 'calendarEvents', existing.id)
     const updated = readProject(projectId, ownerUserId)
     setTodos(updated?.todos || [])
     setCalEvents(updated?.calendarEvents || [])
