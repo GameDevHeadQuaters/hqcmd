@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import Footer from '../components/Footer'
 import {
-  IconCommand, IconSearch, IconX, IconUsers, IconZoom,
+  IconSearch, IconX, IconUsers, IconZoom,
   IconCheck, IconSend, IconArrowRight, IconInbox, IconGlobe, IconFileText,
   IconCrown,
 } from '@tabler/icons-react'
@@ -462,21 +462,7 @@ export default function BrowseProjects({
       <div className="sticky top-0 z-20">
         <nav className="hq-nav px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-5">
-            <button onClick={() => navigate('/')} className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)' }}>
-                <IconCommand size={15} color="white" />
-              </div>
-              <span
-                className="font-bold text-sm tracking-tight"
-                style={{
-                  background: 'linear-gradient(90deg, #534AB7, #805da8, #ed2793)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-              >
-                HQCMD
-              </span>
+            <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '28px', width: 'auto', cursor: 'pointer' }} onClick={() => navigate('/')} onError={e => { e.target.style.display = 'none' }} />
             </button>
             <div className="flex items-center gap-0.5">
               <button onClick={() => navigate('/projects')} className="text-xs font-medium px-2.5 py-1.5 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: 'var(--text-secondary)' }}>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCommand, IconCheck, IconAlertTriangle } from '@tabler/icons-react'
+import { IconCheck, IconAlertTriangle } from '@tabler/icons-react'
 
 const ACCENT = '#534AB7'
 const BETA_REQUESTS_KEY = 'hqcmd_beta_requests'
@@ -120,15 +120,12 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <button onClick={() => navigate('/')} className="flex items-center gap-2 mb-4 hover:opacity-80 transition-opacity">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: ACCENT }}>
-              <IconCommand size={20} color="white" />
-            </div>
-            <span className="font-bold text-lg tracking-tight" style={{ color: 'var(--text-primary)' }}>HQCMD</span>
+          <div className="flex items-center gap-2 mb-4">
+            <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '40px', width: 'auto', cursor: 'pointer' }} onClick={() => navigate('/')} onError={e => { e.target.style.display = 'none' }} />
             {betaMode && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: '#ed2793' }}>BETA</span>
             )}
-          </button>
+          </div>
           {showSignupForm ? (
             <>
               <h1 className="font-bold text-xl" style={{ color: 'var(--text-primary)' }}>Create your account</h1>

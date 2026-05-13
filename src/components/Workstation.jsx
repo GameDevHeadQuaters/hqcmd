@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCommand, IconBell, IconInbox, IconSun, IconMoon } from '@tabler/icons-react'
+import { IconBell, IconInbox, IconSun, IconMoon } from '@tabler/icons-react'
 import ProjectHeader from './ProjectHeader'
 import TabPanel from './TabPanel'
 import BudgetCard from './BudgetCard'
@@ -83,22 +83,7 @@ export default function Workstation({
         <nav className="hq-nav px-6 h-14 flex items-center justify-between relative">
           <div className="flex items-center gap-5">
             <div className="flex items-center gap-2">
-              <button onClick={() => navigate('/')} className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)' }}>
-                  <IconCommand size={15} color="white" />
-                </div>
-                <span
-                  className="font-bold text-sm tracking-tight"
-                  style={{
-                    background: 'linear-gradient(90deg, #534AB7, #805da8, #ed2793)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                  }}
-                >
-                  HQCMD
-                </span>
-              </button>
+              <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '28px', width: 'auto', cursor: 'pointer' }} onClick={() => navigate('/')} onError={e => { e.target.style.display = 'none' }} />
               <span style={{ color: 'var(--border-strong)', margin: '0 4px' }}>|</span>
               <span className="text-sm truncate max-w-40" style={{ color: 'var(--text-tertiary)' }}>{project.title}</span>
             </div>

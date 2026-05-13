@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import {
-  IconCommand, IconArrowRight,
+  IconArrowRight,
   IconLayoutDashboard, IconMessages, IconFlag, IconCurrencyDollar,
   IconLayoutGrid,
 } from '@tabler/icons-react'
@@ -156,10 +156,9 @@ export default function Landing({ userData, currentUser, getProjectImage, betaMo
           <div className="flex flex-col items-center text-center max-w-2xl mx-auto">
             <div className="flex items-center gap-2 mb-5">
               <div
-                className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full"
+                className="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-full"
                 style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.9)' }}
               >
-                <IconCommand size={12} />
                 Built for indie game dev teams
               </div>
               {betaMode && (
@@ -276,25 +275,7 @@ export default function Landing({ userData, currentUser, getProjectImage, betaMo
         className="px-8 py-5 flex items-center justify-between mt-auto"
         style={{ borderTop: '1px solid var(--border-subtle)' }}
       >
-        <div className="flex items-center gap-2">
-          <div
-            className="w-6 h-6 rounded-md flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)' }}
-          >
-            <IconCommand size={13} color="white" />
-          </div>
-          <span
-            className="font-bold text-sm"
-            style={{
-              background: 'linear-gradient(90deg, #534AB7, #805da8, #ed2793)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-          >
-            HQCMD
-          </span>
-        </div>
+        <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '24px', width: 'auto' }} onError={e => { e.target.style.display = 'none' }} />
         <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>© 2026 HQ COMMAND. All rights reserved.</p>
       </footer>
     </div>

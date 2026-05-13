@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { IconCommand, IconArrowLeft, IconAlertTriangle } from '@tabler/icons-react'
+import { IconArrowLeft, IconAlertTriangle } from '@tabler/icons-react'
 import Footer from '../components/Footer'
 
 function Section({ n, title, children }) {
@@ -28,12 +28,7 @@ export default function Privacy() {
             onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
             <IconArrowLeft size={18} />
           </button>
-          <button onClick={() => navigate('/')} className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)' }}>
-              <IconCommand size={13} color="white" />
-            </div>
-            <span className="font-bold text-sm" style={{ background: 'linear-gradient(90deg, #534AB7, #805da8, #ed2793)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>HQCMD</span>
-          </button>
+          <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '28px', width: 'auto', cursor: 'pointer' }} onClick={() => navigate('/')} onError={e => { e.target.style.display = 'none' }} />
         </div>
       </nav>
 

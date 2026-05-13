@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  IconArrowLeft, IconCommand, IconUserCheck, IconBriefcase, IconUsers,
+  IconArrowLeft, IconUserCheck, IconBriefcase, IconUsers,
   IconChevronDown, IconChevronUp, IconX, IconCheck, IconAlertTriangle,
   IconWritingSign, IconRefresh, IconFileText,
 } from '@tabler/icons-react'
@@ -314,14 +314,7 @@ export default function ManageTeam({
             onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
             <IconArrowLeft size={18} />
           </button>
-          <button onClick={() => navigate('/')} className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)' }}>
-              <IconCommand size={13} color="white" />
-            </div>
-            <span className="font-bold text-sm tracking-tight" style={{ background: 'linear-gradient(90deg, #534AB7, #805da8, #ed2793)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-              HQCMD
-            </span>
-          </button>
+          <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '28px', width: 'auto', cursor: 'pointer' }} onClick={() => navigate('/')} onError={e => { e.target.style.display = 'none' }} />
           <span style={{ color: 'var(--border-strong)' }} className="mx-0.5">|</span>
           <span className="text-sm truncate max-w-36" style={{ color: 'var(--text-tertiary)' }}>{project.title}</span>
           <span style={{ color: 'var(--border-strong)' }}>›</span>

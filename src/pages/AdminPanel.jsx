@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  IconCommand, IconShield, IconUsers, IconMailCheck, IconKey, IconLayoutGrid,
+  IconShield, IconUsers, IconMailCheck, IconKey, IconLayoutGrid,
   IconSearch, IconTrash, IconCheck, IconX, IconRefresh, IconCopy, IconPlus,
   IconEye, IconEyeOff,
 } from '@tabler/icons-react'
@@ -487,11 +487,7 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
       <div style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
         <div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/')} className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)' }}>
-                <IconCommand size={15} color="white" />
-              </div>
-            </button>
+            <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '28px', width: 'auto', cursor: 'pointer' }} onClick={() => navigate('/')} onError={e => { e.target.style.display = 'none' }} />
             <span className="text-white/30">|</span>
             <div className="flex items-center gap-2">
               <IconShield size={18} style={{ color: '#ed2793' }} />

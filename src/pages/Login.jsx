@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { IconCommand, IconBrandGoogle, IconBrandGithub, IconInfoCircle } from '@tabler/icons-react'
+import { IconBrandGoogle, IconBrandGithub, IconInfoCircle } from '@tabler/icons-react'
 
 const ACCENT = '#534AB7'
 
@@ -54,15 +54,7 @@ export default function Login({ onLogin, currentUser }) {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 mb-4 hover:opacity-80 transition-opacity"
-          >
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: ACCENT }}>
-              <IconCommand size={20} color="white" />
-            </div>
-            <span className="font-bold text-lg tracking-tight" style={{ color: 'var(--text-primary)' }}>HQCMD</span>
-          </button>
+          <img src="/logos/logo-cmd.png" alt="HQCMD" className="mb-4" style={{ height: '40px', width: 'auto', cursor: 'pointer' }} onClick={() => navigate('/')} onError={e => { e.target.style.display = 'none' }} />
           <h1 className="font-bold text-xl" style={{ color: 'var(--text-primary)' }}>Welcome back</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Sign in to HQ COMMAND</p>
           {fromBrowse && (

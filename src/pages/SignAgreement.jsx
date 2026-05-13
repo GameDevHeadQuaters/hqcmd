@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { AGREEMENT_TEMPLATES } from '../utils/agreementTemplates'
 import { AGREEMENT_DISCLAIMER } from '../utils/agreementDisclaimer'
 import {
-  IconCommand, IconCircleCheck, IconAlertTriangle, IconCheck,
+  IconCircleCheck, IconAlertTriangle, IconCheck,
   IconWritingSign, IconPrinter,
 } from '@tabler/icons-react'
 
@@ -66,20 +66,8 @@ function StatusBar({ step }) {
 
 function Branding() {
   return (
-    <div className="flex items-center gap-2 mb-8">
-      <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-        style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)' }}>
-        <IconCommand size={15} color="white" />
-      </div>
-      <span className="font-bold text-sm tracking-tight"
-        style={{
-          background: 'linear-gradient(90deg, #534AB7, #805da8, #ed2793)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-        }}>
-        HQCMD
-      </span>
+    <div className="mb-8">
+      <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '28px', width: 'auto' }} onError={e => { e.target.style.display = 'none' }} />
     </div>
   )
 }
