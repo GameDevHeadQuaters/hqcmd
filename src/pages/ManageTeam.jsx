@@ -9,7 +9,6 @@ import {
 import { AGREEMENT_TEMPLATES } from '../utils/agreementTemplates'
 import AgreementSendModal from '../components/AgreementSendModal'
 import AgreementViewer from '../components/AgreementViewer'
-import { writeToUserData, checkUserDataWrite } from '../utils/crossUserWrite'
 import { sendEmail, accessGrantedEmail } from '../utils/sendEmail'
 
 const ACCENT = '#534AB7'
@@ -190,66 +189,98 @@ export default function ManageTeam({
   function grantAccess(app) {
     if (getAgreementStatus(app) !== 'signed') return
 
-    // Look up applicant from localStorage for maximum reliability
-    const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+    console.log('[GRANT] Application object:', JSON.stringify(app))
+    console.log('[GRANT] Starting grant access for:', app.applicantName, app.applicantEmail)
+
+    const USERDATA_KEY = 'hqcmd_userData_v4'
+    const USERS_KEY = 'hqcmd_users_v3'
+
+    const allUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
+    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+
+    console.log('[GRANT] Looking for applicant email:', app.applicantEmail)
+    console.log('[GRANT] Available users:', allUsers.map(u => u.email))
+
     const applicant = allUsers.find(u =>
-      (app.applicantId && String(u.id) === String(app.applicantId)) ||
-      (app.applicantEmail && u.email?.toLowerCase() === app.applicantEmail.toLowerCase()) ||
-      u.name?.toLowerCase() === app.applicantName?.toLowerCase()
+      (app.applicantEmail && u.email?.toLowerCase().trim() === app.applicantEmail.toLowerCase().trim()) ||
+      (app.applicantName && u.name?.toLowerCase().trim() === app.applicantName.toLowerCase().trim())
     )
 
     if (!applicant) {
-      console.error('[grantAccess] Could not find applicant in users', app)
-      alert(`Could not find an account for ${app.applicantName}. They may need to register first.`)
+      console.error('[GRANT] Applicant not found!')
+      alert('Could not find this user\'s account. Make sure they have registered on HQCMD.')
       return
     }
 
-    console.log('[grantAccess] Found applicant:', applicant.id, applicant.name)
+    const applicantId = String(applicant.id)
+    console.log('[GRANT] Found applicant:', applicantId, applicant.name)
 
-    // Write sharedProject reference directly to applicant's localStorage slot
+    if (!allData[applicantId]) {
+      allData[applicantId] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
+    }
+    if (!Array.isArray(allData[applicantId].sharedProjects)) allData[applicantId].sharedProjects = []
+    if (!Array.isArray(allData[applicantId].notifications)) allData[applicantId].notifications = []
+
+    const alreadyHasAccess = allData[applicantId].sharedProjects.some(sp =>
+      String(sp.projectId) === String(project.id)
+    )
+    if (alreadyHasAccess) {
+      console.log('[GRANT] Already has access — skipping duplicate')
+      alert(`${applicant.name} already has access to this project.`)
+      return
+    }
+
     const sharedRef = {
-      id: Date.now().toString(),
-      projectId: project.id,
+      id: String(Date.now()),
+      projectId: String(project.id),
       ownerUserId: String(currentUser.id),
       ownerName: currentUser.name,
       projectTitle: project.title,
-      role: app.role,
-      userRole: app.role,
+      role: app.role || 'Member',
+      userRole: app.role || 'Member',
       joinedAt: new Date().toISOString(),
     }
-    const writeSuccess = writeToUserData(String(applicant.id), 'sharedProjects', sharedRef)
-    console.log('[grantAccess] sharedProject write success:', writeSuccess)
-    checkUserDataWrite(String(applicant.id), 'sharedProjects')
+    allData[applicantId].sharedProjects.push(sharedRef)
+    console.log('[GRANT] sharedProjects after push:', allData[applicantId].sharedProjects.length)
 
-    if (applicant.email) {
-      const { subject, html } = accessGrantedEmail(applicant.name, project.title, currentUser.name)
-      sendEmail({ to: applicant.email, subject, html })
-    }
-
-    // Write notification directly to applicant's localStorage slot
-    writeToUserData(String(applicant.id), 'notifications', {
-      id: Date.now().toString() + '_notif',
+    allData[applicantId].notifications.push({
+      id: String(Date.now()) + '_notif',
       type: 'access_granted',
       iconType: 'application',
-      text: `You've been granted access to "${project.title}" as ${app.role}. Check My Projects!`,
+      text: `You've been granted access to "${project.title}" as ${app.role || 'Member'}. Check My Projects!`,
       time: 'Just now',
       read: false,
       timestamp: new Date().toISOString(),
       link: '/projects',
     })
 
-    // Update React state (adds member to project, contacts both ways)
-    onAcceptApplication?.(app)
-    updateApp({ ...app, status: 'access_granted', read: true })
-    onAddNotification?.({
-      type: 'application',
-      text: `${app.applicantName} has been granted access to ${project?.title ?? 'your project'} as ${app.role}.`,
-      link: '/workstation',
-    })
+    try {
+      localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+      console.log('[GRANT] Saved successfully')
 
-    // Force re-read so owner's UI reflects the latest state
-    onRefreshUserData?.()
-    setPipelineTab('active')
+      const verify = JSON.parse(localStorage.getItem(USERDATA_KEY))
+      console.log('[GRANT] Verification - sharedProjects:', verify[applicantId]?.sharedProjects)
+
+      if (applicant.email) {
+        const { subject, html } = accessGrantedEmail(applicant.name, project.title, currentUser.name)
+        sendEmail({ to: applicant.email, subject, html })
+      }
+
+      alert(`✓ Access granted! ${applicant.name} will see "${project.title}" in their My Projects.`)
+
+      onAcceptApplication?.(app)
+      updateApp({ ...app, status: 'access_granted', read: true })
+      onAddNotification?.({
+        type: 'application',
+        text: `${app.applicantName} has been granted access to ${project?.title ?? 'your project'} as ${app.role}.`,
+        link: '/workstation',
+      })
+      onRefreshUserData?.()
+      setPipelineTab('active')
+    } catch (e) {
+      console.error('[GRANT] Save failed:', e)
+      alert('Failed to save — please try again.')
+    }
   }
 
   function getRecipientEmail(name, id) {
