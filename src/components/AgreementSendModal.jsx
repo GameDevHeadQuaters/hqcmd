@@ -5,7 +5,6 @@ import {
 } from '@tabler/icons-react'
 import { AGREEMENT_TEMPLATES } from '../utils/agreementTemplates'
 import { AGREEMENT_DISCLAIMER } from '../utils/agreementDisclaimer'
-import { writeToUserData, checkUserDataWrite } from '../utils/crossUserWrite'
 import { sendEmail, agreementReceivedEmail } from '../utils/sendEmail'
 
 const ACCENT = '#534AB7'
@@ -27,6 +26,26 @@ function fillBody(body, fields) {
 
 function genToken() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
+}
+
+function deliverAgreementToRecipient(recipientUserId, agreement) {
+  try {
+    const key = 'hqcmd_userData_v4'
+    const allData = JSON.parse(localStorage.getItem(key) || '{}')
+    const uid = String(recipientUserId)
+    if (!allData[uid]) {
+      allData[uid] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
+    }
+    if (!Array.isArray(allData[uid].agreements)) {
+      allData[uid].agreements = []
+    }
+    allData[uid].agreements = [agreement, ...allData[uid].agreements]
+    localStorage.setItem(key, JSON.stringify(allData))
+    return true
+  } catch (err) {
+    console.error('[deliverAgreementToRecipient] failed:', err)
+    return false
+  }
 }
 
 export default function AgreementSendModal({
@@ -108,30 +127,24 @@ export default function AgreementSendModal({
   }
 
   function sendToInbox() {
-    console.log('[AgreementSend] Function called with:', cpEmail, createdAgreement?.templateName)
+    console.log('[DELIVER] counterpartyEmail value:', cpEmail)
     if (!cpName.trim() || !cpEmail.trim()) { setSendStatus('field_error'); return }
 
-    // Step 1 — what email are we searching for?
-    console.log('[SEND] Looking for recipient email:', cpEmail.trim())
-
-    // Step 2 — what does the users array look like? (both React state and localStorage)
     const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
-    console.log('[SEND] Users array (localStorage):', allUsers.map(u => ({ id: u.id, email: u.email })))
-    console.log('[SEND] Users array (React prop):', (users ?? []).map(u => ({ id: u.id, email: u.email })))
-
-    // Step 3 — does localStorage find a match?
-    const recipientFromStorage = allUsers.find(u => u.email?.toLowerCase() === cpEmail.trim().toLowerCase())
-    console.log('[SEND] Recipient found (localStorage):', recipientFromStorage)
-
-    // Step 4 — what ID would we write to?
-    console.log('[SEND] Writing to userId:', String(recipientFromStorage?.id))
-
-    // Actual lookup used by the send logic (React state)
-    const counterparty = (users ?? []).find(u => u.email?.toLowerCase() === cpEmail.trim().toLowerCase())
-    console.log('[AgreementSend] Found recipient (React state):', counterparty?.id, counterparty?.name)
-    console.log('[SEND] ID match between sources:', String(recipientFromStorage?.id) === String(counterparty?.id))
-
+    const counterparty = allUsers.find(u => u.email?.toLowerCase() === cpEmail.trim().toLowerCase())
     if (!counterparty) { setSendStatus('no_user'); return }
+
+    const receivedAgreement = {
+      ...createdAgreement,
+      id: String(createdAgreement.id) + '_recv_' + Date.now(),
+      counterpartyName: cpName.trim(),
+      counterpartyEmail: cpEmail.trim(),
+      receivedAt: new Date().toISOString(),
+      isReceived: true,
+      status: 'awaiting_my_signature',
+      read: false,
+    }
+    deliverAgreementToRecipient(String(counterparty.id), receivedAgreement)
 
     const notifText = `${currentUser?.name ?? 'Someone'} has sent you an agreement to sign: "${createdAgreement.templateName}"`
     const dmObj = {
@@ -146,36 +159,8 @@ export default function AgreementSendModal({
       timestamp: new Date().toISOString(),
       read: false,
     }
-
-    // Write notification and DM through App.jsx handlers (handles React state + localStorage)
     onAddNotificationForUser?.(counterparty.id, { type: 'agreement', text: notifText, link: '/inbox' })
     onAddDirectMessageForUser?.(counterparty.id, dmObj)
-
-    // Write received-agreement copy directly so the recipient sees it in their Agreements page
-    const receivedAgreement = {
-      ...createdAgreement,
-      id: String(createdAgreement.id) + '_recv_' + Date.now(),
-      counterpartyName: cpName.trim(),
-      counterpartyEmail: cpEmail.trim(),
-      receivedAt: new Date().toISOString(),
-      isReceived: true,
-      status: 'awaiting_my_signature',
-      read: false,
-    }
-    console.log('[AgreementSend] Agreement object fields:', Object.keys(receivedAgreement))
-    console.log('[AgreementSend] counterpartyEmail on object:', receivedAgreement.counterpartyEmail)
-    console.log('[AgreementSend] isReceived on object:', receivedAgreement.isReceived)
-    console.log('[AgreementSend] Calling writeToUserData with userId:', String(counterparty.id))
-
-    // Step 5 — result of writeToUserData
-    const result = writeToUserData(String(counterparty.id), 'agreements', receivedAgreement)
-    console.log('[SEND] Write result:', result)
-
-    // Step 6 — verify immediately after
-    const verify = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-    console.log('[SEND] Recipient agreements after write:', verify[String(counterparty.id)]?.agreements?.length)
-    console.log('[SEND] userData key exists for recipient:', !!(verify[String(counterparty.id)]))
-    checkUserDataWrite(String(counterparty.id), 'agreements')
 
     const signLink = `${window.location.origin}/sign/${createdAgreement.shareToken}`
     const { subject, html } = agreementReceivedEmail(cpName.trim(), currentUser?.name ?? 'Someone', projectTitle, signLink)
@@ -394,7 +379,7 @@ export default function AgreementSendModal({
               </div>
 
               <div className="flex gap-2 mb-4">
-                <button onClick={() => { console.log('[AgreementSend] Send to Inbox button clicked, cpEmail:', cpEmail, 'cpName:', cpName); sendToInbox() }}
+                <button onClick={sendToInbox}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-sm font-semibold text-white transition-colors"
                   style={{ backgroundColor: ACCENT }}
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
