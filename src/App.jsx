@@ -15,7 +15,7 @@ import SignAgreement from './pages/SignAgreement'
 import BudgetPage from './pages/BudgetPage'
 import ManageTeam from './pages/ManageTeam'
 import { IconMessages, IconBriefcase, IconWritingSign } from '@tabler/icons-react'
-import { crossUserPrepend } from './utils/crossUserWrite'
+import { crossUserPrepend, crossUserMap } from './utils/crossUserWrite'
 
 const STORAGE_KEYS = {
   users:       'hqcmd_users_v3',
@@ -32,7 +32,24 @@ function hashColor(name) {
 }
 
 function emptyUserData() {
-  return { projects: [], applications: [], directMessages: [], notifications: [], agreements: [] }
+  return { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [] }
+}
+
+function makeContact(user, source, projectTitle = null) {
+  const initials = (user.name ?? '').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+  return {
+    id: Date.now() + Math.random(),
+    userId: user.id,
+    name: user.name,
+    email: user.email,
+    initials,
+    role: user.role || '',
+    skills: user.skills || [],
+    source,
+    projectsInCommon: projectTitle ? [projectTitle] : [],
+    addedAt: new Date().toISOString(),
+    favourite: false,
+  }
 }
 
 function makeNotifObj({ type, text, link }) {
@@ -207,7 +224,7 @@ export default function App() {
     const uid = currentUser.id
     setUserData(prev => {
       const d = prev[uid] ?? emptyUserData()
-      return { ...prev, [uid]: { ...d, notifications: [notifObj, ...d.notifications] } }
+      return { ...prev, [uid]: { ...d, notifications: [notifObj, ...d.notifications].slice(0, 10) } }
     })
   }
 
@@ -250,6 +267,16 @@ export default function App() {
       const d = prev[uid] ?? emptyUserData()
       const next = typeof updater === 'function' ? updater(d.agreements ?? []) : updater
       return { ...prev, [uid]: { ...d, agreements: next } }
+    })
+  }
+
+  function setContacts(updater) {
+    if (!currentUser) return
+    const uid = currentUser.id
+    setUserData(prev => {
+      const d = prev[uid] ?? emptyUserData()
+      const next = typeof updater === 'function' ? updater(d.contacts ?? []) : updater
+      return { ...prev, [uid]: { ...d, contacts: next } }
     })
   }
 
@@ -307,6 +334,28 @@ export default function App() {
     crossUserPrepend(String(ownerId), 'directMessages', message)
   }
 
+  // ── Cross-user contact upsert ─────────────────────────────────────────────
+  // Writes directly to localStorage — always dedupes by userId/email.
+  function addContactForUser(recipientId, contactUser, source, projectTitle) {
+    if (!contactUser?.id) return
+    if (!users.find(u => String(u.id) === String(contactUser.id))) return
+    crossUserMap(String(recipientId), 'contacts', (existing = []) => {
+      const dup = existing.find(c =>
+        String(c.userId) === String(contactUser.id) || c.email === contactUser.email
+      )
+      if (dup) {
+        return existing.map(c => {
+          if (String(c.userId) !== String(contactUser.id) && c.email !== contactUser.email) return c
+          const projects = projectTitle && !(c.projectsInCommon ?? []).includes(projectTitle)
+            ? [...(c.projectsInCommon ?? []), projectTitle]
+            : c.projectsInCommon ?? []
+          return { ...c, projectsInCommon: projects }
+        })
+      }
+      return [makeContact(contactUser, source, projectTitle), ...existing]
+    })
+  }
+
   // ── onAddNotification for current user (used by Workstation, Inbox) ───────
 
   function onAddNotification(notifData) {
@@ -345,6 +394,27 @@ export default function App() {
       projects: [app.projectTitle],
     }
     updateProject(app.projectId, { members: [...(project.members ?? []), newMember] })
+
+    // Auto-add contacts in both directions when a member is accepted
+    const accepteeUser = users.find(u => u.name === app.applicantName)
+    if (accepteeUser && currentUser) {
+      // Add acceptee to owner's contacts (owner = current user → update React state)
+      setContacts(prev => {
+        const existing = prev ?? []
+        const dup = existing.find(c => String(c.userId) === String(accepteeUser.id))
+        if (dup) {
+          return existing.map(c => {
+            if (String(c.userId) !== String(accepteeUser.id)) return c
+            const projects = app.projectTitle && !(c.projectsInCommon ?? []).includes(app.projectTitle)
+              ? [...(c.projectsInCommon ?? []), app.projectTitle] : c.projectsInCommon ?? []
+            return { ...c, projectsInCommon: projects }
+          })
+        }
+        return [makeContact(accepteeUser, 'team_member', app.projectTitle), ...existing]
+      })
+      // Add owner to acceptee's contacts (cross-user localStorage write)
+      addContactForUser(accepteeUser.id, currentUser, 'team_member', app.projectTitle)
+    }
   }
 
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -388,7 +458,7 @@ export default function App() {
 
   // ── Derived data for current user ─────────────────────────────────────────
 
-  const { projects, applications, directMessages, notifications, agreements } = getUserData()
+  const { projects, applications, directMessages, notifications, agreements, contacts } = getUserData()
 
   const activeProject = projects.find(p => p.id === activeProjectId) ?? projects[0] ?? null
 
@@ -477,6 +547,7 @@ export default function App() {
             onAddApplicationToOwner={addApplicationForUser}
             onAddNotificationToOwner={addNotificationForUser}
             onAddDirectMessageToOwner={addDirectMessageForUser}
+            onAddContactToOwner={addContactForUser}
             unreadInboxCount={unreadInboxCount}
             onSignOut={handleSignOut}
             getProjectImage={getProjectImage}
@@ -489,11 +560,16 @@ export default function App() {
               applications={applications}     setApplications={setApplications}
               directMessages={directMessages} setDirectMessages={setDirectMessages}
               notifications={notifications}   setNotifications={setNotifications}
+              contacts={contacts}             setContacts={setContacts}
               onAddNotification={onAddNotification}
               onAcceptApplication={acceptApplication}
               unreadInboxCount={unreadInboxCount}
               currentUser={currentUser}
               onSignOut={handleSignOut}
+              users={users}
+              projects={projects}
+              onAddNotificationForUser={addNotificationForUser}
+              onAddDirectMessageForUser={addDirectMessageForUser}
             />
           ) : <Navigate to="/login" replace />
         } />

@@ -12,6 +12,7 @@
   "dependencies": {
     "@tabler/icons-react": "^3.43.0",
     "@tailwindcss/vite": "^4.2.4",
+    "papaparse": "^5.5.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.15.0",

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   IconCommand, IconSearch, IconX, IconUsers, IconZoom,
   IconCheck, IconSend, IconArrowRight, IconInbox, IconGlobe, IconFileText,
@@ -334,14 +334,23 @@ export default function BrowseProjects({
   onAddApplicationToOwner,
   onAddNotificationToOwner,
   onAddDirectMessageToOwner,
+  onAddContactToOwner,
   unreadInboxCount,
   onSignOut,
   getProjectImage,
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const isLoggedIn = !!currentUser
 
   const [search, setSearch]     = useState('')
+
+  // Pre-fill search from ?search= URL param (used by invite links)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const s = params.get('search')
+    if (s) setSearch(s)
+  }, [location.search])
   const [category, setCategory] = useState('All')
   const [comp, setComp]         = useState('All')
   const [applyProject, setApplyProject] = useState(null)
@@ -374,10 +383,17 @@ export default function BrowseProjects({
       })
   })
 
+  const searchLower = search.toLowerCase()
   const filtered = allProjects.filter(p => {
     if (category !== 'All' && p.category !== category) return false
     if (comp !== 'All' && p.compensation !== comp) return false
-    if (search && !p.title.toLowerCase().includes(search.toLowerCase()) && !p.description.toLowerCase().includes(search.toLowerCase())) return false
+    if (search) {
+      const matchTitle    = p.title.toLowerCase().includes(searchLower)
+      const matchDesc     = p.description.toLowerCase().includes(searchLower)
+      const matchCategory = p.category?.toLowerCase().includes(searchLower)
+      const matchRoles    = (p.roles ?? []).some(r => r.toLowerCase().includes(searchLower))
+      if (!matchTitle && !matchDesc && !matchCategory && !matchRoles) return false
+    }
     return true
   })
 
@@ -578,16 +594,22 @@ export default function BrowseProjects({
         <ApplyModal
           project={applyProject}
           onClose={() => setApplyProject(null)}
-          onAddApplication={(app) => onAddApplicationToOwner(applyProject.ownerId, app)}
-          onAddNotification={(n)   => onAddNotificationToOwner(applyProject.ownerId, n)}
+          onAddApplication={(app) => {
+            onAddApplicationToOwner(applyProject.ownerId, app)
+            if (currentUser) onAddContactToOwner?.(applyProject.ownerId, currentUser, 'applied', applyProject.title)
+          }}
+          onAddNotification={(n) => onAddNotificationToOwner(applyProject.ownerId, n)}
         />
       )}
       {msgProject && (
         <MessageModal
           project={msgProject}
           onClose={() => setMsgProject(null)}
-          onAddDirectMessage={(dm) => onAddDirectMessageToOwner(msgProject.ownerId, dm)}
-          onAddNotification={(n)   => onAddNotificationToOwner(msgProject.ownerId, n)}
+          onAddDirectMessage={(dm) => {
+            onAddDirectMessageToOwner(msgProject.ownerId, dm)
+            if (currentUser) onAddContactToOwner?.(msgProject.ownerId, currentUser, 'messaged', msgProject.title)
+          }}
+          onAddNotification={(n) => onAddNotificationToOwner(msgProject.ownerId, n)}
         />
       )}
     </div>

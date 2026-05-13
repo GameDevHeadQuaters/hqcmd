@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCommand, IconInbox, IconMessageCircle, IconMail, IconFileText, IconWritingSign, IconBell, IconCheck } from '@tabler/icons-react'
+import {
+  IconCommand, IconInbox, IconMessageCircle, IconMail, IconFileText,
+  IconWritingSign, IconBell, IconCheck, IconUserPlus, IconAddressBook,
+  IconArrowRight, IconX,
+} from '@tabler/icons-react'
 import ApplicationsPanel from '../components/ApplicationsPanel'
 import ProfileDropdown from '../components/ProfileDropdown'
+import ContactsTab from '../components/ContactsTab'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -62,6 +67,49 @@ function AgreementMessageCard({ dm, onUpdate, navigate }) {
   )
 }
 
+function InviteMessageCard({ dm, onUpdate, navigate }) {
+  function markRead() { if (!dm.read) onUpdate({ ...dm, read: true }) }
+  return (
+    <div
+      className="rounded-lg overflow-hidden transition-all"
+      style={{
+        backgroundColor: 'var(--bg-surface)',
+        border: '1px solid var(--border-default)',
+        borderLeft: !dm.read ? '3px solid #534AB7' : '1px solid var(--border-default)',
+      }}
+    >
+      <div className="p-5">
+        <div className="flex items-start gap-3 mb-3">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+            style={{ backgroundColor: 'var(--brand-accent-glow)' }}>
+            <IconUserPlus size={17} style={{ color: '#534AB7' }} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: '#ed2793' }}>Project Invitation</p>
+            <p className="text-sm font-medium leading-snug" style={{ color: 'var(--text-primary)' }}>
+              {dm.fromName} invited you to apply to <strong>{dm.projectTitle}</strong>
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{formatTime(dm.timestamp)}</p>
+          </div>
+        </div>
+        {dm.message && dm.message !== `${dm.fromName} has invited you to apply to ${dm.projectTitle}` && (
+          <p className="text-sm leading-relaxed mb-3" style={{ color: 'var(--text-secondary)' }}>{dm.message}</p>
+        )}
+        <button
+          onClick={() => { markRead(); navigate('/browse?search=' + encodeURIComponent(dm.projectTitle ?? '')) }}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white transition-colors"
+          style={{ backgroundColor: '#534AB7' }}
+          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#3C3489')}
+          onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#534AB7')}
+        >
+          <IconArrowRight size={14} />
+          View Project
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function MessageCard({ dm, onUpdate, navigate }) {
   const [showReply, setShowReply] = useState(false)
   const [replyText, setReplyText] = useState(dm.reply || '')
@@ -69,6 +117,9 @@ function MessageCard({ dm, onUpdate, navigate }) {
 
   if (dm.type === 'agreement') {
     return <AgreementMessageCard dm={dm} onUpdate={onUpdate} navigate={navigate} />
+  }
+  if (dm.type === 'invite') {
+    return <InviteMessageCard dm={dm} onUpdate={onUpdate} navigate={navigate} />
   }
 
   function sendReply() {
@@ -209,8 +260,11 @@ export default function Inbox({
   applications, setApplications,
   directMessages, setDirectMessages,
   notifications, setNotifications,
+  contacts, setContacts,
   onAddNotification, onAcceptApplication,
   unreadInboxCount, currentUser, onSignOut,
+  users, projects,
+  onAddNotificationForUser, onAddDirectMessageForUser,
 }) {
   const navigate = useNavigate()
   const [tab, setTab] = useState('applications')
@@ -241,10 +295,15 @@ export default function Inbox({
     setNotifications?.(prev => prev.map(n => ({ ...n, read: true })))
   }
 
+  function clearAllNotifs() {
+    setNotifications?.(() => [])
+  }
+
   const TABS = [
     { id: 'applications',  label: 'Applications',  count: unreadApps   },
     { id: 'messages',      label: 'Messages',       count: unreadMsgs   },
     { id: 'notifications', label: 'Notifications',  count: unreadNotifs },
+    { id: 'contacts',      label: 'Contacts',       count: (contacts ?? []).length, icon: IconAddressBook },
   ]
 
   return (
@@ -403,8 +462,8 @@ export default function Inbox({
               </div>
             ) : (
               <>
-                {unreadNotifs > 0 && (
-                  <div className="flex justify-end mb-3">
+                <div className="flex justify-end gap-2 mb-3">
+                  {unreadNotifs > 0 && (
                     <button
                       onClick={markAllNotifsRead}
                       className="text-xs font-medium px-3 py-1.5 rounded-full transition-opacity hover:opacity-70"
@@ -412,16 +471,37 @@ export default function Inbox({
                     >
                       Mark all as read
                     </button>
-                  </div>
-                )}
+                  )}
+                  <button
+                    onClick={clearAllNotifs}
+                    className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full transition-colors"
+                    style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
+                  >
+                    <IconX size={11} /> Clear all
+                  </button>
+                </div>
                 <div className="space-y-2">
-                  {(notifications ?? []).map(n => (
+                  {(notifications ?? []).slice(0, 10).map(n => (
                     <NotifCard key={n.id} notif={n} onMarkRead={markNotifRead} />
                   ))}
                 </div>
               </>
             )}
           </>
+        )}
+
+        {tab === 'contacts' && (
+          <ContactsTab
+            contacts={contacts}
+            setContacts={setContacts}
+            users={users}
+            projects={projects}
+            currentUser={currentUser}
+            onAddNotificationForUser={onAddNotificationForUser}
+            onAddDirectMessageForUser={onAddDirectMessageForUser}
+          />
         )}
       </div>
     </div>
