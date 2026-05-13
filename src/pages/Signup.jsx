@@ -301,6 +301,9 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
                   We'll review your application and send your invite code to{' '}
                   <strong style={{ color: 'var(--text-primary)' }}>{googleEmail}</strong>.
                 </p>
+                <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '12px', padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-subtle)', lineHeight: '1.6' }}>
+                  📬 <strong style={{ color: 'var(--text-secondary)' }}>Check your spam folder</strong> — during our beta period, invite emails may occasionally land in spam. If you don't see it in your inbox within 24 hours, please check there first.
+                </p>
               </div>
             ) : (
               <div className="space-y-4">
