@@ -108,8 +108,11 @@ export default function AgreementSendModal({
   }
 
   function sendToInbox() {
+    console.log('[AgreementSend] Function called with:', cpEmail, createdAgreement?.templateName)
     if (!cpName.trim() || !cpEmail.trim()) { setSendStatus('field_error'); return }
+    console.log('[AgreementSend] Starting delivery to:', cpEmail.trim())
     const counterparty = (users ?? []).find(u => u.email?.toLowerCase() === cpEmail.trim().toLowerCase())
+    console.log('[AgreementSend] Found recipient:', counterparty?.id, counterparty?.name)
 
     if (!counterparty) { setSendStatus('no_user'); return }
 
@@ -142,7 +145,12 @@ export default function AgreementSendModal({
       status: 'awaiting_my_signature',
       read: false,
     }
-    writeToUserData(String(counterparty.id), 'agreements', receivedAgreement)
+    console.log('[AgreementSend] Agreement object being sent:', receivedAgreement)
+    console.log('[AgreementSend] Calling writeToUserData...')
+    const result = writeToUserData(String(counterparty.id), 'agreements', receivedAgreement)
+    console.log('[AgreementSend] writeToUserData result:', result)
+    const verify = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    console.log('[AgreementSend] Recipient agreements after write:', verify[String(counterparty.id)]?.agreements?.length)
     checkUserDataWrite(String(counterparty.id), 'agreements')
 
     const signLink = `${window.location.origin}/sign/${createdAgreement.shareToken}`
@@ -362,7 +370,7 @@ export default function AgreementSendModal({
               </div>
 
               <div className="flex gap-2 mb-4">
-                <button onClick={sendToInbox}
+                <button onClick={() => { console.log('[AgreementSend] Send to Inbox button clicked, cpEmail:', cpEmail, 'cpName:', cpName); sendToInbox() }}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-sm font-semibold text-white transition-colors"
                   style={{ backgroundColor: ACCENT }}
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
