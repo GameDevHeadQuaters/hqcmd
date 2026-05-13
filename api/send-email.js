@@ -18,7 +18,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'HQ COMMAND <hello@gamedevlocal.com>',
+        from: 'HQ COMMAND <onboarding@resend.dev>',
         to: Array.isArray(to) ? to : [to],
         subject,
         html,
@@ -26,9 +26,11 @@ export default async function handler(req, res) {
     })
 
     const data = await response.json()
+    console.log('Resend response status:', response.status)
+    console.log('Resend response data:', JSON.stringify(data))
     if (!response.ok) {
-      console.error('[send-email] Resend error:', data)
-      res.status(response.status).json({ error: data.message || 'Failed to send email' })
+      console.error('Resend error:', data)
+      res.status(500).json({ error: data.message || data.name || 'Resend error', details: data })
       return
     }
 

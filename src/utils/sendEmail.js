@@ -73,9 +73,10 @@ export async function sendEmail({ to, subject, html }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to, subject, html }),
     })
+    const data = await res.json()
+    console.log('Email API response:', data)
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      console.warn('[sendEmail] failed:', err.error ?? res.status)
+      console.error('Email failed:', data.error, data.details)
       return false
     }
     return true
