@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { IconPencil, IconCalendarEvent, IconCheck, IconPlus, IconX, IconTrash, IconAlertTriangle } from '@tabler/icons-react'
 import { calculateProgress, getProjectStatus } from '../utils/progress'
+import { hasPermission } from '../utils/permissions'
 
 const ACCENT = '#534AB7'
 
@@ -13,7 +14,7 @@ const statusColors = {
   'Overtime':    { bg: 'rgba(237,39,147,0.12)', text: '#ed2793' },
 }
 
-export default function ProjectHeader({ project, setProject, onOpenProfile, onScheduleMeeting, onAddCalendarEvent, onMilestonesChange }) {
+export default function ProjectHeader({ project, setProject, onOpenProfile, onScheduleMeeting, onAddCalendarEvent, onMilestonesChange, userRole = 'Owner' }) {
   const { title, description, milestones } = project
   const progress = calculateProgress(project)
   const status = getProjectStatus(project)
@@ -86,18 +87,20 @@ export default function ProjectHeader({ project, setProject, onOpenProfile, onSc
             <div className="flex-1 min-w-0">
               <div className="flex items-start gap-2 mb-1">
                 <button
-                  onClick={onOpenProfile}
-                  className="font-semibold text-lg leading-tight text-left hover:underline"
-                  style={{ color: 'var(--text-primary)', textDecorationColor: ACCENT }}
+                  onClick={hasPermission(userRole, 'EDIT_PROJECT') ? onOpenProfile : undefined}
+                  className="font-semibold text-lg leading-tight text-left"
+                  style={{ color: 'var(--text-primary)', cursor: hasPermission(userRole, 'EDIT_PROJECT') ? 'pointer' : 'default' }}
                 >
                   {title}
                 </button>
-                <button onClick={onOpenProfile} className="mt-1 transition-colors flex-shrink-0" style={{ color: 'var(--text-tertiary)' }}
-                  onMouseEnter={e => (e.currentTarget.style.color = ACCENT)}
-                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}
-                >
-                  <IconPencil size={14} />
-                </button>
+                {hasPermission(userRole, 'EDIT_PROJECT') && (
+                  <button onClick={onOpenProfile} className="mt-1 transition-colors flex-shrink-0" style={{ color: 'var(--text-tertiary)' }}
+                    onMouseEnter={e => (e.currentTarget.style.color = ACCENT)}
+                    onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}
+                  >
+                    <IconPencil size={14} />
+                  </button>
+                )}
                 <span
                   className="ml-auto flex-shrink-0 text-xs font-medium px-2.5 py-0.5 rounded-full flex items-center gap-1"
                   style={isOvertime
@@ -138,16 +141,18 @@ export default function ProjectHeader({ project, setProject, onOpenProfile, onSc
                 </div>
               )}
 
-              <button
-                onClick={onScheduleMeeting}
-                className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
-                style={{ border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.color = 'var(--text-secondary)' }}
-              >
-                <IconCalendarEvent size={14} />
-                Schedule Meeting
-              </button>
+              {hasPermission(userRole, 'SCHEDULE_MEETING') && (
+                <button
+                  onClick={onScheduleMeeting}
+                  className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+                  style={{ border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                >
+                  <IconCalendarEvent size={14} />
+                  Schedule Meeting
+                </button>
+              )}
             </div>
           </div>
 
@@ -156,7 +161,7 @@ export default function ProjectHeader({ project, setProject, onOpenProfile, onSc
             {milestones.map(m => (
               <button
                 key={m.id}
-                onClick={() => openEdit(m)}
+                onClick={hasPermission(userRole, 'ADD_MILESTONES') ? () => openEdit(m) : undefined}
                 className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all"
                 style={
                   m.done
@@ -173,16 +178,18 @@ export default function ProjectHeader({ project, setProject, onOpenProfile, onSc
                 )}
               </button>
             ))}
-            <button
-              onClick={openCreate}
-              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-dashed transition-colors"
-              style={{ borderColor: 'var(--border-strong)', color: 'var(--text-tertiary)' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.color = 'var(--text-tertiary)' }}
-            >
-              <IconPlus size={11} />
-              Add
-            </button>
+            {hasPermission(userRole, 'ADD_MILESTONES') && (
+              <button
+                onClick={openCreate}
+                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-dashed transition-colors"
+                style={{ borderColor: 'var(--border-strong)', color: 'var(--text-tertiary)' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = ''; e.currentTarget.style.color = 'var(--text-tertiary)' }}
+              >
+                <IconPlus size={11} />
+                Add
+              </button>
+            )}
           </div>
         </div>
       </div>

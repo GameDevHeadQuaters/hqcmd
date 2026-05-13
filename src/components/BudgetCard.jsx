@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconCurrencyDollar, IconPlus, IconChevronRight } from '@tabler/icons-react'
 import { BUDGET_CATEGORIES, CURRENCIES, migrateBudget } from '../utils/budgetCategories'
+import { hasPermission } from '../utils/permissions'
 
 const ACCENT = '#534AB7'
 
-export default function BudgetCard({ budget: rawBudget, onUpdateBudget, projectId }) {
+export default function BudgetCard({ budget: rawBudget, onUpdateBudget, projectId, userRole = 'Owner' }) {
   const navigate = useNavigate()
   const budget = migrateBudget(rawBudget)
   const { currency = 'USD', total = 0, transactions = [] } = budget
@@ -58,16 +59,22 @@ export default function BudgetCard({ budget: rawBudget, onUpdateBudget, projectI
           <IconCurrencyDollar size={15} style={{ color: ACCENT }} />
         </div>
         <span className="font-medium text-sm flex-1" style={{ color: 'var(--text-primary)' }}>Budget</span>
-        <select
-          className="text-xs rounded-lg px-2 py-1 outline-none cursor-pointer"
-          style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
-          value={currency}
-          onChange={e => onUpdateBudget?.({ ...budget, currency: e.target.value })}
-        >
-          {Object.entries(CURRENCIES).map(([k, { label }]) => (
-            <option key={k} value={k}>{label}</option>
-          ))}
-        </select>
+        {hasPermission(userRole, 'MANAGE_BUDGET') ? (
+          <select
+            className="text-xs rounded-lg px-2 py-1 outline-none cursor-pointer"
+            style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+            value={currency}
+            onChange={e => onUpdateBudget?.({ ...budget, currency: e.target.value })}
+          >
+            {Object.entries(CURRENCIES).map(([k, { label }]) => (
+              <option key={k} value={k}>{label}</option>
+            ))}
+          </select>
+        ) : (
+          <span className="text-xs px-2 py-1 rounded-lg" style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+            {CURRENCIES[currency]?.label ?? currency}
+          </span>
+        )}
       </div>
 
       {/* Stats */}
@@ -107,7 +114,7 @@ export default function BudgetCard({ budget: rawBudget, onUpdateBudget, projectI
       <div style={{ height: '1px', backgroundColor: 'var(--border-subtle)', marginBottom: '10px' }} />
 
       {/* Quick-add transaction */}
-      {showAdd ? (
+      {showAdd && hasPermission(userRole, 'MANAGE_BUDGET') ? (
         <div className="space-y-2">
           <div
             className="flex rounded-full overflow-hidden text-xs"
@@ -181,7 +188,7 @@ export default function BudgetCard({ budget: rawBudget, onUpdateBudget, projectI
             ))}
           </select>
         </div>
-      ) : (
+      ) : hasPermission(userRole, 'MANAGE_BUDGET') ? (
         <button
           onClick={() => setShowAdd(true)}
           className="flex items-center gap-1 text-xs transition-opacity hover:opacity-70"
@@ -189,7 +196,7 @@ export default function BudgetCard({ budget: rawBudget, onUpdateBudget, projectI
         >
           <IconPlus size={13} /> Add transaction
         </button>
-      )}
+      ) : null}
 
       {/* View full report */}
       {projectId && (

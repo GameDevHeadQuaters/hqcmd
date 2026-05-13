@@ -32,7 +32,7 @@ function hashColor(name) {
 }
 
 function emptyUserData() {
-  return { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [] }
+  return { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
 }
 
 function makeContact(user, source, projectTitle = null) {
@@ -166,6 +166,7 @@ export default function App() {
     } catch { return null }
   })
   const [activeProjectId, setActiveProjectId] = useState(null)
+  const [activeOwnerUserId, setActiveOwnerUserId] = useState(null) // null = own project
   const [calendarEvents, setCalendarEvents] = useState([])
 
   useEffect(() => {
@@ -280,6 +281,16 @@ export default function App() {
     })
   }
 
+  function setSharedProjects(updater) {
+    if (!currentUser) return
+    const uid = currentUser.id
+    setUserData(prev => {
+      const d = prev[uid] ?? emptyUserData()
+      const next = typeof updater === 'function' ? updater(d.sharedProjects ?? []) : updater
+      return { ...prev, [uid]: { ...d, sharedProjects: next } }
+    })
+  }
+
   function countersignAgreement(ownerId, agreementId, updates) {
     setUserData(prev => {
       const d = prev[ownerId] ?? emptyUserData()
@@ -356,6 +367,25 @@ export default function App() {
     })
   }
 
+  // ── Read a project from another user's localStorage slot ─────────────────
+
+  function readProjectFromOwnerSlot(ownerUserId, projectId) {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.userData)
+      const allUD = raw ? JSON.parse(raw) : {}
+      const ownerProjects = allUD[String(ownerUserId)]?.projects ?? []
+      return ownerProjects.find(p => p.id === projectId) ?? null
+    } catch { return null }
+  }
+
+  // ── Update a project in another user's localStorage slot ─────────────────
+
+  function updateSharedProject(ownerUserId, projectId, changes) {
+    crossUserMap(String(ownerUserId), 'projects', (ps = []) =>
+      ps.map(p => p.id === projectId ? { ...p, ...changes } : p)
+    )
+  }
+
   // ── onAddNotification for current user (used by Workstation, Inbox) ───────
 
   function onAddNotification(notifData) {
@@ -380,9 +410,11 @@ export default function App() {
       return
     }
 
+    const accepteeUser = users.find(u => u.name === app.applicantName)
     const initials = app.applicantName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
     const newMember = {
       id: Date.now(),
+      userId: accepteeUser?.id ?? null,
       name: app.applicantName,
       role: app.role,
       position: 'Member',
@@ -396,7 +428,6 @@ export default function App() {
     updateProject(app.projectId, { members: [...(project.members ?? []), newMember] })
 
     // Auto-add contacts in both directions when a member is accepted
-    const accepteeUser = users.find(u => u.name === app.applicantName)
     if (accepteeUser && currentUser) {
       // Add acceptee to owner's contacts (owner = current user → update React state)
       setContacts(prev => {
@@ -453,14 +484,29 @@ export default function App() {
   function handleSignOut() {
     setCurrentUser(null)
     setActiveProjectId(null)
+    setActiveOwnerUserId(null)
     setCalendarEvents([])
   }
 
   // ── Derived data for current user ─────────────────────────────────────────
 
-  const { projects, applications, directMessages, notifications, agreements, contacts } = getUserData()
+  const { projects, applications, directMessages, notifications, agreements, contacts, sharedProjects } = getUserData()
 
-  const activeProject = projects.find(p => p.id === activeProjectId) ?? projects[0] ?? null
+  // Resolve the active project — may be from owner's slot (shared project)
+  const activeProject = activeOwnerUserId
+    ? readProjectFromOwnerSlot(activeOwnerUserId, activeProjectId)
+    : (projects.find(p => p.id === activeProjectId) ?? projects[0] ?? null)
+
+  // Determine the current user's role for the active project
+  const userRole = (() => {
+    if (!activeOwnerUserId) return 'Owner'
+    if (!activeProject || !currentUser) return 'Member'
+    const member = (activeProject.members ?? []).find(m =>
+      (m.userId && String(m.userId) === String(currentUser.id)) ||
+      m.name?.toLowerCase() === currentUser.name?.toLowerCase()
+    )
+    return member?.position ?? 'Member'
+  })()
 
   const unreadInboxCount =
     applications.filter(a => !a.read).length +
@@ -492,11 +538,18 @@ export default function App() {
 
         <Route path="/workstation" element={
           !currentUser ? <Navigate to="/login" replace /> :
-          projects.length === 0 ? <Navigate to="/projects" replace /> : (
+          !activeProject ? <Navigate to="/projects" replace /> : (
             <Workstation
               calendarEvents={calendarEvents}   setCalendarEvents={setCalendarEvents}
               activeProject={activeProject}
-              onUpdateProject={(data) => updateProject(activeProjectId ?? activeProject?.id, data)}
+              onUpdateProject={(data) => {
+                const pid = activeProjectId ?? activeProject?.id
+                if (activeOwnerUserId) {
+                  updateSharedProject(activeOwnerUserId, pid, data)
+                } else {
+                  updateProject(pid, data)
+                }
+              }}
               notifications={notifications}     setNotifications={setNotifications}
               applications={applications}       setApplications={setApplications}
               agreements={agreements}           setAgreements={setAgreements}
@@ -509,6 +562,7 @@ export default function App() {
               users={users}
               onAddNotificationForUser={addNotificationForUser}
               onAddDirectMessageForUser={addDirectMessageForUser}
+              userRole={userRole}
             />
           )
         } />
@@ -531,6 +585,8 @@ export default function App() {
               projects={projects}
               setProjects={setProjects}
               setActiveProjectId={setActiveProjectId}
+              setActiveOwnerUserId={setActiveOwnerUserId}
+              sharedProjects={sharedProjects ?? []}
               unreadInboxCount={unreadInboxCount}
               currentUser={currentUser}
               onSignOut={handleSignOut}

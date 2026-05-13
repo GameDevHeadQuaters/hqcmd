@@ -10,6 +10,7 @@ import CalendarModal from './CalendarModal'
 import ScheduleMeetingModal from './ScheduleMeetingModal'
 import ProfileDropdown from './ProfileDropdown'
 import { useTheme } from '../context/ThemeContext'
+import { hasPermission } from '../utils/permissions'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -29,6 +30,7 @@ export default function Workstation({
   users,
   onAddNotificationForUser,
   onAddDirectMessageForUser,
+  userRole = 'Owner',
 }) {
   const navigate = useNavigate()
   const { theme, setTheme } = useTheme()
@@ -192,6 +194,17 @@ export default function Workstation({
         <div style={{ height: '3px', background: 'linear-gradient(90deg, #534AB7, #805da8, #ed2793)' }} />
       </div>
 
+      {/* Observer read-only banner */}
+      {userRole === 'Observer' && (
+        <div className="max-w-7xl mx-auto px-6 pt-4">
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm" style={{ backgroundColor: 'rgba(83,74,183,0.08)', border: '1px solid rgba(83,74,183,0.2)', color: '#534AB7' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <span className="font-medium">View-only access</span>
+            <span style={{ color: 'rgba(83,74,183,0.7)' }}>— You are an Observer on this project. Content is read-only.</span>
+          </div>
+        </div>
+      )}
+
       {/* Main layout */}
       <div
         className="max-w-7xl mx-auto px-6 py-5"
@@ -205,6 +218,7 @@ export default function Workstation({
             onScheduleMeeting={() => setScheduleMeetingOpen(true)}
             onAddCalendarEvent={(ev) => setCalendarEvents(prev => [...prev, ev])}
             onMilestonesChange={(milestones) => onUpdateProject?.({ milestones })}
+            userRole={userRole}
           />
           <TabPanel
             messages={messages}     setMessages={setMessages}
@@ -225,6 +239,7 @@ export default function Workstation({
             users={users}
             onAddNotificationForUser={onAddNotificationForUser}
             onAddDirectMessageForUser={onAddDirectMessageForUser}
+            userRole={userRole}
           />
         </div>
         <div className="flex flex-col gap-4">
@@ -232,8 +247,9 @@ export default function Workstation({
             budget={activeProject?.budget}
             onUpdateBudget={(b) => onUpdateProject?.({ budget: b })}
             projectId={activeProject?.id}
+            userRole={userRole}
           />
-          <TeamMembers members={members} setMembers={setMembers} projectId={activeProject?.id} agreements={agreements} />
+          <TeamMembers members={members} setMembers={setMembers} projectId={activeProject?.id} agreements={agreements} userRole={userRole} />
         </div>
       </div>
 

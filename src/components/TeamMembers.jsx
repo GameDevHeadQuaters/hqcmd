@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconUserPlus, IconX, IconUsers, IconAlertTriangle } from '@tabler/icons-react'
 import InviteModal from './InviteModal'
+import { hasPermission, canRemove } from '../utils/permissions'
 
 const ACCENT = '#534AB7'
 const AVATAR_CYCLES = [
@@ -103,7 +104,7 @@ function RemoveModal({ member, agreements, projectId, onConfirm, onClose }) {
   )
 }
 
-export default function TeamMembers({ members, setMembers, projectId, agreements }) {
+export default function TeamMembers({ members, setMembers, projectId, agreements, userRole = 'Owner' }) {
   const navigate = useNavigate()
   const [inviteOpen, setInviteOpen] = useState(false)
   const [removeTarget, setRemoveTarget] = useState(null)
@@ -127,16 +128,18 @@ export default function TeamMembers({ members, setMembers, projectId, agreements
           <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
             Team <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>({members.length})</span>
           </span>
-          <button
-            onClick={() => setInviteOpen(true)}
-            className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-full transition-colors"
-            style={{ backgroundColor: 'var(--brand-accent-glow)', color: ACCENT }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(83,74,183,0.2)')}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'var(--brand-accent-glow)')}
-          >
-            <IconUserPlus size={13} />
-            Invite
-          </button>
+          {hasPermission(userRole, 'INVITE_MEMBER') && (
+            <button
+              onClick={() => setInviteOpen(true)}
+              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-full transition-colors"
+              style={{ backgroundColor: 'var(--brand-accent-glow)', color: ACCENT }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(83,74,183,0.2)')}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'var(--brand-accent-glow)')}
+            >
+              <IconUserPlus size={13} />
+              Invite
+            </button>
+          )}
         </div>
 
         <div className="space-y-2.5">
@@ -166,22 +169,24 @@ export default function TeamMembers({ members, setMembers, projectId, agreements
                     {m.role}
                   </span>
                 </div>
-                <button
-                  onClick={() => setRemoveTarget(m)}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded transition-all flex-shrink-0"
-                  style={{ color: 'var(--text-tertiary)' }}
-                  onMouseEnter={e => { e.currentTarget.style.color = '#ef4444' }}
-                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)' }}
-                >
-                  <IconX size={13} />
-                </button>
+                {canRemove(userRole, m.position ?? 'Member') && (
+                  <button
+                    onClick={() => setRemoveTarget(m)}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded transition-all flex-shrink-0"
+                    style={{ color: 'var(--text-tertiary)' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#ef4444' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)' }}
+                  >
+                    <IconX size={13} />
+                  </button>
+                )}
               </div>
             )
           })}
         </div>
       </div>
 
-      {projectId && (
+      {projectId && hasPermission(userRole, 'MANAGE_TEAM') && (
         <button
           onClick={() => navigate(`/team/${projectId}`)}
           className="flex items-center justify-center gap-2 w-full mt-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors"

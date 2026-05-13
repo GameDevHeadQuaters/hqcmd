@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { IconSend, IconMessages } from '@tabler/icons-react'
+import { hasPermission } from '../utils/permissions'
 
 const ACCENT = '#534AB7'
 const AVATAR_COLORS = ['#534AB7', '#7c3aed', '#0891b2', '#059669', '#d97706']
@@ -9,7 +10,7 @@ function avatarColor(initials) {
   return AVATAR_COLORS[n]
 }
 
-export default function TeamChat({ messages, setMessages }) {
+export default function TeamChat({ messages, setMessages, userRole = 'Owner' }) {
   const [input, setInput] = useState('')
   const bottomRef = useRef(null)
 
@@ -72,29 +73,35 @@ export default function TeamChat({ messages, setMessages }) {
         <div ref={bottomRef} />
       </div>
 
-      <div className="px-4 pb-4 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-        <div className="flex gap-2 items-center">
-          <input
-            className="flex-1 text-sm rounded-lg px-3 py-2 outline-none transition-colors"
-            style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-            placeholder="Type a message…"
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && send()}
-            onFocus={e => { e.target.style.borderColor = ACCENT; e.target.style.boxShadow = '0 0 0 3px var(--brand-accent-glow)' }}
-            onBlur={e => { e.target.style.borderColor = ''; e.target.style.boxShadow = '' }}
-          />
-          <button
-            onClick={send}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-white transition-colors flex-shrink-0"
-            style={{ backgroundColor: ACCENT }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#3C3489')}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
-          >
-            <IconSend size={16} />
-          </button>
+      {hasPermission(userRole, 'TEAM_CHAT') ? (
+        <div className="px-4 pb-4 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+          <div className="flex gap-2 items-center">
+            <input
+              className="flex-1 text-sm rounded-lg px-3 py-2 outline-none transition-colors"
+              style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+              placeholder="Type a message…"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && send()}
+              onFocus={e => { e.target.style.borderColor = ACCENT; e.target.style.boxShadow = '0 0 0 3px var(--brand-accent-glow)' }}
+              onBlur={e => { e.target.style.borderColor = ''; e.target.style.boxShadow = '' }}
+            />
+            <button
+              onClick={send}
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-white transition-colors flex-shrink-0"
+              style={{ backgroundColor: ACCENT }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#3C3489')}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
+            >
+              <IconSend size={16} />
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="px-4 pb-3 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+          <p className="text-xs text-center" style={{ color: 'var(--text-tertiary)' }}>You have view-only access to this chat.</p>
+        </div>
+      )}
     </div>
   )
 }

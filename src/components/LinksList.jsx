@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { IconPlus, IconExternalLink, IconTrash, IconLink } from '@tabler/icons-react'
+import { hasPermission } from '../utils/permissions'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
 
-export default function LinksList({ links, setLinks }) {
+export default function LinksList({ links, setLinks, userRole = 'Owner' }) {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ title: '', url: '' })
 
@@ -57,26 +58,28 @@ export default function LinksList({ links, setLinks }) {
                 {link.url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
               </span>
             </a>
-            <button
-              onClick={() => remove(link.id)}
-              className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all flex-shrink-0"
-              style={{ color: 'var(--text-tertiary)' }}
-              onMouseEnter={e => {
-                e.currentTarget.style.color = 'var(--status-error)'
-                e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.color = 'var(--text-tertiary)'
-                e.currentTarget.style.backgroundColor = ''
-              }}
-            >
-              <IconTrash size={14} />
-            </button>
+            {hasPermission(userRole, 'DELETE_LINK') && (
+              <button
+                onClick={() => remove(link.id)}
+                className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all flex-shrink-0"
+                style={{ color: 'var(--text-tertiary)' }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.color = 'var(--status-error)'
+                  e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.color = 'var(--text-tertiary)'
+                  e.currentTarget.style.backgroundColor = ''
+                }}
+              >
+                <IconTrash size={14} />
+              </button>
+            )}
           </div>
         ))}
       </div>
 
-      <div className="px-4 pb-4 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+      {hasPermission(userRole, 'ADD_LINK') && <div className="px-4 pb-4 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
         {showForm ? (
           <div className="space-y-2">
             <input
@@ -138,7 +141,7 @@ export default function LinksList({ links, setLinks }) {
             <IconPlus size={15} /> Add link
           </button>
         )}
-      </div>
+      </div>}
     </div>
   )
 }

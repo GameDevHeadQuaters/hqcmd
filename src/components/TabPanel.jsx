@@ -6,16 +6,17 @@ import EventsList from './EventsList'
 import LinksList from './LinksList'
 import ApplicationsPanel from './ApplicationsPanel'
 import AgreementsTab from './AgreementsTab'
+import { hasPermission } from '../utils/permissions'
 
 const ACCENT = '#534AB7'
 
-const TABS = [
-  { id: 'chat',         label: 'Team Chat',    Icon: IconMessages  },
-  { id: 'todos',        label: 'To-Do List',   Icon: IconChecklist },
-  { id: 'events',       label: 'Events',       Icon: IconCalendar  },
-  { id: 'links',        label: 'Links',        Icon: IconLink      },
-  { id: 'applications', label: 'Applications', Icon: IconInbox     },
-  { id: 'agreements',   label: 'Agreements',   Icon: IconFileText  },
+const ALL_TABS = [
+  { id: 'chat',         label: 'Team Chat',    Icon: IconMessages,  permission: null          },
+  { id: 'todos',        label: 'To-Do List',   Icon: IconChecklist, permission: null          },
+  { id: 'events',       label: 'Events',       Icon: IconCalendar,  permission: null          },
+  { id: 'links',        label: 'Links',        Icon: IconLink,      permission: null          },
+  { id: 'applications', label: 'Applications', Icon: IconInbox,     permission: 'VIEW_APPS'   },
+  { id: 'agreements',   label: 'Agreements',   Icon: IconFileText,  permission: 'VIEW_AGREEMENTS' },
 ]
 
 export default function TabPanel({
@@ -35,8 +36,12 @@ export default function TabPanel({
   users,
   onAddNotificationForUser,
   onAddDirectMessageForUser,
+  userRole = 'Owner',
 }) {
   const [active, setActive] = useState('chat')
+
+  const visibleTabs = ALL_TABS.filter(t => !t.permission || hasPermission(userRole, t.permission))
+  const activeTab = visibleTabs.find(t => t.id === active) ? active : (visibleTabs[0]?.id ?? 'chat')
 
   return (
     <div
@@ -48,8 +53,8 @@ export default function TabPanel({
         className="flex px-3 pt-2 gap-0.5 overflow-x-auto"
         style={{ borderBottom: '1px solid var(--border-default)' }}
       >
-        {TABS.map(({ id, label, Icon }) => {
-          const isActive = active === id
+        {visibleTabs.map(({ id, label, Icon }) => {
+          const isActive = activeTab === id
           return (
             <button
               key={id}
@@ -72,11 +77,11 @@ export default function TabPanel({
         })}
       </div>
 
-      {active === 'chat'   && <TeamChat   messages={messages} setMessages={setMessages} members={members} />}
-      {active === 'todos'  && <TodoList   todos={todos}       setTodos={setTodos} />}
-      {active === 'events' && <EventsList events={events}     setEvents={setEvents} onOpenCalendar={onOpenCalendar} />}
-      {active === 'links'  && <LinksList  links={links}       setLinks={setLinks} />}
-      {active === 'applications' && (
+      {activeTab === 'chat'   && <TeamChat   messages={messages} setMessages={setMessages} members={members} userRole={userRole} />}
+      {activeTab === 'todos'  && <TodoList   todos={todos}       setTodos={setTodos}       userRole={userRole} />}
+      {activeTab === 'events' && <EventsList events={events}     setEvents={setEvents} onOpenCalendar={onOpenCalendar} />}
+      {activeTab === 'links'  && <LinksList  links={links}       setLinks={setLinks}       userRole={userRole} />}
+      {activeTab === 'applications' && (
         <div className="px-4 py-4 overflow-y-auto" style={{ minHeight: 300 }}>
           <ApplicationsPanel
             applications={applications ?? []}
@@ -87,7 +92,7 @@ export default function TabPanel({
           />
         </div>
       )}
-      {active === 'agreements' && (
+      {activeTab === 'agreements' && (
         <AgreementsTab
           agreements={agreements}
           setAgreements={setAgreements}

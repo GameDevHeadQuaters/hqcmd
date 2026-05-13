@@ -1,9 +1,19 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCommand, IconPlus, IconUsers, IconFolderOff, IconInbox, IconAlertTriangle, IconFileText } from '@tabler/icons-react'
+import { IconCommand, IconPlus, IconUsers, IconFolderOff, IconInbox, IconAlertTriangle, IconFileText, IconShare } from '@tabler/icons-react'
 import ProjectProfile from '../components/ProjectProfile'
 import ProfileDropdown from '../components/ProfileDropdown'
 import { calculateProgress, getProjectStatus } from '../utils/progress'
+
+const STORAGE_KEY = 'hqcmd_userData_v4'
+
+function readProjectFromOwnerSlot(ownerUserId, projectId) {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    const allUD = raw ? JSON.parse(raw) : {}
+    return (allUD[String(ownerUserId)]?.projects ?? []).find(p => p.id === projectId) ?? null
+  } catch { return null }
+}
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -105,10 +115,92 @@ function ProjectCard({ project, onOpen, onManageTeam, topBorder }) {
   )
 }
 
-export default function MyProjects({ projects, setProjects, setActiveProjectId, unreadInboxCount, currentUser, onSignOut, getProjectImage }) {
+function SharedProjectCard({ project, ref_, topBorder, onOpen }) {
+  const progress = calculateProgress(project)
+  const status = getProjectStatus(project)
+  const sc = statusColors[status] || statusColors['In Progress']
+  const isOvertime = status === 'Overtime'
+
+  return (
+    <div
+      className="hq-card rounded-lg overflow-hidden transition-all"
+      style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}
+    >
+      <div style={{ height: '2px', backgroundColor: topBorder }} />
+      <div
+        className="h-28 flex items-center justify-center text-4xl"
+        style={
+          project.coverImage
+            ? { backgroundImage: `url(${project.coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+            : { background: 'linear-gradient(135deg, rgba(83,74,183,0.12) 0%, rgba(124,58,237,0.08) 100%)' }
+        }
+      >
+        {!project.coverImage && '🎮'}
+      </div>
+
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <h3 className="font-semibold text-sm leading-tight" style={{ color: 'var(--text-primary)' }}>{project.title}</h3>
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 flex items-center gap-1" style={{ backgroundColor: sc.bg, color: sc.text }}>
+            {isOvertime && <IconAlertTriangle size={10} />}
+            {status}
+          </span>
+        </div>
+
+        <p className="text-sm leading-relaxed mb-3 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{project.description}</p>
+
+        <div className="mb-3">
+          <div className="flex justify-between text-xs mb-1">
+            <span style={{ color: 'var(--text-tertiary)' }}>Progress</span>
+            <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{progress}%</span>
+          </div>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+            <div
+              className="h-full rounded-full hq-progress-fill"
+              style={{ width: `${progress}%`, background: isOvertime ? '#ed2793' : undefined }}
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-1 text-xs">
+            <span style={{ color: 'var(--text-tertiary)' }}>by {ref_.ownerName}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="px-1.5 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: 'var(--brand-accent-glow)', color: '#534AB7' }}>
+                {ref_.userRole}
+              </span>
+              <span className="px-1.5 py-0.5 rounded-full text-xs" style={{ backgroundColor: 'rgba(83,74,183,0.08)', color: 'var(--text-tertiary)' }}>
+                Shared
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={onOpen}
+            className="text-xs font-medium px-3 py-1.5 rounded-full text-white transition-colors"
+            style={{ backgroundColor: '#534AB7' }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#3C3489')}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#534AB7')}
+          >
+            Open Workstation
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function MyProjects({ projects, setProjects, setActiveProjectId, setActiveOwnerUserId, sharedProjects, unreadInboxCount, currentUser, onSignOut, getProjectImage }) {
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
+
+  // Resolve full project data for each sharedProject reference
+  const resolvedSharedProjects = useMemo(() =>
+    (sharedProjects ?? []).map(ref => ({
+      ref,
+      project: readProjectFromOwnerSlot(ref.ownerUserId, ref.projectId),
+    })).filter(({ project }) => project !== null),
+  [sharedProjects])
 
   function handleSave(data) {
     const id = Date.now()
@@ -241,24 +333,55 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
           </button>
         </div>
 
-        {projects.length === 0 ? (
+        {/* ── My Projects (owned) ── */}
+        {projects.length === 0 && resolvedSharedProjects.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-center">
             <IconFolderOff size={48} style={{ color: 'var(--brand-accent)' }} className="mb-4" />
             <p className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>No projects yet</p>
             <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Create your first project to get started</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projects.map((p, i) => (
-              <ProjectCard
-                key={p.id}
-                project={{ ...p, coverImage: getProjectImage(p.id) }}
-                topBorder={CARD_BORDERS[i % 3]}
-                onOpen={() => { setActiveProjectId(p.id); navigate('/workstation') }}
-                onManageTeam={() => navigate(`/team/${p.id}`)}
-              />
-            ))}
-          </div>
+          <>
+            {projects.length > 0 && (
+              <div className="mb-8">
+                {resolvedSharedProjects.length > 0 && (
+                  <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-tertiary)' }}>My Projects</h2>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {projects.map((p, i) => (
+                    <ProjectCard
+                      key={p.id}
+                      project={{ ...p, coverImage: getProjectImage(p.id) }}
+                      topBorder={CARD_BORDERS[i % 3]}
+                      onOpen={() => { setActiveOwnerUserId?.(null); setActiveProjectId(p.id); navigate('/workstation') }}
+                      onManageTeam={() => navigate(`/team/${p.id}`)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ── Shared With Me ── */}
+            {resolvedSharedProjects.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <IconShare size={14} style={{ color: 'var(--text-tertiary)' }} />
+                  <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>Shared With Me</h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {resolvedSharedProjects.map(({ ref, project: p }, i) => (
+                    <SharedProjectCard
+                      key={ref.projectId + '_' + ref.ownerUserId}
+                      project={{ ...p, coverImage: getProjectImage(p.id) }}
+                      ref_={ref}
+                      topBorder={CARD_BORDERS[i % 3]}
+                      onOpen={() => { setActiveOwnerUserId?.(ref.ownerUserId); setActiveProjectId(ref.projectId); navigate('/workstation') }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { IconPlus, IconCalendarPlus, IconCalendarCheck, IconCheckbox } from '@tabler/icons-react'
+import { hasPermission } from '../utils/permissions'
 
 const ACCENT = '#534AB7'
 
-export default function TodoList({ todos, setTodos }) {
+export default function TodoList({ todos, setTodos, userRole = 'Owner' }) {
   const [newText, setNewText] = useState('')
   const [calAdded, setCalAdded] = useState({})
 
@@ -76,33 +77,35 @@ export default function TodoList({ todos, setTodos }) {
         )}
       </div>
 
-      <div className="px-4 pb-4 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-        <div className="flex gap-2">
-          <input
-            className="flex-1 text-sm rounded-lg px-3 py-2 outline-none transition-colors"
-            style={{
-              backgroundColor: 'var(--bg-elevated)',
-              border: '1px solid var(--border-default)',
-              color: 'var(--text-primary)',
-            }}
-            placeholder="Add a task…"
-            value={newText}
-            onChange={e => setNewText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && add()}
-            onFocus={e => (e.target.style.borderColor = ACCENT)}
-            onBlur={e => (e.target.style.borderColor = 'var(--border-default)')}
-          />
-          <button
-            onClick={add}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-white transition-colors flex-shrink-0"
-            style={{ backgroundColor: ACCENT }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#3C3489')}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
-          >
-            <IconPlus size={16} />
-          </button>
+      {hasPermission(userRole, 'ADD_TODO') && (
+        <div className="px-4 pb-4 pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+          <div className="flex gap-2">
+            <input
+              className="flex-1 text-sm rounded-lg px-3 py-2 outline-none transition-colors"
+              style={{
+                backgroundColor: 'var(--bg-elevated)',
+                border: '1px solid var(--border-default)',
+                color: 'var(--text-primary)',
+              }}
+              placeholder="Add a task…"
+              value={newText}
+              onChange={e => setNewText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && add()}
+              onFocus={e => (e.target.style.borderColor = ACCENT)}
+              onBlur={e => (e.target.style.borderColor = 'var(--border-default)')}
+            />
+            <button
+              onClick={add}
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-white transition-colors flex-shrink-0"
+              style={{ backgroundColor: ACCENT }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#3C3489')}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
+            >
+              <IconPlus size={16} />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

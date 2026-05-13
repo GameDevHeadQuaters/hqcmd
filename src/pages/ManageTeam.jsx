@@ -8,6 +8,7 @@ import {
 import { AGREEMENT_TEMPLATES } from '../utils/agreementTemplates'
 import AgreementSendModal from '../components/AgreementSendModal'
 import AgreementViewer from '../components/AgreementViewer'
+import { crossUserPrepend } from '../utils/crossUserWrite'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -162,6 +163,28 @@ export default function ManageTeam({
     onAcceptApplication?.(app)
     updateApp({ ...app, status: 'access_granted', read: true })
     onAddNotification?.({ type: 'application', text: `${app.applicantName} has been added to ${project?.title ?? 'your project'} as ${app.role}.`, link: '/workstation' })
+
+    // Push a sharedProject reference to the member's userData so they see it under "Shared With Me"
+    const memberUser = (users ?? []).find(u =>
+      (app.applicantId && String(u.id) === String(app.applicantId)) ||
+      u.name?.toLowerCase() === app.applicantName?.toLowerCase()
+    )
+    if (memberUser && project && currentUser) {
+      const sharedRef = {
+        projectId: project.id,
+        ownerUserId: currentUser.id,
+        ownerName: currentUser.name,
+        projectTitle: project.title,
+        userRole: app.role,
+        joinedAt: new Date().toISOString(),
+      }
+      crossUserPrepend(String(memberUser.id), 'sharedProjects', sharedRef)
+      onAddNotificationForUser?.(memberUser.id, {
+        type: 'application',
+        text: `You've been granted access to "${project.title}". Check My Projects to get started!`,
+        link: '/projects',
+      })
+    }
   }
 
   function getRecipientEmail(name, id) {
