@@ -5,13 +5,29 @@ import { IconArrowLeft, IconCommand } from '@tabler/icons-react'
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
 
-export default function Account() {
+export default function Account({ currentUser, setCurrentUser, users, setUsers }) {
   const navigate = useNavigate()
-  const [form, setForm] = useState({ name: 'Alex Chen', email: 'alex@hqcmd.io', password: '' })
+
+  const [form, setForm] = useState({
+    name:     currentUser?.name  ?? '',
+    email:    currentUser?.email ?? '',
+    password: '',
+  })
   const [saved, setSaved] = useState(false)
 
   function submit(e) {
     e.preventDefault()
+    const updates = {
+      name:  form.name.trim()  || currentUser.name,
+      email: form.email.trim() || currentUser.email,
+    }
+    if (form.password) updates.password = form.password
+
+    setCurrentUser(prev => ({ ...prev, ...updates }))
+    setUsers(prev => prev.map(u =>
+      String(u.id) === String(currentUser.id) ? { ...u, ...updates } : u
+    ))
+
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -108,7 +124,7 @@ export default function Account() {
               className="w-full py-2.5 rounded-full text-sm font-semibold text-white transition-all"
               style={{ backgroundColor: saved ? 'var(--status-success)' : ACCENT }}
               onMouseEnter={e => { if (!saved) e.currentTarget.style.backgroundColor = ACCENT_DARK }}
-              onMouseLeave={e => { if (!saved) e.currentTarget.style.backgroundColor = ACCENT }}
+              onMouseLeave={e => { if (!saved) e.currentTarget.style.backgroundColor = saved ? 'var(--status-success)' : ACCENT }}
             >
               {saved ? '✓ Changes saved' : 'Save Changes'}
             </button>

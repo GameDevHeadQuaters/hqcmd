@@ -23,9 +23,13 @@ import Contact from './pages/Contact'
 
 const BETA_MODE = true
 
+if (!import.meta.env.VITE_ADMIN_EMAIL || !import.meta.env.VITE_ADMIN_PASSWORD) {
+  console.warn('hqcmd: VITE_ADMIN_EMAIL or VITE_ADMIN_PASSWORD not set in .env — admin login disabled')
+}
+
 const SUPER_ADMIN = {
-  email: import.meta.env.VITE_ADMIN_EMAIL,
-  password: import.meta.env.VITE_ADMIN_PASSWORD,
+  email:    import.meta.env.VITE_ADMIN_EMAIL    ?? null,
+  password: import.meta.env.VITE_ADMIN_PASSWORD ?? null,
   name: 'HQCMD Admin',
   id: 'superadmin',
   isAdmin: true,
@@ -489,7 +493,7 @@ export default function App() {
 
   function handleLogin({ email, password }) {
     const normalEmail = email.trim().toLowerCase()
-    if (normalEmail === SUPER_ADMIN.email && password === SUPER_ADMIN.password) {
+    if (SUPER_ADMIN.email && SUPER_ADMIN.password && normalEmail === SUPER_ADMIN.email && password === SUPER_ADMIN.password) {
       setCurrentUser(SUPER_ADMIN)
       setActiveProjectId(null)
       return null
@@ -610,7 +614,16 @@ export default function App() {
           />
         } />
 
-        <Route path="/account" element={<Account />} />
+        <Route path="/account" element={
+          currentUser ? (
+            <Account
+              currentUser={currentUser}
+              setCurrentUser={setCurrentUser}
+              users={users}
+              setUsers={setUsers}
+            />
+          ) : <Navigate to="/login" replace />
+        } />
 
         <Route path="/projects" element={
           currentUser ? (
