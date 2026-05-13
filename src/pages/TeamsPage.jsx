@@ -234,6 +234,30 @@ export default function TeamsPage({
     }
   }
 
+  function getProjectMembers(project) {
+    const projectMembers = project.members ?? []
+    const sharedMembers = []
+    Object.keys(allUD).forEach(userId => {
+      const shared = allUD[userId]?.sharedProjects || []
+      const ref = shared.find(sp => String(sp.projectId) === String(project.id))
+      if (ref) {
+        const user = (users ?? []).find(u => String(u.id) === userId)
+        if (user && !projectMembers.some(m => String(m.userId || m.id) === userId)) {
+          sharedMembers.push({
+            id: userId,
+            userId: userId,
+            name: user.name,
+            role: ref.role || 'Member',
+            position: ref.role || 'Member',
+            initials: user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+            joinedAt: ref.joinedAt,
+          })
+        }
+      }
+    })
+    return [...projectMembers, ...sharedMembers]
+  }
+
   function getPipelineTab(projectId) {
     return pipelineTabs[projectId] ?? 'applied'
   }
@@ -534,7 +558,7 @@ export default function TeamsPage({
           {allEntries.map(project => {
             const isOpen = !collapsed.has(project.id)
             const coverImage = getProjectImage?.(project.id)
-            const members = project.members ?? []
+            const members = getProjectMembers(project)
             const pipeline = getProjectPipeline(project)
             const pipelineTab = getPipelineTab(project.id)
             const totalPipelineApps = pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + pipeline.active.length

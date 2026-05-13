@@ -175,7 +175,7 @@ export default function Workstation({
             projectId={activeProject?.id}
             userRole={myRole}
           />
-          <TeamMembers members={allMembers} setMembers={setMembers} projectId={activeProject?.id} agreements={agreements} userRole={myRole} />
+          <TeamMembers projectId={activeProject?.id} ownerUserId={urlOwnerUserId} currentUser={currentUser} agreements={agreements} userRole={myRole} />
         </div>
       </div>
 
