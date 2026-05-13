@@ -194,13 +194,23 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
   const [creating, setCreating] = useState(false)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
 
-  // Resolve full project data for each sharedProject reference
-  const resolvedSharedProjects = useMemo(() =>
-    (sharedProjects ?? []).map(ref => ({
-      ref,
-      project: readProjectFromOwnerSlot(ref.ownerUserId, ref.projectId),
-    })).filter(({ project }) => project !== null),
-  [sharedProjects])
+  // Read sharedProjects fresh from localStorage so cross-user grants are visible immediately
+  const resolvedSharedProjects = useMemo(() => {
+    try {
+      const allUD = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+      const refs = allUD[String(currentUser?.id)]?.sharedProjects ?? sharedProjects ?? []
+      return refs.map(ref => ({
+        ref,
+        project: (allUD[String(ref.ownerUserId)]?.projects ?? []).find(p => p.id === ref.projectId) ?? null,
+      })).filter(({ project }) => project !== null)
+    } catch {
+      return (sharedProjects ?? []).map(ref => ({
+        ref,
+        project: readProjectFromOwnerSlot(ref.ownerUserId, ref.projectId),
+      })).filter(({ project }) => project !== null)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sharedProjects, currentUser?.id])
 
   function handleSave(data) {
     const id = Date.now()

@@ -3,9 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import {
   IconInbox, IconMessageCircle, IconMail, IconFileText,
   IconWritingSign, IconBell, IconCheck, IconUserPlus, IconAddressBook,
-  IconArrowRight, IconX,
+  IconArrowRight, IconX, IconBriefcase,
 } from '@tabler/icons-react'
-import ApplicationsPanel from '../components/ApplicationsPanel'
 import ProfileDropdown from '../components/ProfileDropdown'
 import ContactsTab from '../components/ContactsTab'
 
@@ -267,19 +266,16 @@ export default function Inbox({
   onAddNotificationForUser, onAddDirectMessageForUser,
 }) {
   const navigate = useNavigate()
-  const [tab, setTab] = useState('applications')
+  const [tab, setTab] = useState('messages')
   const [profileDropOpen, setProfileDropOpen] = useState(false)
 
   useEffect(() => {
-    if (tab === 'applications') {
-      setApplications(prev => prev.map(a => ({ ...a, read: true })))
-    } else if (tab === 'messages') {
+    if (tab === 'messages') {
       setDirectMessages(prev => prev.map(m => ({ ...m, read: true })))
     }
     // notifications are marked read individually, not on tab switch
   }, [tab])
 
-  const unreadApps   = applications.filter(a => !a.read).length
   const unreadMsgs   = directMessages.filter(m => !m.read).length
   const unreadNotifs = (notifications ?? []).filter(n => !n.read).length
 
@@ -300,7 +296,6 @@ export default function Inbox({
   }
 
   const TABS = [
-    { id: 'applications',  label: 'Applications',  count: unreadApps   },
     { id: 'messages',      label: 'Messages',       count: unreadMsgs   },
     { id: 'notifications', label: 'Notifications',  count: unreadNotifs },
     { id: 'contacts',      label: 'Contacts',       count: (contacts ?? []).length, icon: IconAddressBook },
@@ -347,14 +342,24 @@ export default function Inbox({
           ))}
         </div>
 
-        {tab === 'applications' && (
-          <ApplicationsPanel
-            applications={applications}
-            setApplications={setApplications}
-            onAddNotification={onAddNotification}
-            onAcceptApplication={onAcceptApplication}
-          />
-        )}
+        {/* Applications redirect notice */}
+        <div className="mb-5 rounded-lg p-4 flex items-center gap-3" style={{ backgroundColor: 'rgba(83,74,183,0.08)', border: '1px solid rgba(83,74,183,0.2)' }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'var(--brand-accent-glow)' }}>
+            <IconBriefcase size={16} style={{ color: '#534AB7' }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Applications are now in Team Management</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Review and manage project applications from the pipeline board.</p>
+          </div>
+          <button
+            onClick={() => navigate('/teams')}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white flex-shrink-0 transition-opacity hover:opacity-80"
+            style={{ backgroundColor: '#534AB7' }}
+          >
+            <IconArrowRight size={13} />
+            Go to Teams
+          </button>
+        </div>
 
         {tab === 'messages' && (
           <>

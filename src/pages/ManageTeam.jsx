@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  IconArrowLeft, IconUserCheck, IconBriefcase, IconUsers,
+  IconArrowLeft, IconBriefcase, IconUsers,
   IconChevronDown, IconChevronUp, IconX, IconCheck, IconAlertTriangle,
-  IconWritingSign, IconRefresh, IconFileText,
+  IconWritingSign, IconRefresh, IconFileText, IconCircleCheck, IconClock,
+  IconUserPlus, IconUserCheck,
 } from '@tabler/icons-react'
 import { AGREEMENT_TEMPLATES } from '../utils/agreementTemplates'
 import AgreementSendModal from '../components/AgreementSendModal'
@@ -110,18 +111,20 @@ export default function ManageTeam({
   const project      = projects.find(p => String(p.id) === projectId)
   const members      = project?.members ?? []
   const projectApps  = (applications ?? []).filter(a => String(a.projectId) === projectId)
-  const pendingApps  = projectApps.filter(a => a.status === 'pending')
-  const onboardingApps = projectApps.filter(a =>
-    ['accepted_pending_agreement', 'agreement_sent', 'access_granted'].includes(a.status)
-  )
+  const appliedApps  = projectApps.filter(a => a.status === 'pending')
+  const acceptedApps = projectApps.filter(a => a.status === 'accepted_pending_agreement')
+  const agreementApps = projectApps.filter(a => a.status === 'agreement_sent')
+  const activeApps   = projectApps.filter(a => a.status === 'access_granted')
+  const declinedApps = projectApps.filter(a => a.status === 'declined')
 
   const [removeTarget,       setRemoveTarget]       = useState(null)
-  const [sendTarget,         setSendTarget]         = useState(null)  // { recipientName, recipientEmail, app? }
-  const [resendFeedback,     setResendFeedback]     = useState({})     // appId → msg
+  const [sendTarget,         setSendTarget]         = useState(null)
+  const [resendFeedback,     setResendFeedback]     = useState({})
   const [expandedAgreements, setExpandedAgreements] = useState(new Set())
   const [viewerAgreement,    setViewerAgreement]    = useState(null)
-  const [pendingPositions,   setPendingPositions]   = useState({})     // memberId → selected position
-  const [positionFeedback,   setPositionFeedback]   = useState({})     // memberId → success msg
+  const [pendingPositions,   setPendingPositions]   = useState({})
+  const [positionFeedback,   setPositionFeedback]   = useState({})
+  const [pipelineTab,        setPipelineTab]        = useState('applied')
 
   function goBack() {
     if (project) setActiveProjectId?.(project.id)
@@ -153,11 +156,23 @@ export default function ManageTeam({
 
   function acceptApp(app) {
     updateApp({ ...app, status: 'accepted_pending_agreement', read: true })
-    onAddNotification?.({ type: 'application', text: `You accepted ${app.applicantName} for ${app.role}. Send them an agreement or grant access.`, link: '/inbox' })
+    onAddNotification?.({ type: 'application', text: `You accepted ${app.applicantName} for ${app.role}. Send them an agreement to continue.`, link: `/team/${projectId}` })
+    setPipelineTab('accepted')
   }
 
   function declineApp(app) {
     updateApp({ ...app, status: 'declined', read: true })
+    const applicantUser = (users ?? []).find(u =>
+      (app.applicantId && String(u.id) === String(app.applicantId)) ||
+      u.name?.toLowerCase() === app.applicantName?.toLowerCase()
+    )
+    if (applicantUser) {
+      onAddNotificationForUser?.(applicantUser.id, {
+        type: 'application',
+        text: `Your application for ${app.role} on "${project?.title}" was not accepted at this time.`,
+        link: '/browse',
+      })
+    }
   }
 
   function getAgreementStatus(app) {
@@ -227,6 +242,7 @@ export default function ManageTeam({
     if (app) {
       updateApp({ ...app, status: 'agreement_sent', agreementId: agreement.id, read: true })
       onAddNotification?.({ type: 'agreement', text: `Agreement sent to ${app.applicantName} for ${project?.title ?? 'your project'}.`, link: '/agreements' })
+      setPipelineTab('agreement')
     }
     setSendTarget(null)
   }
@@ -310,7 +326,7 @@ export default function ManageTeam({
 <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
 
         {/* ── Active Members ── */}
-        <section>
+        <section id="active-members">
           <div className="flex items-center gap-2 mb-3">
             <IconUsers size={16} style={{ color: ACCENT }} />
             <h2 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Active Members</h2>
@@ -444,77 +460,198 @@ export default function ManageTeam({
           )}
         </section>
 
-        {/* ── Pending Onboarding ── */}
-        {onboardingApps.length > 0 && (
-          <section>
-            <div className="flex items-center gap-2 mb-3">
-              <IconUserCheck size={16} style={{ color: ACCENT }} />
-              <h2 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Pending Onboarding</h2>
-              <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-tertiary)' }}>{onboardingApps.length}</span>
-            </div>
+        {/* ── Application Pipeline ── */}
+        <section id="pipeline">
+          <div className="flex items-center gap-2 mb-4">
+            <IconBriefcase size={16} style={{ color: ACCENT }} />
+            <h2 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Application Pipeline</h2>
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-tertiary)' }}>
+              {projectApps.filter(a => a.status !== 'declined').length}
+            </span>
+          </div>
 
-            <div className="rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
-              {onboardingApps.map((app, i) => {
-                const sc       = APP_STATUS[app.status] ?? APP_STATUS.pending
-                const agStatus = getAgreementStatus(app)
-                const canGrant = agStatus === 'signed'
-                const recipEmail = getRecipientEmail(app.applicantName, app.applicantId)
+          {/* Stepper tabs */}
+          <div className="flex gap-0 mb-5 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-default)' }}>
+            {[
+              { id: 'applied',   label: 'Applied',   count: appliedApps.length,   icon: IconUserPlus },
+              { id: 'accepted',  label: 'Accepted',  count: acceptedApps.length,  icon: IconCheck },
+              { id: 'agreement', label: 'Agreement', count: agreementApps.length, icon: IconWritingSign },
+              { id: 'active',    label: 'Active',    count: activeApps.length,    icon: IconUserCheck },
+            ].map((stage, idx, arr) => (
+              <button
+                key={stage.id}
+                onClick={() => setPipelineTab(stage.id)}
+                className="flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors relative"
+                style={{
+                  backgroundColor: pipelineTab === stage.id ? ACCENT : 'var(--bg-surface)',
+                  color: pipelineTab === stage.id ? 'white' : 'var(--text-tertiary)',
+                  borderRight: idx < arr.length - 1 ? '1px solid var(--border-default)' : 'none',
+                }}
+              >
+                <stage.icon size={14} />
+                <span>{stage.label}</span>
+                {stage.count > 0 && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none"
+                    style={{ backgroundColor: pipelineTab === stage.id ? 'rgba(255,255,255,0.25)' : 'rgba(83,74,183,0.15)', color: pipelineTab === stage.id ? 'white' : ACCENT }}>
+                    {stage.count}
+                  </span>
+                )}
+              </button>
+            ))}
+            {declinedApps.length > 0 && (
+              <button
+                onClick={() => setPipelineTab('declined')}
+                className="flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors"
+                style={{
+                  backgroundColor: pipelineTab === 'declined' ? 'rgba(239,68,68,0.12)' : 'var(--bg-surface)',
+                  color: pipelineTab === 'declined' ? 'var(--status-error)' : 'var(--text-tertiary)',
+                  borderLeft: '1px solid var(--border-default)',
+                }}
+              >
+                <IconX size={14} />
+                <span>Declined</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none"
+                  style={{ backgroundColor: 'rgba(239,68,68,0.12)', color: 'var(--status-error)' }}>
+                  {declinedApps.length}
+                </span>
+              </button>
+            )}
+          </div>
 
-                return (
-                  <div key={app.id} className="px-5 py-4"
-                    style={{ borderBottom: i < onboardingApps.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 mt-0.5" style={{ backgroundColor: ACCENT }}>
-                        {app.applicantName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                          <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
-                          <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: sc.bg, color: sc.color }}>{sc.label}</span>
+          {/* Stage 1: Applied */}
+          {pipelineTab === 'applied' && (
+            appliedApps.length === 0 ? (
+              <div className="rounded-lg p-10 text-center" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+                <IconUserPlus size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-2" />
+                <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No new applications.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {appliedApps.map(app => (
+                  <div key={app.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: ACCENT }}>
+                          {app.applicantName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                         </div>
-                        <p className="text-xs mb-1.5" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
-
-                        {/* Agreement status indicator */}
-                        {agStatus === 'none' && (
-                          <p className="text-xs font-medium" style={{ color: 'var(--status-error)' }}>● No agreement sent</p>
-                        )}
-                        {agStatus === 'sent' && (
-                          <p className="text-xs font-medium" style={{ color: 'var(--status-warning)' }}>● Agreement sent — awaiting signature</p>
-                        )}
-                        {agStatus === 'signed' && (
-                          <p className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--status-success)' }}>
-                            <IconCheck size={11} /> Agreement signed
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
+                          <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                            Applied for <span className="font-medium" style={{ color: 'var(--text-secondary)' }}>{app.role}</span>
                           </p>
-                        )}
-
-                        {/* Resend feedback */}
-                        {resendFeedback[app.id] && (
-                          <p className="text-xs mt-1 font-medium" style={{ color: 'var(--status-success)' }}>{resendFeedback[app.id]}</p>
-                        )}
+                          {app.timestamp && <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{formatDate(app.timestamp)}</p>}
+                        </div>
                       </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <button onClick={() => acceptApp(app)}
+                          className="px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-colors"
+                          style={{ backgroundColor: '#16a34a' }}
+                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#15803d')}
+                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#16a34a')}>
+                          Accept
+                        </button>
+                        <button onClick={() => declineApp(app)}
+                          className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+                          style={{ borderColor: '#ed2793', color: '#ed2793' }}
+                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)')}
+                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                    {app.message && (
+                      <p className="text-sm leading-relaxed pl-12" style={{ color: 'var(--text-secondary)' }}>{app.message}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+          )}
 
-                      {/* Action buttons column */}
-                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                        {app.status === 'access_granted' ? (
-                          <span className="flex items-center gap-1 text-xs font-medium" style={{ color: 'var(--status-success)' }}>
-                            <IconCheck size={12} /> Added to team
-                          </span>
-                        ) : (
-                          <>
-                            {/* Agreement action button */}
-                            {agStatus === 'none' && (
-                              <button
-                                onClick={() => setSendTarget({ recipientName: app.applicantName, recipientEmail: recipEmail, app })}
-                                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white transition-colors"
-                                style={{ backgroundColor: ACCENT }}
-                                onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
-                                onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
-                              >
-                                <IconWritingSign size={12} />
-                                Send Agreement
-                              </button>
-                            )}
+          {/* Stage 2: Accepted */}
+          {pipelineTab === 'accepted' && (
+            acceptedApps.length === 0 ? (
+              <div className="rounded-lg p-10 text-center" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+                <IconCheck size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-2" />
+                <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No accepted applicants awaiting agreement.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {acceptedApps.map(app => {
+                  const recipEmail = getRecipientEmail(app.applicantName, app.applicantId)
+                  return (
+                    <div key={app.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: '#16a34a' }}>
+                          {app.applicantName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
+                          <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
+                        </div>
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: 'var(--status-success)' }}>
+                          Accepted
+                        </span>
+                      </div>
+                      <div className="pl-12">
+                        <p className="text-xs mb-3" style={{ color: 'var(--text-tertiary)' }}>Send a signed agreement before granting project access.</p>
+                        <button
+                          onClick={() => setSendTarget({ recipientName: app.applicantName, recipientEmail: recipEmail, app })}
+                          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white transition-colors"
+                          style={{ backgroundColor: ACCENT }}
+                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
+                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
+                        >
+                          <IconWritingSign size={12} />
+                          Send Agreement
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          )}
+
+          {/* Stage 3: Agreement */}
+          {pipelineTab === 'agreement' && (
+            agreementApps.length === 0 ? (
+              <div className="rounded-lg p-10 text-center" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+                <IconWritingSign size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-2" />
+                <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No agreements awaiting signature.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {agreementApps.map(app => {
+                  const agStatus = getAgreementStatus(app)
+                  const canGrant = agStatus === 'signed'
+                  const recipEmail = getRecipientEmail(app.applicantName, app.applicantId)
+                  return (
+                    <div key={app.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 mt-0.5" style={{ backgroundColor: ACCENT }}>
+                          {app.applicantName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
+                          <p className="text-xs mb-2" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
+                          {agStatus === 'sent' && (
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <IconClock size={12} style={{ color: 'var(--status-warning)' }} />
+                              <span className="text-xs font-medium" style={{ color: 'var(--status-warning)' }}>Awaiting Signature</span>
+                            </div>
+                          )}
+                          {agStatus === 'signed' && (
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <IconCircleCheck size={12} style={{ color: 'var(--status-success)' }} />
+                              <span className="text-xs font-medium" style={{ color: 'var(--status-success)' }}>Agreement Signed ✓</span>
+                            </div>
+                          )}
+                          {resendFeedback[app.id] && (
+                            <p className="text-xs font-medium mb-2" style={{ color: 'var(--status-success)' }}>{resendFeedback[app.id]}</p>
+                          )}
+                          <div className="flex items-center gap-2 flex-wrap">
                             {agStatus === 'sent' && (
                               <button
                                 onClick={() => resendAgreement(app)}
@@ -527,90 +664,82 @@ export default function ManageTeam({
                                 Resend Agreement
                               </button>
                             )}
-                            {agStatus === 'signed' && (
-                              <span className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full"
-                                style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: 'var(--status-success)' }}>
-                                <IconCheck size={12} /> Agreement Signed
-                              </span>
-                            )}
-
-                            {/* Grant Access */}
-                            <div className="flex flex-col items-end gap-0.5">
-                              <button
-                                onClick={canGrant ? () => grantAccess(app) : undefined}
-                                className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-white transition-colors"
-                                style={{ backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.3)', cursor: canGrant ? 'pointer' : 'not-allowed' }}
-                                onMouseEnter={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#15803d' }}
-                                onMouseLeave={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#16a34a' }}
-                              >
-                                <IconCheck size={12} />
-                                Grant Access
-                              </button>
-                              {!canGrant && (
-                                <p className="text-[10px] text-right max-w-40 leading-snug" style={{ color: 'var(--text-tertiary)' }}>
-                                  A signed agreement is required before granting access.
-                                </p>
-                              )}
-                            </div>
-                          </>
-                        )}
+                            <button
+                              onClick={canGrant ? () => grantAccess(app) : undefined}
+                              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white transition-colors"
+                              style={{ backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)', cursor: canGrant ? 'pointer' : 'not-allowed' }}
+                              onMouseEnter={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#15803d' }}
+                              onMouseLeave={e => { if (canGrant) e.currentTarget.style.backgroundColor = canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)' }}
+                            >
+                              <IconUserCheck size={12} />
+                              Grant Access
+                            </button>
+                          </div>
+                          {!canGrant && (
+                            <p className="text-[10px] mt-1" style={{ color: 'var(--text-tertiary)' }}>Requires a fully signed agreement.</p>
+                          )}
+                        </div>
                       </div>
                     </div>
+                  )
+                })}
+              </div>
+            )
+          )}
+
+          {/* Stage 4: Active */}
+          {pipelineTab === 'active' && (
+            activeApps.length === 0 ? (
+              <div className="rounded-lg p-10 text-center" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+                <IconUserCheck size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-2" />
+                <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No applications have been fully onboarded yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activeApps.map(app => (
+                  <div key={app.id} className="rounded-lg p-5 flex items-center gap-3" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: '#16a34a' }}>
+                      {app.applicantName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
+                      <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
+                    </div>
+                    <span className="text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1"
+                      style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: 'var(--status-success)' }}>
+                      <IconCircleCheck size={11} /> Active Member
+                    </span>
+                    <button
+                      onClick={() => document.getElementById('active-members')?.scrollIntoView({ behavior: 'smooth' })}
+                      className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors flex-shrink-0"
+                      style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                    >
+                      View in Team
+                    </button>
                   </div>
-                )
-              })}
-            </div>
-          </section>
-        )}
+                ))}
+              </div>
+            )
+          )}
 
-        {/* ── Open Applications ── */}
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <IconBriefcase size={16} style={{ color: ACCENT }} />
-            <h2 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Open Applications</h2>
-            <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-tertiary)' }}>{pendingApps.length}</span>
-          </div>
-
-          {pendingApps.length === 0 ? (
-            <div className="rounded-lg p-8 text-center" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
-              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No pending applications.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {pendingApps.map(app => (
-                <div key={app.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: ACCENT }}>
-                        {app.applicantName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
-                        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                          Applied for <span className="font-medium" style={{ color: 'var(--text-secondary)' }}>{app.role}</span>
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button onClick={() => acceptApp(app)}
-                        className="px-3 py-1.5 rounded-full text-xs font-medium text-white transition-colors"
-                        style={{ backgroundColor: ACCENT }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}>
-                        Accept
-                      </button>
-                      <button onClick={() => declineApp(app)}
-                        className="px-3 py-1.5 rounded-full text-xs font-medium border transition-colors"
-                        style={{ borderColor: '#ed2793', color: '#ed2793' }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)')}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
-                        Decline
-                      </button>
-                    </div>
+          {/* Declined */}
+          {pipelineTab === 'declined' && (
+            <div className="space-y-2">
+              {declinedApps.map(app => (
+                <div key={app.id} className="rounded-lg px-5 py-3.5 flex items-center gap-3" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)', opacity: 0.7 }}>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ backgroundColor: 'rgba(107,114,128,0.6)' }}>
+                    {app.applicantName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
-                  {app.message && (
-                    <p className="text-sm leading-relaxed pl-12" style={{ color: 'var(--text-secondary)' }}>{app.message}</p>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{app.applicantName}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
+                  </div>
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--status-error)' }}>
+                    Declined
+                  </span>
                 </div>
               ))}
             </div>

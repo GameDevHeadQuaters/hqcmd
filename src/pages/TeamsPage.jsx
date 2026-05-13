@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  IconArrowLeft, IconUsers, IconChevronDown, IconChevronUp,
-  IconClock, IconAlertTriangle,
+  IconUsers, IconChevronDown, IconChevronUp,
+  IconClock, IconAlertTriangle, IconUserPlus, IconCheck, IconX,
+  IconWritingSign, IconUserCheck, IconCircleCheck, IconBriefcase,
+  IconArrowRight,
 } from '@tabler/icons-react'
 import AgreementSendModal from '../components/AgreementSendModal'
 
@@ -100,6 +102,9 @@ export default function TeamsPage({
   agreements,
   setAgreements,
   applications,
+  setApplications,
+  onAcceptApplication,
+  onAddNotification,
   users,
   onUpdateProject,
   setActiveProjectId,
@@ -111,10 +116,11 @@ export default function TeamsPage({
   const navigate = useNavigate()
 
   const [expanded, setExpanded] = useState(new Set())
-  const [sendTarget, setSendTarget] = useState(null)   // { member, project, app? }
-  const [removeTarget, setRemoveTarget] = useState(null) // { member, project }
-  const [pendingPositions, setPendingPositions] = useState({}) // `${projectId}-${memberId}` → position
-  const [positionFeedback, setPositionFeedback] = useState({}) // same key → msg
+  const [sendTarget, setSendTarget] = useState(null)
+  const [removeTarget, setRemoveTarget] = useState(null)
+  const [pendingPositions, setPendingPositions] = useState({})
+  const [positionFeedback, setPositionFeedback] = useState({})
+  const [pipelineTabs, setPipelineTabs] = useState({}) // projectId → stage tab
 
   // ── Build combined owned + shared project list ────────────────────────────
   const ownEntries = (projects ?? []).map(p => ({
@@ -154,7 +160,7 @@ export default function TeamsPage({
   allEntries.forEach(p => (p.members ?? []).forEach(m => allMemberNames.add(m.name)))
   const totalMembers = allMemberNames.size
   const pendingOnboardingCount = (applications ?? []).filter(a =>
-    ['accepted_pending_agreement', 'agreement_sent'].includes(a.status)
+    ['pending', 'accepted_pending_agreement', 'agreement_sent'].includes(a.status)
   ).length
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -214,12 +220,49 @@ export default function TeamsPage({
     return userRole === 'Owner' || userRole === 'Co-leader'
   }
 
-  function getPendingOnboarding(project) {
-    if (!project.isOwned) return []
-    return (applications ?? []).filter(a =>
-      String(a.projectId) === String(project.id) &&
-      ['accepted_pending_agreement', 'agreement_sent'].includes(a.status)
+  function getProjectPipeline(project) {
+    if (!project.isOwned) return { applied: [], accepted: [], agreement: [], active: [], declined: [] }
+    const apps = (applications ?? []).filter(a => String(a.projectId) === String(project.id))
+    return {
+      applied:   apps.filter(a => a.status === 'pending'),
+      accepted:  apps.filter(a => a.status === 'accepted_pending_agreement'),
+      agreement: apps.filter(a => a.status === 'agreement_sent'),
+      active:    apps.filter(a => a.status === 'access_granted'),
+      declined:  apps.filter(a => a.status === 'declined'),
+    }
+  }
+
+  function getPipelineTab(projectId) {
+    return pipelineTabs[projectId] ?? 'applied'
+  }
+
+  function setPipelineTab(projectId, tab) {
+    setPipelineTabs(prev => ({ ...prev, [projectId]: tab }))
+  }
+
+  function updateApp(updatedApp) {
+    setApplications?.(prev => prev.map(a => a.id === updatedApp.id ? updatedApp : a))
+  }
+
+  function acceptApp(app, project) {
+    updateApp({ ...app, status: 'accepted_pending_agreement', read: true })
+    onAddNotification?.({ type: 'application', text: `You accepted ${app.applicantName} for ${app.role}.`, link: `/team/${project.id}` })
+    setPipelineTab(project.id, 'accepted')
+  }
+
+  function declineApp(app) {
+    updateApp({ ...app, status: 'declined', read: true })
+    const applicantUser = (users ?? []).find(u =>
+      (app.applicantId && String(u.id) === String(app.applicantId)) ||
+      u.name?.toLowerCase() === app.applicantName?.toLowerCase()
     )
+    if (applicantUser) {
+      onAddNotificationForUser?.(applicantUser.id, {
+        type: 'application',
+        text: `Your application for ${app.role} on "${app.projectTitle}" was not accepted at this time.`,
+        link: '/browse',
+      })
+    }
   }
 
   const fi = e => (e.target.style.borderColor = ACCENT)
@@ -271,7 +314,9 @@ export default function TeamsPage({
             const isOpen = expanded.has(project.id)
             const coverImage = getProjectImage?.(project.id)
             const members = project.members ?? []
-            const pendingOnboarding = getPendingOnboarding(project)
+            const pipeline = getProjectPipeline(project)
+            const pipelineTab = getPipelineTab(project.id)
+            const totalPipelineApps = pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + pipeline.active.length
             const isManager = canManage(project.userRole)
 
             return (
@@ -450,52 +495,115 @@ export default function TeamsPage({
                       </div>
                     )}
 
-                    {/* Pending Onboarding subsection */}
-                    {pendingOnboarding.length > 0 && (
+                    {/* Application Pipeline */}
+                    {project.isOwned && (
                       <div style={{ borderTop: '1px solid var(--border-subtle)' }} className="px-5 py-4">
-                        <h4 className="text-xs font-semibold mb-3" style={{ color: 'var(--text-tertiary)' }}>
-                          PENDING ONBOARDING ({pendingOnboarding.length})
-                        </h4>
-                        <div className="space-y-2">
-                          {pendingOnboarding.map(app => {
-                            const isSent = app.status === 'agreement_sent'
-                            const stageStyle = isSent
-                              ? { bg: 'rgba(83,74,183,0.12)', color: ACCENT, label: 'Agreement Sent' }
-                              : { bg: 'rgba(34,197,94,0.12)', color: 'var(--status-success)', label: 'Accepted' }
-                            return (
-                              <div key={app.id} className="flex items-center gap-3 rounded-lg px-3 py-2.5"
-                                style={{ backgroundColor: 'var(--bg-elevated)' }}>
-                                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-                                  style={{ backgroundColor: hashColor(app.applicantName) }}>
-                                  {initials(app.applicantName)}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
-                                  <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
-                                </div>
-                                <span className="text-xs font-medium px-2 py-0.5 rounded-full"
-                                  style={{ backgroundColor: stageStyle.bg, color: stageStyle.color }}>
-                                  {stageStyle.label}
-                                </span>
-                                {!isSent && (
-                                  <button
-                                    onClick={() => setSendTarget({
-                                      member: { name: app.applicantName, userId: app.applicantId, initials: initials(app.applicantName) },
-                                      project,
-                                      app,
-                                    })}
-                                    className="text-xs font-medium px-2.5 py-1 rounded-full text-white transition-opacity hover:opacity-80"
-                                    style={{ backgroundColor: ACCENT }}>
-                                    Send Agreement
-                                  </button>
-                                )}
-                                {isSent && (
-                                  <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Awaiting signature</span>
-                                )}
-                              </div>
-                            )
-                          })}
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <IconBriefcase size={13} style={{ color: 'var(--text-tertiary)' }} />
+                            <h4 className="text-xs font-semibold" style={{ color: 'var(--text-tertiary)' }}>APPLICATION PIPELINE</h4>
+                            {totalPipelineApps > 0 && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(83,74,183,0.15)', color: ACCENT }}>{totalPipelineApps}</span>
+                            )}
+                          </div>
+                          <button
+                            onClick={e => { e.stopPropagation(); navigate(`/team/${project.id}`) }}
+                            className="flex items-center gap-1 text-xs font-medium transition-colors"
+                            style={{ color: ACCENT }}
+                            onMouseEnter={e => (e.currentTarget.style.opacity = '0.7')}
+                            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                          >
+                            Manage <IconArrowRight size={11} />
+                          </button>
                         </div>
+
+                        {/* Stage tabs */}
+                        <div className="flex gap-1 mb-3 flex-wrap">
+                          {[
+                            { id: 'applied',   label: 'Applied',   count: pipeline.applied.length,   color: 'rgba(245,158,11,0.15)',   text: 'var(--status-warning)' },
+                            { id: 'accepted',  label: 'Accepted',  count: pipeline.accepted.length,  color: 'rgba(34,197,94,0.12)',    text: 'var(--status-success)' },
+                            { id: 'agreement', label: 'Agreement', count: pipeline.agreement.length, color: 'rgba(83,74,183,0.12)',    text: ACCENT },
+                            { id: 'active',    label: 'Active',    count: pipeline.active.length,    color: 'rgba(34,197,94,0.12)',    text: 'var(--status-success)' },
+                          ].map(s => (
+                            <button
+                              key={s.id}
+                              onClick={e => { e.stopPropagation(); setPipelineTab(project.id, s.id) }}
+                              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+                              style={{
+                                backgroundColor: pipelineTab === s.id ? s.color : 'var(--bg-elevated)',
+                                color: pipelineTab === s.id ? s.text : 'var(--text-tertiary)',
+                                border: pipelineTab === s.id ? `1px solid ${s.text}` : '1px solid transparent',
+                              }}
+                            >
+                              {s.label}
+                              <span className="font-bold">{s.count}</span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Stage content */}
+                        {(() => {
+                          const stageApps = pipeline[pipelineTab] ?? []
+                          if (stageApps.length === 0) {
+                            return (
+                              <p className="text-xs text-center py-4" style={{ color: 'var(--text-tertiary)' }}>
+                                No applications in this stage.
+                              </p>
+                            )
+                          }
+                          return (
+                            <div className="space-y-2">
+                              {stageApps.map(app => (
+                                <div key={app.id} className="flex items-center gap-2.5 rounded-lg px-3 py-2.5" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0"
+                                    style={{ backgroundColor: hashColor(app.applicantName) }}>
+                                    {initials(app.applicantName)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
+                                    <p className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
+                                  </div>
+                                  {pipelineTab === 'applied' && (
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      <button
+                                        onClick={e => { e.stopPropagation(); acceptApp(app, project) }}
+                                        className="text-[10px] font-semibold px-2 py-1 rounded-full text-white transition-opacity hover:opacity-80"
+                                        style={{ backgroundColor: '#16a34a' }}>
+                                        Accept
+                                      </button>
+                                      <button
+                                        onClick={e => { e.stopPropagation(); declineApp(app) }}
+                                        className="text-[10px] font-semibold px-2 py-1 rounded-full border transition-colors"
+                                        style={{ borderColor: '#ed2793', color: '#ed2793' }}
+                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)')}
+                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+                                        Decline
+                                      </button>
+                                    </div>
+                                  )}
+                                  {pipelineTab === 'accepted' && (
+                                    <button
+                                      onClick={e => { e.stopPropagation(); setSendTarget({ member: { name: app.applicantName, userId: app.applicantId, initials: initials(app.applicantName) }, project, app }) }}
+                                      className="text-[10px] font-semibold px-2 py-1 rounded-full text-white flex-shrink-0 transition-opacity hover:opacity-80"
+                                      style={{ backgroundColor: ACCENT }}>
+                                      Send Agreement
+                                    </button>
+                                  )}
+                                  {pipelineTab === 'agreement' && (
+                                    <span className="flex items-center gap-1 text-[10px] font-medium flex-shrink-0" style={{ color: 'var(--status-warning)' }}>
+                                      <IconClock size={10} /> Awaiting signature
+                                    </span>
+                                  )}
+                                  {pipelineTab === 'active' && (
+                                    <span className="flex items-center gap-1 text-[10px] font-semibold flex-shrink-0" style={{ color: 'var(--status-success)' }}>
+                                      <IconCircleCheck size={10} /> Active
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        })()}
                       </div>
                     )}
                   </div>
@@ -516,7 +624,13 @@ export default function TeamsPage({
           currentUser={currentUser}
           users={users}
           setAgreements={setAgreements}
-          onSave={() => setSendTarget(null)}
+          onSave={(agreement) => {
+            if (sendTarget.app) {
+              updateApp({ ...sendTarget.app, status: 'agreement_sent', agreementId: agreement.id, read: true })
+              setPipelineTab(sendTarget.project.id, 'agreement')
+            }
+            setSendTarget(null)
+          }}
           onAddNotificationForUser={onAddNotificationForUser}
           onAddDirectMessageForUser={onAddDirectMessageForUser}
           onClose={() => setSendTarget(null)}

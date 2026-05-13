@@ -3,7 +3,7 @@ const STORAGE_KEY = 'hqcmd_userData_v4'
 function ensureSlot(allUD, userId) {
   const key = String(userId)
   if (!allUD[key]) {
-    allUD[key] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [] }
+    allUD[key] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], sharedProjects: [] }
   }
   return key
 }

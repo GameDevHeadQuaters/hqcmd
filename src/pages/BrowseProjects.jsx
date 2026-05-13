@@ -64,6 +64,7 @@ function ApplyModal({ project, currentUser, onClose, onAddApplication, onAddNoti
       projectId: project.originalId ?? project.id,
       projectTitle: project.title,
       applicantName,
+      applicantId: currentUser?.id ?? null,
       role,
       message: message.trim(),
       status: 'pending',

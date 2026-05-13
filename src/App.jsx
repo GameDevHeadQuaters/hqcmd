@@ -542,7 +542,6 @@ export default function App() {
   })()
 
   const unreadInboxCount =
-    applications.filter(a => !a.read).length +
     directMessages.filter(m => !m.read).length +
     notifications.filter(n => !n.read).length
 
@@ -752,6 +751,9 @@ export default function App() {
               agreements={agreements}
               setAgreements={setAgreements}
               applications={applications}
+              setApplications={setApplications}
+              onAcceptApplication={acceptApplication}
+              onAddNotification={onAddNotification}
               users={users}
               onUpdateProject={updateProject}
               setActiveProjectId={setActiveProjectId}
