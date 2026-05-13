@@ -562,6 +562,8 @@ function DataIntegrityTab() {
 function SystemDebugTab() {
   const [report, setReport] = useState(null)
   const [actionFeedback, setActionFeedback] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshed, setRefreshed] = useState(false)
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
   useEffect(() => { runReport() }, [])
@@ -720,8 +722,22 @@ function SystemDebugTab() {
         </div>
         <div className="flex items-center gap-3">
           {actionFeedback && <span className="text-xs font-medium" style={{ color: 'var(--status-success)' }}>{actionFeedback}</span>}
-          <button onClick={runReport} className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full text-white" style={{ backgroundColor: ACCENT }}>
-            <IconRefresh size={12} /> Refresh
+          <button
+            onClick={() => {
+              setRefreshing(true)
+              setRefreshed(false)
+              setTimeout(() => {
+                runReport()
+                setRefreshing(false)
+                setRefreshed(true)
+                setTimeout(() => setRefreshed(false), 1500)
+              }, 300)
+            }}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full text-white transition-colors"
+            style={{ backgroundColor: refreshed ? '#16a34a' : ACCENT, opacity: refreshing ? 0.7 : 1 }}>
+            <IconRefresh size={12} className={refreshing ? 'animate-spin' : ''} />
+            {refreshed ? '✓ Refreshed' : refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
       </div>

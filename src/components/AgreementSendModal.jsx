@@ -29,6 +29,7 @@ function genToken() {
 }
 
 function deliverAgreementToRecipient(recipientUserId, agreement) {
+  alert('[DEBUG] deliverAgreementToRecipient called for: ' + (agreement.counterpartyEmail ?? recipientUserId))
   try {
     const key = 'hqcmd_userData_v4'
     const allData = JSON.parse(localStorage.getItem(key) || '{}')

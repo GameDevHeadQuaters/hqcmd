@@ -4,7 +4,25 @@ import {
   IconSend, IconAlertTriangle,
 } from '@tabler/icons-react'
 import { AGREEMENT_DISCLAIMER } from '../utils/agreementDisclaimer'
-import { writeToUserData, checkUserDataWrite } from '../utils/crossUserWrite'
+function deliverAgreementToRecipient(recipientUserId, agreement) {
+  try {
+    const key = 'hqcmd_userData_v4'
+    const allData = JSON.parse(localStorage.getItem(key) || '{}')
+    const uid = String(recipientUserId)
+    if (!allData[uid]) {
+      allData[uid] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
+    }
+    if (!Array.isArray(allData[uid].agreements)) {
+      allData[uid].agreements = []
+    }
+    allData[uid].agreements = [agreement, ...allData[uid].agreements]
+    localStorage.setItem(key, JSON.stringify(allData))
+    return true
+  } catch (err) {
+    console.error('[deliverAgreementToRecipient] failed:', err)
+    return false
+  }
+}
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -135,8 +153,8 @@ export default function AgreementViewer({
       status: 'awaiting_my_signature',
       read: false,
     }
-    writeToUserData(String(counterparty.id), 'agreements', receivedAgreement)
-    checkUserDataWrite(String(counterparty.id), 'agreements')
+    alert('[DEBUG] deliverAgreementToRecipient called for: ' + cpEmail.trim())
+    deliverAgreementToRecipient(String(counterparty.id), receivedAgreement)
 
     setSendStatus('sent')
   }
