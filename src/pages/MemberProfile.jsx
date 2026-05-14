@@ -40,7 +40,7 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
 
   function startEdit() {
     const src = member ?? currentUser
-    setDraft({ bio: src?.bio || '', role: src?.role || '', skills: [...(src?.skills || [])] })
+    setDraft({ name: src?.name || '', bio: src?.bio || '', role: src?.role || '', skills: [...(src?.skills || [])] })
     setNewSkill('')
     setEditing(true)
   }
@@ -52,7 +52,11 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
   }
 
   function saveEdit() {
-    const updates = { bio: draft.bio, role: draft.role, skills: draft.skills }
+    const newName = draft.name.trim() || (member ?? currentUser)?.name || ''
+    const newInitials = newName
+      ? newName.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2)
+      : ((member ?? currentUser)?.initials ?? '')
+    const updates = { name: newName, bio: draft.bio, role: draft.role, skills: draft.skills, initials: newInitials }
     const updated = { ...(member ?? currentUser), ...updates }
     setMember(updated)
     if (currentUser?.id) {
@@ -71,6 +75,10 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
           ))
         } catch {}
       }
+      try {
+        const stored = JSON.parse(localStorage.getItem('hqcmd_currentUser_v3') || '{}')
+        localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify({ ...stored, ...updates }))
+      } catch {}
     }
     setEditing(false)
     setDraft(null)
@@ -133,7 +141,17 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                     {setupInitials}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h1 className="text-xl font-bold mb-3" style={{ color: 'var(--text-primary)' }}>{currentUser.name}</h1>
+                    <div className="mb-3">
+                      <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Display Name</label>
+                      <input
+                        className="text-sm rounded-lg px-2.5 py-1.5 outline-none transition-colors w-full"
+                        style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                        value={draft?.name ?? ''}
+                        onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
+                        onFocus={fa} onBlur={fb}
+                        placeholder="Your name"
+                      />
+                    </div>
                     <input
                       list="role-presets-setup"
                       className="text-sm rounded-lg px-2.5 py-1.5 outline-none transition-colors mb-3 w-48"
@@ -268,6 +286,17 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
 
               {editing ? (
                 <>
+                  <div className="mb-3">
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Display Name</label>
+                    <input
+                      className="text-sm rounded-lg px-2.5 py-1.5 outline-none transition-colors w-full"
+                      style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                      value={draft.name}
+                      onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
+                      onFocus={fa} onBlur={fb}
+                      placeholder="Your name"
+                    />
+                  </div>
                   <input
                     list="role-presets-edit"
                     className="text-sm rounded-lg px-2.5 py-1.5 outline-none transition-colors mb-3 w-48"

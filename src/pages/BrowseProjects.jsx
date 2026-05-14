@@ -177,16 +177,17 @@ function ApplyModal({ project, currentUser, onClose, onAddApplication, onAddNoti
   )
 }
 
-function MessageModal({ project, onClose, onAddDirectMessage, onAddNotification }) {
-  const [name, setName] = useState('')
+function MessageModal({ project, currentUser, onClose, onAddDirectMessage, onAddNotification }) {
+  const [name, setName] = useState(currentUser?.name ?? '')
   const [message, setMessage] = useState('')
   const [sent, setSent] = useState(false)
 
   function submit() {
-    const fromName = name.trim() || 'Anonymous'
+    const fromName = currentUser?.name || name.trim() || 'Anonymous'
     onAddDirectMessage({
       id: Date.now(),
       fromName,
+      fromUserId: currentUser?.id ?? null,
       projectId: project.originalId ?? project.id,
       projectTitle: project.title,
       message: message.trim(),
@@ -243,14 +244,22 @@ function MessageModal({ project, onClose, onAddDirectMessage, onAddNotification 
         </div>
         <div className="px-6 py-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Your Name</label>
-            <input
-              className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
-              style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-              placeholder="Alex Chen"
-              value={name}
-              onChange={e => setName(e.target.value)}
-            />
+            {currentUser ? (
+              <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                Sending as <strong style={{ color: 'var(--text-primary)' }}>{currentUser.name}</strong>
+              </div>
+            ) : (
+              <>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Your Name</label>
+                <input
+                  className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
+                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                  placeholder="Alex Chen"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                />
+              </>
+            )}
           </div>
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Message</label>
@@ -694,6 +703,7 @@ export default function BrowseProjects({
       {msgProject && (
         <MessageModal
           project={msgProject}
+          currentUser={currentUser}
           onClose={() => setMsgProject(null)}
           onAddDirectMessage={(dm) => {
             onAddDirectMessageToOwner(msgProject.ownerId, dm)
