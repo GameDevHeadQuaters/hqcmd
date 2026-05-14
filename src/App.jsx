@@ -581,7 +581,8 @@ export default function App() {
   function handleLogin({ email, password }) {
     const normalEmail = email.trim().toLowerCase()
     if (SUPER_ADMIN.email && SUPER_ADMIN.password && normalEmail === SUPER_ADMIN.email && password === SUPER_ADMIN.password) {
-      setCurrentUser(SUPER_ADMIN)
+      const adminProfile = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
+      setCurrentUser({ ...SUPER_ADMIN, ...adminProfile, isAdmin: true })
       setActiveProjectId(null)
       return null
     }

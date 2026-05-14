@@ -24,9 +24,16 @@ export default function Account({ currentUser, setCurrentUser, users, setUsers }
     if (form.password) updates.password = form.password
 
     setCurrentUser(prev => ({ ...prev, ...updates }))
-    setUsers(prev => prev.map(u =>
-      String(u.id) === String(currentUser.id) ? { ...u, ...updates } : u
-    ))
+    if (currentUser.isAdmin || currentUser.id === 'superadmin') {
+      try {
+        const adminProfile = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
+        localStorage.setItem('hqcmd_admin_profile', JSON.stringify({ ...adminProfile, ...updates }))
+      } catch {}
+    } else {
+      setUsers(prev => prev.map(u =>
+        String(u.id) === String(currentUser.id) ? { ...u, ...updates } : u
+      ))
+    }
 
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)

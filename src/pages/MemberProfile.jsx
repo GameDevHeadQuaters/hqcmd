@@ -52,13 +52,20 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
     setMember(updated)
     if (currentUser?.id) {
       setCurrentUser?.(prev => ({ ...prev, ...updates }))
-      try {
-        const raw = localStorage.getItem('hqcmd_users_v3')
-        const list = raw ? JSON.parse(raw) : []
-        localStorage.setItem('hqcmd_users_v3', JSON.stringify(
-          list.map(u => String(u.id) === String(currentUser.id) ? { ...u, ...updates } : u)
-        ))
-      } catch {}
+      if (currentUser.isAdmin || currentUser.id === 'superadmin') {
+        try {
+          const adminProfile = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
+          localStorage.setItem('hqcmd_admin_profile', JSON.stringify({ ...adminProfile, ...updates }))
+        } catch {}
+      } else {
+        try {
+          const raw = localStorage.getItem('hqcmd_users_v3')
+          const list = raw ? JSON.parse(raw) : []
+          localStorage.setItem('hqcmd_users_v3', JSON.stringify(
+            list.map(u => String(u.id) === String(currentUser.id) ? { ...u, ...updates } : u)
+          ))
+        } catch {}
+      }
     }
     setEditing(false)
     setDraft(null)
