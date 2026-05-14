@@ -655,6 +655,8 @@ function SystemDebugTab() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmClear, setConfirmClear] = useState(false)
   const [showRawData, setShowRawData] = useState(false)
+  const [showResetModal, setShowResetModal] = useState(false)
+  const [resetConfirmText, setResetConfirmText] = useState('')
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
   useEffect(() => { runReport() }, [])
@@ -846,6 +848,22 @@ function SystemDebugTab() {
     setConfirmClear(false)
     runReport()
     flash('User data cleared')
+  }
+
+  function handleSiteReset() {
+    const keysToKeep = ['hqcmd_admin_profile', 'hqcmd_theme', 'hqcmd_sidebar_collapsed']
+    const allKeys = []
+    for (let i = 0; i < localStorage.length; i++) allKeys.push(localStorage.key(i))
+    allKeys.forEach(key => {
+      if (!keysToKeep.includes(key)) localStorage.removeItem(key)
+    })
+    // Second pass to catch any image keys added after initial scan
+    const remainingKeys = []
+    for (let i = 0; i < localStorage.length; i++) remainingKeys.push(localStorage.key(i))
+    remainingKeys.forEach(key => {
+      if (key.startsWith('hqcmd_img_')) localStorage.removeItem(key)
+    })
+    window.location.href = '/'
   }
 
   if (!report) return <div className="text-center py-12 text-sm" style={{ color: 'var(--text-tertiary)' }}>Generating report…</div>
@@ -1170,6 +1188,40 @@ function SystemDebugTab() {
             )}
           </div>
         </section>
+
+        {/* Danger Zone */}
+        <div style={{
+          marginTop: '32px',
+          border: '1px solid rgba(237,39,147,0.3)',
+          borderRadius: '12px',
+          padding: '20px',
+          background: 'rgba(237,39,147,0.05)',
+        }}>
+          <h3 style={{ color: '#ed2793', fontSize: '14px', fontWeight: '600', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <IconAlertTriangle size={16} /> Danger Zone
+          </h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '16px' }}>
+            These actions are irreversible. Use only for testing and development purposes.
+          </p>
+          <button
+            onClick={() => setShowResetModal(true)}
+            style={{
+              background: '#ed2793',
+              color: 'white',
+              border: 'none',
+              borderRadius: '9999px',
+              padding: '10px 20px',
+              fontWeight: '600',
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <IconTrash size={15} /> Reset Entire Site
+          </button>
+        </div>
       </div>
 
       {/* Confirm clear modal */}
@@ -1225,6 +1277,52 @@ function SystemDebugTab() {
                   )
                 })
               })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Site reset modal */}
+      {showResetModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid #ed2793', borderRadius: '12px', padding: '28px', maxWidth: '400px', width: '90%' }}>
+            <h3 style={{ color: '#ed2793', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: '600' }}>
+              <IconAlertTriangle size={20} /> Reset Entire Site
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.6', marginBottom: '16px' }}>
+              This will permanently delete:
+            </p>
+            <ul style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '16px', paddingLeft: '16px', lineHeight: '2' }}>
+              <li>All user accounts</li>
+              <li>All projects and their data</li>
+              <li>All messages, agreements and notifications</li>
+              <li>All project images</li>
+              <li>All beta requests and invite codes</li>
+              <li>All contacts and shared project references</li>
+            </ul>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '12px' }}>
+              The super admin account will be preserved. Type <strong style={{ color: '#ed2793' }}>RESET</strong> to confirm:
+            </p>
+            <input
+              value={resetConfirmText}
+              onChange={e => setResetConfirmText(e.target.value)}
+              placeholder="Type RESET here"
+              style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '13px', marginBottom: '16px', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => { setShowResetModal(false); setResetConfirmText('') }}
+                style={{ flex: 1, padding: '10px', borderRadius: '9999px', border: '1px solid var(--border-default)', background: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={resetConfirmText !== 'RESET'}
+                onClick={handleSiteReset}
+                style={{ flex: 1, padding: '10px', borderRadius: '9999px', border: 'none', background: resetConfirmText === 'RESET' ? '#ed2793' : 'var(--bg-elevated)', color: resetConfirmText === 'RESET' ? 'white' : 'var(--text-tertiary)', cursor: resetConfirmText === 'RESET' ? 'pointer' : 'default', fontWeight: '600' }}
+              >
+                Reset Everything
+              </button>
             </div>
           </div>
         </div>
