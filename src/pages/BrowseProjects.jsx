@@ -433,13 +433,14 @@ export default function BrowseProjects({
       ? 'You'
       : owner?.name || (userId === 'superadmin' ? 'HQCMD Admin' : 'Unknown')
     ;(allData[userId]?.projects || [])
-      .filter(p => p.visibility === 'public' || p.visibility === 'Public')
+      .filter(p => p.visibility?.toLowerCase() === 'public')
       .forEach(p => {
         allProjects.push({
           ...p,
           ownerId: userId,
           originalId: p.id,
           owner: ownerName,
+          roles: p.rolesNeeded || p.roles || [],
           coverImage: getProjectImage(p.id),
           compensation: Array.isArray(p.compensation) ? p.compensation[0] || 'Rev Share' : p.compensation || 'Rev Share',
           members: Array.isArray(p.members) ? p.members.length : (p.members || 0),

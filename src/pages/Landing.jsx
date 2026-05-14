@@ -39,7 +39,7 @@ function getPublicProjects() {
     for (const p of (data.projects ?? [])) {
       if (
         p.visibility?.toLowerCase() === 'public' &&
-        (p.roles ?? []).length > 0
+        (p.rolesNeeded || p.roles || []).length > 0
       ) {
         all.push(p)
       }
@@ -52,7 +52,7 @@ function getPublicProjects() {
 
 function FeaturedProjectCard({ project, onCardClick }) {
   const coverImage = localStorage.getItem('hqcmd_img_' + project.id)
-  const roles = project.roles ?? []
+  const roles = project.rolesNeeded || project.roles || []
   const compensation = (project.compensation ?? [])[0] ?? null
 
   return (

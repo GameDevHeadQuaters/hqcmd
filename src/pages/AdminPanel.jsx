@@ -458,7 +458,7 @@ function PublicProjectsTab() {
                   <td className="px-4 py-3 text-xs font-mono" style={{ color: 'var(--text-tertiary)' }}>{String(p.ownerUid).slice(0, 8)}…</td>
                   <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>{formatDate(p.createdAt)}</td>
                   <td className="px-4 py-3 text-xs text-center" style={{ color: 'var(--text-secondary)' }}>{(p.members ?? []).length}</td>
-                  <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{(p.roles ?? []).slice(0, 3).join(', ')}{(p.roles ?? []).length > 3 ? ` +${p.roles.length - 3}` : ''}</td>
+                  <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{((r => r.slice(0, 3).join(', ') + (r.length > 3 ? ` +${r.length - 3}` : ''))(p.rolesNeeded || p.roles || []))}</td>
                   <td className="px-4 py-3">
                     {feedbacks[p.id] ? (
                       <span className="text-xs font-medium" style={{ color: 'var(--status-success)' }}>{feedbacks[p.id]}</span>

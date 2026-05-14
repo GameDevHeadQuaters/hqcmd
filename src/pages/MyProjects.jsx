@@ -254,7 +254,7 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
   }, [currentUser])
 
   function handleSave(data) {
-    const id = Date.now()
+    const id = String(Date.now())
     if (data.coverImage) {
       try { localStorage.setItem('hqcmd_img_' + id, data.coverImage) }
       catch (e) { if (e.name === 'QuotaExceededError') console.warn('localStorage full — cover image not saved') }
@@ -272,7 +272,7 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
         category:       data.category     || 'Other',
         visibility:     data.visibility   || 'Private',
         compensation:   data.compensation || ['Rev Share'],
-        roles:          data.roles        || [],
+        rolesNeeded:    data.rolesNeeded || data.roles || [],
         timeline:       data.timeline     || '',
         commitment:     data.commitment   || '',
         location:       data.location     || '',

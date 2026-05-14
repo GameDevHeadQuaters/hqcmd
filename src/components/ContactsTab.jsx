@@ -327,7 +327,7 @@ function InviteModal({ contact, currentUser, projects, onAddNotificationForUser,
   const [linkCopied, setLinkCopied] = useState(false)
   const [inviteLink, setInviteLink] = useState('')
 
-  const publicProjects = (projects ?? []).filter(p => p.visibility === 'Public' && (p.roles ?? []).length > 0)
+  const publicProjects = (projects ?? []).filter(p => p.visibility?.toLowerCase() === 'public' && (p.rolesNeeded || p.roles || []).length > 0)
 
   function sendInvite() {
     if (!project || !contact.userId) return
@@ -401,7 +401,7 @@ function InviteModal({ contact, currentUser, projects, onAddNotificationForUser,
                       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.backgroundColor = 'var(--bg-surface)' }}>
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{p.title}</p>
-                        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{(p.roles ?? []).join(', ')}</p>
+                        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{(p.rolesNeeded || p.roles || []).join(', ')}</p>
                       </div>
                       <IconChevronRight size={15} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
                     </button>
