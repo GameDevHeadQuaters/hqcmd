@@ -6,6 +6,7 @@ import {
   IconCircleCheck, IconAlertTriangle, IconCheck,
   IconWritingSign, IconPrinter,
 } from '@tabler/icons-react'
+import { debugLog } from '../utils/debugLogger'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -125,6 +126,7 @@ export default function SignAgreement({ userData, onCountersign, onNotifyOwner }
   function handleSign() {
     if (!signerName.trim() || !signerEmail.trim() || !readChecked || iAgree.trim() !== 'I AGREE') return
     setSigning(true)
+    debugLog('Agreement', 'Countersignature submitted', { token, signerName: signerName.trim(), signerEmail: signerEmail.trim() }, 'info')
 
     const counterpartySignedAt = new Date().toISOString()
     const { ownerId, agreement } = found
@@ -186,6 +188,8 @@ export default function SignAgreement({ userData, onCountersign, onNotifyOwner }
 
         // Brute-force scan: ensure every copy (owner + received) with this token is marked fully_signed
         const freshData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+        let updatedCount = 0
+        const allStatuses = []
         Object.keys(freshData).forEach(uid => {
           ;(freshData[uid]?.agreements || []).forEach((a, idx) => {
             if (String(a.shareToken) === String(token)) {
@@ -197,10 +201,13 @@ export default function SignAgreement({ userData, onCountersign, onNotifyOwner }
               } else {
                 freshData[uid].agreements[idx].counterpartySignedAt = new Date().toISOString()
               }
+              updatedCount++
+              allStatuses.push({ uid, isReceived: a.isReceived })
             }
           })
         })
         localStorage.setItem('hqcmd_userData_v4', JSON.stringify(freshData))
+        debugLog('Agreement', 'Agreement status updated', { updatedCount, allStatuses }, 'success')
       }
     } catch (e) {
       console.warn('hqcmd: failed to write countersignature to localStorage', e)

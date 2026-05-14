@@ -6,6 +6,7 @@ import {
   IconEye, IconEyeOff, IconHeartbeat, IconBug, IconAlertTriangle, IconShieldCheck,
 } from '@tabler/icons-react'
 import { runIntegrityCheck, migrateUserIds, REQUIRED_ARRAYS } from '../utils/dataIntegrity'
+import { isDebugMode, setDebugMode } from '../utils/debugLogger'
 import { sendEmail, betaApprovedEmail } from '../utils/sendEmail'
 
 const ACCENT = '#534AB7'
@@ -658,6 +659,7 @@ function DataIntegrityTab() {
 // ── System Debug Tab ─────────────────────────────────────────────────────────
 
 function SystemDebugTab() {
+  const [debugEnabled, setDebugEnabled] = useState(isDebugMode())
   const [report, setReport] = useState(null)
   const [actionFeedback, setActionFeedback] = useState('')
   const [refreshing, setRefreshing] = useState(false)
@@ -927,6 +929,25 @@ function SystemDebugTab() {
     try {
       return (
     <>
+      {/* Debug Console toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: 'var(--bg-elevated)', borderRadius: '10px', marginBottom: '16px', border: '1px solid var(--border-default)' }}>
+        <IconBug size={18} style={{ color: '#ed2793' }} />
+        <div style={{ flex: 1 }}>
+          <p style={{ color: 'var(--text-primary)', fontSize: '13px', fontWeight: '500', margin: 0 }}>Debug Console</p>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '11px', margin: 0 }}>Shows real-time logs of all operations in a floating window</p>
+        </div>
+        <button
+          onClick={() => { const newVal = !debugEnabled; setDebugMode(newVal); setDebugEnabled(newVal) }}
+          style={{
+            padding: '6px 16px', borderRadius: '9999px', border: 'none', cursor: 'pointer', fontWeight: '500', fontSize: '12px',
+            background: debugEnabled ? '#ed2793' : 'var(--bg-hover)',
+            color: debugEnabled ? 'white' : 'var(--text-secondary)',
+          }}
+        >
+          {debugEnabled ? '● Live' : 'Enable'}
+        </button>
+      </div>
+
       {/* Action bar */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">

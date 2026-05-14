@@ -7,6 +7,7 @@ import {
   IconCrown, IconClock,
 } from '@tabler/icons-react'
 import ProfileDropdown from '../components/ProfileDropdown'
+import { debugLog } from '../utils/debugLogger'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -59,6 +60,7 @@ function ApplyModal({ project, currentUser, onClose, onAddApplication, onAddNoti
 
   function submit() {
     const applicantName = currentUser?.name ?? (name.trim() || 'Anonymous')
+    debugLog('Application', 'Submit application', { projectId: project.originalId ?? project.id, role, applicantName }, 'info')
     onAddApplication({
       id: Date.now(),
       projectId: project.originalId ?? project.id,
@@ -66,18 +68,21 @@ function ApplyModal({ project, currentUser, onClose, onAddApplication, onAddNoti
       applicantName,
       applicantId: currentUser?.id ?? null,
       applicantEmail: currentUser?.email ?? null,
+      applicantUserId: currentUser?.id ?? null,
       role,
       message: message.trim(),
       status: 'pending',
       reply: '',
       timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
       read: false,
     })
     onAddNotification({
       type: 'application',
       text: `New application from ${applicantName} for ${role} on ${project.title}`,
-      link: '/inbox',
+      link: '/teams',
     })
+    debugLog('Application', 'Application submitted', { projectTitle: project.title, ownerEmail: project.ownerEmail }, 'success')
     setSent(true)
   }
 

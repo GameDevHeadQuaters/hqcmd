@@ -8,6 +8,7 @@ import {
 } from '@tabler/icons-react'
 import AgreementSendModal from '../components/AgreementSendModal'
 import { sendEmail, accessGrantedEmail } from '../utils/sendEmail'
+import { debugLog } from '../utils/debugLogger'
 
 const ACCENT = '#534AB7'
 const UD_KEY = 'hqcmd_userData_v4'
@@ -384,6 +385,8 @@ export default function TeamsPage({
     const USERDATA_KEY = 'hqcmd_userData_v4'
     const USERS_KEY = 'hqcmd_users_v3'
 
+    debugLog('Access', 'Grant access started', { applicantName: application.applicantName, applicantEmail: application.applicantEmail, projectId: project.id }, 'info')
+
     const allUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
     const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
 
@@ -392,6 +395,8 @@ export default function TeamsPage({
       (application.counterpartyEmail && u.email?.toLowerCase().trim() === application.counterpartyEmail.toLowerCase().trim()) ||
       (application.applicantName && u.name?.toLowerCase().trim() === application.applicantName.toLowerCase().trim())
     )
+
+    debugLog('Access', applicant ? 'Applicant found' : 'Applicant NOT found', { applicant: applicant ? { id: applicant.id, name: applicant.name } : null }, applicant ? 'success' : 'error')
 
     if (!applicant) {
       setGrantError(prev => ({ ...prev, [application.id]: 'User account not found. Make sure they have registered.' }))
@@ -414,6 +419,7 @@ export default function TeamsPage({
     if (!Array.isArray(allData[applicantId].sharedProjects)) allData[applicantId].sharedProjects = []
     if (!Array.isArray(allData[applicantId].notifications)) allData[applicantId].notifications = []
 
+    debugLog('Access', 'sharedProject write', { applicantId, projectId: project.id, role: normaliseRole(application.role) }, 'info')
     allData[applicantId].sharedProjects.push({
       id: String(Date.now()),
       projectId: String(project.id),
@@ -457,6 +463,8 @@ export default function TeamsPage({
     }
 
     localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+    const verifyUD = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+    debugLog('Access', 'Grant access complete', { sharedProjectsCount: verifyUD[applicantId]?.sharedProjects?.length }, 'success')
 
     if (applicant.email) {
       const { subject, html } = accessGrantedEmail(applicant.name, project.title, currentUser.name)

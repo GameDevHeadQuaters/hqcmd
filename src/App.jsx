@@ -26,6 +26,8 @@ import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Contact from './pages/Contact'
 import GoogleAuthSuccess from './pages/GoogleAuthSuccess'
+import DebugPanel from './components/DebugPanel'
+import { debugLog } from './utils/debugLogger'
 
 const BETA_MODE = true
 
@@ -658,6 +660,7 @@ export default function App() {
 
   function handleLogin({ email, password }) {
     const normalEmail = email.trim().toLowerCase()
+    debugLog('Auth', 'Login attempt', { email: normalEmail }, 'info')
     if (SUPER_ADMIN.email && SUPER_ADMIN.password && normalEmail === SUPER_ADMIN.email && password === SUPER_ADMIN.password) {
       const shadowAccount = ensureAdminShadowAccount()
       const adminProfile  = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
@@ -665,19 +668,28 @@ export default function App() {
       setCurrentUser(adminUser)
       localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify(adminUser))
       setActiveProjectId(null)
+      debugLog('Auth', 'Admin login success', { userId: 'superadmin', isAdmin: true }, 'success')
       return null
     }
     const byEmail = users.find(u => u.email === normalEmail)
-    if (!byEmail) return { field: 'email', message: 'No account found with that email address' }
-    if (byEmail.password !== password) return { field: 'password', message: 'Incorrect password. Please try again.' }
+    if (!byEmail) {
+      debugLog('Auth', 'Login failed — user not found', { email: normalEmail }, 'error')
+      return { field: 'email', message: 'No account found with that email address' }
+    }
+    if (byEmail.password !== password) {
+      debugLog('Auth', 'Login failed — wrong password', { email: normalEmail }, 'error')
+      return { field: 'password', message: 'Incorrect password. Please try again.' }
+    }
     try {
       const suspended = JSON.parse(localStorage.getItem('hqcmd_suspended') ?? '[]')
       if (suspended.includes(String(byEmail.id))) {
+        debugLog('Auth', 'Login blocked — account suspended', { userId: byEmail.id }, 'warning')
         return { field: 'email', message: 'Your account has been suspended. Contact hello@gamedevlocal.com for support.' }
       }
     } catch {}
     setCurrentUser(byEmail)
     setActiveProjectId(null)
+    debugLog('Auth', 'Login success', { userId: byEmail.id, isAdmin: byEmail.isAdmin }, 'success')
     setTimeout(() => checkAndAwardAchievements(byEmail, setCurrentUser), 1000)
     return null
   }
@@ -736,6 +748,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      {currentUser?.isAdmin && <DebugPanel />}
       <AppLayout topNavProps={topNavProps} sidebarProps={sidebarProps}>
       <Routes>
         <Route path="/"       element={

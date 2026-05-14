@@ -6,6 +6,7 @@ import {
 import { AGREEMENT_TEMPLATES } from '../utils/agreementTemplates'
 import { AGREEMENT_DISCLAIMER } from '../utils/agreementDisclaimer'
 import { sendEmail, agreementReceivedEmail } from '../utils/sendEmail'
+import { debugLog } from '../utils/debugLogger'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -30,6 +31,7 @@ function genToken() {
 
 function deliverAgreementToRecipient(recipientEmail, agreementObj, senderName, projectTitle) {
   const USERDATA_KEY = 'hqcmd_userData_v4'
+  debugLog('Agreement', 'Deliver to inbox', { recipientEmail, agreementId: agreementObj.id, shareToken: agreementObj.shareToken }, 'info')
   try {
     const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
     const recipient = allUsers.find(u =>
@@ -37,6 +39,7 @@ function deliverAgreementToRecipient(recipientEmail, agreementObj, senderName, p
     )
     if (!recipient) {
       console.error('[Deliver] Recipient not found:', recipientEmail)
+      debugLog('Agreement', 'Recipient not found', { recipientEmail }, 'error')
       return false
     }
     const recipientId = String(recipient.id)
@@ -105,6 +108,7 @@ function deliverAgreementToRecipient(recipientEmail, agreementObj, senderName, p
     const verify = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
     const count = verify[recipientId]?.agreements?.length || 0
     console.log('[Deliver] Verified — recipient agreements:', count)
+    debugLog('Agreement', count > 0 ? 'Delivery SUCCESS' : 'Delivery FAILED', { recipientId, agreementsCount: count }, count > 0 ? 'success' : 'error')
     if (count === 0) {
       console.error('[Deliver] VERIFICATION FAILED — agreement not saved!')
       return false
@@ -113,6 +117,7 @@ function deliverAgreementToRecipient(recipientEmail, agreementObj, senderName, p
     return true
   } catch (err) {
     console.error('[Deliver] Failed:', err)
+    debugLog('Agreement', 'Delivery exception', { error: String(err) }, 'error')
     return false
   }
 }
