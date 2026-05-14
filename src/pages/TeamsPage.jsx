@@ -141,6 +141,7 @@ export default function TeamsPage({
   const [grantedIds, setGrantedIds] = useState([])
   const [actionedIds, setActionedIds] = useState([])
   const [grantError, setGrantError] = useState({})
+  const [highlightedMember, setHighlightedMember] = useState({})
 
   // ── Build combined owned + shared project list ────────────────────────────
   const ownEntries = (projects ?? []).map(p => ({
@@ -485,6 +486,17 @@ export default function TeamsPage({
     setPipelineTab(project.id, 'active')
   }
 
+  function handleViewInTeam(projectId, memberName) {
+    const section = document.getElementById(`active-members-${projectId}`)
+    if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setHighlightedMember(prev => ({ ...prev, [projectId]: memberName }))
+    setTimeout(() => setHighlightedMember(prev => {
+      const n = { ...prev }
+      if (n[projectId] === memberName) delete n[projectId]
+      return n
+    }), 2000)
+  }
+
   const fi = e => (e.target.style.borderColor = ACCENT)
   const fb = e => (e.target.style.borderColor = 'var(--border-default)')
 
@@ -614,7 +626,7 @@ export default function TeamsPage({
                   <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
 
                     {/* ── Subsection 1: Active Members ── */}
-                    <div className="px-5 pt-4 pb-1 flex items-center gap-2">
+                    <div id={`active-members-${project.id}`} className="px-5 pt-4 pb-1 flex items-center gap-2">
                       <IconUsers size={13} style={{ color: 'var(--text-tertiary)' }} />
                       <h4 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>Active Members</h4>
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-tertiary)' }}>{members.length}</span>
@@ -640,9 +652,13 @@ export default function TeamsPage({
                               const pk = posKey(project.id, m.id)
                               const pendingPos = pendingPositions[pk]
                               const feedback = positionFeedback[pk]
+                              const isHighlighted = highlightedMember[project.id] === m.name
                               const av = m.avatarColor ?? hashColor(m.name)
                               return (
-                                <tr key={m.id} style={{ borderBottom: i < members.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                                <tr key={m.id} style={isHighlighted
+                                  ? { border: '1px solid var(--brand-accent)', backgroundColor: 'var(--brand-accent-glow)', transition: 'background-color 0.3s' }
+                                  : { borderBottom: i < members.length - 1 ? '1px solid var(--border-subtle)' : 'none' }
+                                }>
                                   <td className="px-5 py-3">
                                     <div className="flex items-center gap-2.5">
                                       <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ backgroundColor: av }}>
@@ -656,10 +672,11 @@ export default function TeamsPage({
                                   </td>
                                   <td className="px-5 py-3">
                                     {(() => {
-                                      const myRole = project.userRole || 'Observer'
+                                      const isProjectOwner = project.isOwned === true
+                                      const myRoleOnProject = isProjectOwner ? 'Owner' : (project.userRole || 'Observer')
                                       const memberRole = m.position ?? m.role ?? 'Member'
                                       const isSelf = String(m.userId || m.id) === String(currentUser?.id)
-                                      const canManage = !isSelf && canManageMember(myRole, memberRole)
+                                      const canManage = !isSelf && (isProjectOwner || canManageMember(myRoleOnProject, memberRole))
                                       if (isSelf) {
                                         return <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>{memberRole} (you)</span>
                                       }
@@ -680,8 +697,8 @@ export default function TeamsPage({
                                               }}
                                               onFocus={fi} onBlur={fb}
                                             >
-                                              {myRole === 'Owner' && <option value="Owner">Owner</option>}
-                                              {myRole === 'Owner' && <option value="Co-leader">Co-leader</option>}
+                                              {isProjectOwner && <option value="Owner">Owner</option>}
+                                              {isProjectOwner && <option value="Co-leader">Co-leader</option>}
                                               <option value="Member">Member</option>
                                               <option value="Contributor">Contributor</option>
                                               <option value="Observer">Observer</option>
@@ -1039,6 +1056,14 @@ export default function TeamsPage({
                                           )}
                                         </div>
                                       </div>
+                                      <button
+                                        onClick={() => handleViewInTeam(project.id, member.name)}
+                                        className="text-xs font-medium px-2.5 py-1 rounded-full border flex-shrink-0 transition-colors"
+                                        style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+                                        onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
+                                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)' }}>
+                                        View in Team
+                                      </button>
                                       <span className="text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 flex-shrink-0"
                                         style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: 'var(--status-success)' }}>
                                         <IconCircleCheck size={11} /> Active
