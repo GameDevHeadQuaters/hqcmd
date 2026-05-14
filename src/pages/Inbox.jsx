@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   IconInbox, IconMessageCircle, IconMail, IconFileText,
   IconWritingSign, IconBell, IconCheck, IconUserPlus, IconAddressBook,
-  IconArrowRight, IconX, IconBriefcase, IconSend,
+  IconArrowRight, IconX, IconBriefcase, IconSend, IconCircleCheck,
 } from '@tabler/icons-react'
 import ProfileDropdown from '../components/ProfileDropdown'
 import ContactsTab from '../components/ContactsTab'
@@ -21,10 +21,29 @@ function formatTime(iso) {
   return `${Math.floor(diff / 86400000)}d ago`
 }
 
-function AgreementMessageCard({ dm, onUpdate, navigate }) {
+function AgreementMessageCard({ dm, onUpdate, navigate, currentUser }) {
+  const [agreementStatus, setAgreementStatus] = useState(null)
+
   function markRead() {
     if (!dm.read) onUpdate({ ...dm, read: true })
   }
+
+  function getAgreementStatus(shareToken) {
+    if (!shareToken) return null
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const myId = String(currentUser?.id)
+    const myAgreements = (allData[myId] || allData[currentUser?.id] || {}).agreements || []
+    const agreement = myAgreements.find(a => a.shareToken === shareToken)
+    return agreement?.status || null
+  }
+
+  useEffect(() => {
+    const update = () => setAgreementStatus(getAgreementStatus(dm.shareToken))
+    update()
+    const interval = setInterval(update, 3000)
+    return () => clearInterval(interval)
+  }, [dm.shareToken, currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div
       className="rounded-lg overflow-hidden transition-all"
@@ -51,16 +70,22 @@ function AgreementMessageCard({ dm, onUpdate, navigate }) {
           </div>
         </div>
         <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-secondary)' }}>{dm.message}</p>
-        <button
-          onClick={() => { markRead(); navigate('/sign/' + dm.shareToken) }}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white transition-colors"
-          style={{ backgroundColor: '#534AB7' }}
-          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#3C3489')}
-          onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#534AB7')}
-        >
-          <IconWritingSign size={14} />
-          Review &amp; Sign
-        </button>
+        {agreementStatus === 'fully_signed' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#22c55e', fontSize: '12px' }}>
+            <IconCircleCheck size={14} /> Agreement signed — awaiting project access
+          </div>
+        ) : (
+          <button
+            onClick={() => { markRead(); navigate('/sign/' + dm.shareToken) }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white transition-colors"
+            style={{ backgroundColor: '#534AB7' }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#3C3489')}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#534AB7')}
+          >
+            <IconWritingSign size={14} />
+            Review &amp; Sign
+          </button>
+        )}
       </div>
     </div>
   )
@@ -115,7 +140,7 @@ function MessageCard({ dm, onUpdate, navigate, currentUser }) {
   const initials = dm.fromName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 
   if (dm.type === 'agreement') {
-    return <AgreementMessageCard dm={dm} onUpdate={onUpdate} navigate={navigate} />
+    return <AgreementMessageCard dm={dm} onUpdate={onUpdate} navigate={navigate} currentUser={currentUser} />
   }
   if (dm.type === 'invite') {
     return <InviteMessageCard dm={dm} onUpdate={onUpdate} navigate={navigate} />

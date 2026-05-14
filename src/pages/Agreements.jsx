@@ -80,30 +80,25 @@ export default function Agreements({
   const [agreementsToSign, setAgreementsToSign] = useState([])
 
   const loadAgreements = useCallback(() => {
-    // Always read completely fresh - no caching
     const raw = localStorage.getItem('hqcmd_userData_v4')
-    if (!raw) return
+    if (!raw || !currentUser) return
 
     const allData = JSON.parse(raw)
-    const myId = String(currentUser?.id)
-    const allAgreements = allData[myId]?.agreements || []
 
-    console.log('[Agreements] Loading - total:', allAgreements.length, 'statuses:', allAgreements.map(a => ({ id: a.id?.slice(-6), status: a.status, isReceived: a.isReceived })))
+    // Try both string and original type to handle number vs string id mismatch
+    const myId = String(currentUser.id)
+    const myData = allData[myId] || allData[currentUser.id] || {}
+    const allAgreements = myData.agreements || []
 
-    const toSign = allAgreements.filter(a =>
+    console.log('[Agreements] myId:', myId, 'agreements:', allAgreements.length)
+    allAgreements.forEach(a => console.log('  -', a.templateName, 'status:', a.status, 'isReceived:', a.isReceived))
+
+    setAgreementsToSign(allAgreements.filter(a =>
       a.isReceived === true &&
-      a.status !== 'fully_signed' &&
-      a.status !== 'signed' &&
-      a.status !== 'completed'
-    )
-
-    const mySent = allAgreements.filter(a => !a.isReceived)
-
-    setAgreementsToSign(toSign)
-    setMyAgreements(mySent)
-
-    console.log('[Agreements] To sign:', toSign.length, 'My sent:', mySent.length)
-  }, [currentUser?.id])
+      !['fully_signed', 'signed', 'completed'].includes(a.status)
+    ))
+    setMyAgreements(allAgreements.filter(a => !a.isReceived))
+  }, [currentUser])
 
   useEffect(() => {
     loadAgreements()
