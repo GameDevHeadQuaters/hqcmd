@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { onDebugLog, getLogHistory, clearLogHistory, isDebugMode, setDebugMode } from '../utils/debugLogger'
+import { onDebugLog, getLogHistory, clearLogHistory, isDebugMode, setDebugMode, debugLog } from '../utils/debugLogger'
 import { IconBug, IconX, IconTrash, IconMinus, IconGripVertical } from '@tabler/icons-react'
 
 const STATUS_COLORS = { success: '#22c55e', error: '#ef4444', warning: '#f59e0b', info: '#534AB7' }
@@ -7,7 +7,7 @@ const STATUS_BG     = { success: 'rgba(34,197,94,0.1)', error: 'rgba(239,68,68,0
 const CATEGORIES    = ['All', 'Agreement', 'Application', 'Access', 'Notification', 'Storage', 'Auth']
 
 export default function DebugPanel() {
-  const [visible,    setVisible]    = useState(isDebugMode())
+  const [visible,    setVisible]    = useState(() => localStorage.getItem('hqcmd_debug_mode') === 'true')
   const [logs,       setLogs]       = useState(getLogHistory())
   const [minimised,  setMinimised]  = useState(false)
   const [filter,     setFilter]     = useState('All')
@@ -30,6 +30,12 @@ export default function DebugPanel() {
       unsub()
     }
   }, [])
+
+  useEffect(() => {
+    if (visible) {
+      debugLog('System', 'Debug Console activated', { time: new Date().toISOString() }, 'success')
+    }
+  }, [visible])
 
   const handleMouseDown = e => {
     dragging.current = true

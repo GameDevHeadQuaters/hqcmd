@@ -925,6 +925,13 @@ function SystemDebugTab() {
   const brokenRefs = (report.sharedRefs ?? []).filter(r => r.broken)
   const stuckApps  = (report.allApps ?? []).filter(a => a.isStuck)
 
+  function handleDebugToggle() {
+    const newVal = !debugEnabled
+    console.log('[Admin] Setting debug mode:', newVal)
+    setDebugMode(newVal)
+    setDebugEnabled(newVal)
+  }
+
   function renderSystemDebug() {
     try {
       return (
@@ -937,7 +944,7 @@ function SystemDebugTab() {
           <p style={{ color: 'var(--text-secondary)', fontSize: '11px', margin: 0 }}>Shows real-time logs of all operations in a floating window</p>
         </div>
         <button
-          onClick={() => { const newVal = !debugEnabled; setDebugMode(newVal); setDebugEnabled(newVal) }}
+          onClick={handleDebugToggle}
           style={{
             padding: '6px 16px', borderRadius: '9999px', border: 'none', cursor: 'pointer', fontWeight: '500', fontSize: '12px',
             background: debugEnabled ? '#ed2793' : 'var(--bg-hover)',

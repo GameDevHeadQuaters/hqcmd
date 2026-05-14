@@ -748,7 +748,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      {currentUser?.isAdmin && <DebugPanel />}
+      {(currentUser?.isAdmin || currentUser?.isSuperAdmin) && <DebugPanel />}
       <AppLayout topNavProps={topNavProps} sidebarProps={sidebarProps}>
       <Routes>
         <Route path="/"       element={

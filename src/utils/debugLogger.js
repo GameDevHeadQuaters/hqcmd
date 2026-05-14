@@ -9,8 +9,10 @@ export function setDebugMode(enabled) {
   window.dispatchEvent(new CustomEvent('hqcmd_debug_toggle', { detail: { enabled } }))
 }
 
-const listeners = []
-const logHistory = []
+if (!window.__hqcmdDebug) {
+  window.__hqcmdDebug = { listeners: [], logHistory: [] }
+}
+const { listeners, logHistory } = window.__hqcmdDebug
 
 export function debugLog(category, action, data, status = 'info') {
   if (!isDebugMode()) return
