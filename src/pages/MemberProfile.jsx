@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { IconArrowLeft, IconPencil, IconCheck, IconX, IconPlus, IconFolderOff, IconShieldCheck, IconChevronDown, IconChevronUp } from '@tabler/icons-react'
 import { calculateProgress } from '../utils/progress'
 import { PRESET_SKILLS, PRESET_ROLES } from '../utils/skillsList'
 import { ACHIEVEMENTS, ACHIEVEMENT_PATHS } from '../utils/achievements'
+import { checkAndAwardAchievements } from '../utils/checkAchievements'
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
 const PINK = '#ed2793'
@@ -51,8 +52,12 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
     : (() => { try { return JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]').find(u => String(u.id) === String(userId)) ?? null } catch { return null } })()
 
   const [member, setMember] = useState(profileUser ? { ...profileUser } : null)
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(null)
+  const [profileData, setProfileData] = useState(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editBio, setEditBio] = useState('')
+  const [editRole, setEditRole] = useState('')
+  const [editSkills, setEditSkills] = useState([])
   const [newSkill, setNewSkill] = useState('')
   const [achievementsExpanded, setAchievementsExpanded] = useState(true)
   const [verifyStep, setVerifyStep] = useState(null)
@@ -61,6 +66,14 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
   const [verifyNotes, setVerifyNotes] = useState('')
   const [verifyFeedback, setVerifyFeedback] = useState('')
 
+  useEffect(() => {
+    if (!isOwnProfile || !currentUser) return
+    const users = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+    const freshUser = users.find(u => String(u.id) === String(currentUser?.id)) || currentUser
+    setProfileData(freshUser)
+    setMember(freshUser)
+  }, [currentUser]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const displayProjects = isOwnProfile
     ? (projects ?? [])
     : (() => { try { return (JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')[String(userId)]?.projects ?? []).filter(p => p.visibility?.toLowerCase() === 'public') } catch { return [] } })()
@@ -68,60 +81,105 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
   const fa = e => (e.target.style.borderColor = ACCENT)
   const fb = e => (e.target.style.borderColor = 'var(--border-default)')
 
-  function startEdit() {
-    const src = member ?? currentUser
-    setDraft({ name: src?.name || '', bio: src?.bio || '', role: src?.role || '', skills: [...(src?.skills || [])] })
+  function startEditing() {
+    const users = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+    const freshUser = users.find(u => String(u.id) === String(currentUser.id)) || currentUser
+    setEditName(freshUser.name || '')
+    setEditBio(freshUser.bio || '')
+    setEditRole(freshUser.role || '')
+    setEditSkills(freshUser.skills || [])
     setNewSkill('')
-    setEditing(true)
+    setIsEditing(true)
   }
 
   function cancelEdit() {
-    setEditing(false)
-    setDraft(null)
+    setIsEditing(false)
+    setEditName('')
+    setEditBio('')
+    setEditRole('')
+    setEditSkills([])
     setNewSkill('')
   }
 
-  function saveEdit() {
-    const newName = draft.name.trim() || (member ?? currentUser)?.name || ''
-    const newInitials = newName
-      ? newName.split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2)
-      : ((member ?? currentUser)?.initials ?? '')
-    const updates = { name: newName, bio: draft.bio, role: draft.role, skills: draft.skills, initials: newInitials }
-    const updated = { ...(member ?? currentUser), ...updates }
-    setMember(updated)
-    if (currentUser?.id) {
-      setCurrentUser?.(prev => ({ ...prev, ...updates }))
-      if (currentUser.isAdmin || currentUser.id === 'superadmin') {
-        try {
-          const adminProfile = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
-          localStorage.setItem('hqcmd_admin_profile', JSON.stringify({ ...adminProfile, ...updates }))
-        } catch {}
-      } else {
-        try {
-          const raw = localStorage.getItem('hqcmd_users_v3')
-          const list = raw ? JSON.parse(raw) : []
-          localStorage.setItem('hqcmd_users_v3', JSON.stringify(
-            list.map(u => String(u.id) === String(currentUser.id) ? { ...u, ...updates } : u)
-          ))
-        } catch {}
+  function saveProfile() {
+    // Admin path: preserve existing behavior
+    if (currentUser?.isAdmin || currentUser?.id === 'superadmin') {
+      const updates = {
+        name: editName?.trim() || currentUser.name,
+        bio: editBio?.trim() || '',
+        role: editRole?.trim() || '',
+        skills: editSkills || [],
+        initials: (editName?.trim() || currentUser.name)
+          .split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2)
       }
       try {
-        const stored = JSON.parse(localStorage.getItem('hqcmd_currentUser_v3') || '{}')
-        localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify({ ...stored, ...updates }))
+        const adminProfile = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
+        localStorage.setItem('hqcmd_admin_profile', JSON.stringify({ ...adminProfile, ...updates }))
       } catch {}
+      const updatedUser = { ...currentUser, ...updates }
+      try { localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify(updatedUser)) } catch {}
+      setCurrentUser(updatedUser)
+      setMember(updatedUser)
+      setIsEditing(false)
+      return
     }
-    setEditing(false)
-    setDraft(null)
+
+    const USERS_KEY = 'hqcmd_users_v3'
+
+    const updates = {
+      name: editName?.trim() || currentUser.name,
+      bio: editBio?.trim() || '',
+      role: editRole?.trim() || '',
+      skills: editSkills || [],
+      initials: (editName?.trim() || currentUser.name)
+        .split(' ')
+        .map(w => w[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2)
+    }
+
+    console.log('[Profile] Saving updates:', updates)
+
+    // 1. Update users array in localStorage
+    const users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
+    const updatedUsers = users.map(u =>
+      String(u.id) === String(currentUser.id)
+        ? { ...u, ...updates }
+        : u
+    )
+    localStorage.setItem(USERS_KEY, JSON.stringify(updatedUsers))
+
+    // 2. Update currentUser in localStorage
+    const updatedUser = { ...currentUser, ...updates }
+    localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify(updatedUser))
+
+    // 3. Update React state
+    setCurrentUser(updatedUser)
+    setMember(updatedUser)
+
+    // 4. Verify the save worked
+    const verify = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
+    const saved = verify.find(u => String(u.id) === String(currentUser.id))
+    console.log('[Profile] Verified saved bio:', saved?.bio)
+    console.log('[Profile] Verified saved skills:', saved?.skills)
+    console.log('[Profile] Verified saved role:', saved?.role)
+
+    // 5. Exit edit mode
+    setIsEditing(false)
+
+    // 6. Trigger achievement check
+    checkAndAwardAchievements(updatedUser, setCurrentUser)
   }
 
   function removeSkill(skill) {
-    setDraft(d => ({ ...d, skills: d.skills.filter(s => s !== skill) }))
+    setEditSkills(prev => prev.filter(s => s !== skill))
   }
 
   function addSkill() {
     const s = newSkill.trim()
-    if (!s || draft.skills.includes(s)) return
-    setDraft(d => ({ ...d, skills: [...d.skills, s] }))
+    if (!s || editSkills.includes(s)) return
+    setEditSkills(prev => [...prev, s])
     setNewSkill('')
   }
 
@@ -179,7 +237,7 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
       <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
 
 <div className="max-w-2xl mx-auto px-6 py-8 space-y-4">
-          {!editing ? (
+          {!isEditing ? (
             <div className="rounded-lg p-8 flex flex-col items-center text-center" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
               <div className="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-4"
                 style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)' }}>
@@ -187,7 +245,7 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
               </div>
               <h1 className="text-xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{currentUser.name}</h1>
               <p className="text-sm mb-6" style={{ color: 'var(--text-tertiary)' }}>{currentUser.email}</p>
-              <button onClick={startEdit}
+              <button onClick={startEditing}
                 className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-opacity hover:opacity-80"
                 style={{ backgroundColor: ACCENT }}>
                 Set Up Your Profile
@@ -207,8 +265,8 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                       <input
                         className="text-sm rounded-lg px-2.5 py-1.5 outline-none transition-colors w-full"
                         style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                        value={draft?.name ?? ''}
-                        onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
                         onFocus={fa} onBlur={fb}
                         placeholder="Your name"
                       />
@@ -217,8 +275,8 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                       list="role-presets-setup"
                       className="text-sm rounded-lg px-2.5 py-1.5 outline-none transition-colors mb-3 w-48"
                       style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                      value={draft?.role ?? ''}
-                      onChange={e => setDraft(d => ({ ...d, role: e.target.value }))}
+                      value={editRole}
+                      onChange={e => setEditRole(e.target.value)}
                       onFocus={fa} onBlur={fb}
                       placeholder="Your role / title"
                     />
@@ -229,15 +287,15 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                       rows={4}
                       className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors resize-none"
                       style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                      value={draft?.bio ?? ''}
-                      onChange={e => setDraft(d => ({ ...d, bio: e.target.value }))}
+                      value={editBio}
+                      onChange={e => setEditBio(e.target.value)}
                       onFocus={fa} onBlur={fb}
                       placeholder="Tell the team about yourself…"
                     />
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4 pt-4" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                  <button onClick={saveEdit}
+                  <button onClick={saveProfile}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-white transition-opacity hover:opacity-80"
                     style={{ backgroundColor: ACCENT }}>
                     <IconCheck size={14} /> Save Profile
@@ -254,7 +312,7 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
               <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
                 <h2 className="font-semibold text-sm mb-3" style={{ color: 'var(--text-primary)' }}>Skills</h2>
                 <div className="flex flex-wrap gap-2">
-                  {(draft?.skills ?? []).map(skill => (
+                  {editSkills.map(skill => (
                     <span key={skill} className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full"
                       style={{ border: '1px solid var(--border-default)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-elevated)' }}>
                       {skill}
@@ -266,14 +324,14 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                       </button>
                     </span>
                   ))}
-                  {(draft?.skills ?? []).length === 0 && (
+                  {editSkills.length === 0 && (
                     <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No skills added yet.</p>
                   )}
                 </div>
                 <div className="flex flex-wrap gap-1.5 mt-2 mb-1">
-                  {PRESET_SKILLS.filter(s => !(draft?.skills ?? []).includes(s)).slice(0, 12).map(skill => (
+                  {PRESET_SKILLS.filter(s => !editSkills.includes(s)).slice(0, 12).map(skill => (
                     <button key={skill} type="button"
-                      onClick={() => setDraft(d => ({ ...d, skills: [...d.skills, skill] }))}
+                      onClick={() => setEditSkills(prev => [...prev, skill])}
                       className="text-xs px-2.5 py-1 rounded-full border transition-all"
                       style={{ borderColor: 'var(--border-default)', color: 'var(--text-tertiary)', backgroundColor: 'transparent' }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
@@ -307,7 +365,8 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
   }
 
   // ── Normal profile render ──────────────────────────────────────────────────
-  const rc = ROLE_COLORS[member.role] || { bg: 'var(--bg-elevated)', text: 'var(--text-tertiary)' }
+  const displayMember = profileData ?? member
+  const rc = ROLE_COLORS[displayMember.role] || { bg: 'var(--bg-elevated)', text: 'var(--text-tertiary)' }
 
   return (
     <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
@@ -318,19 +377,19 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
           <div className="flex items-start gap-5">
             <div
               className="w-16 h-16 rounded-lg flex items-center justify-center text-white text-xl font-bold flex-shrink-0"
-              style={{ backgroundColor: member.avatarColor || ACCENT }}
+              style={{ backgroundColor: displayMember.avatarColor || ACCENT }}
             >
-              {member.initials}
+              {displayMember.initials}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex items-center flex-wrap gap-1">
-                  <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{member.name}</h1>
-                  <VerificationBadge verification={member.verification} />
+                  <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{displayMember.name}</h1>
+                  <VerificationBadge verification={displayMember.verification} />
                 </div>
-                {!editing && isOwnProfile && (
+                {!isEditing && isOwnProfile && (
                   <button
-                    onClick={startEdit}
+                    onClick={startEditing}
                     className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full flex-shrink-0 transition-colors"
                     style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
                     onMouseEnter={e => {
@@ -348,15 +407,15 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                 )}
               </div>
 
-              {editing ? (
+              {isEditing ? (
                 <>
                   <div className="mb-3">
                     <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Display Name</label>
                     <input
                       className="text-sm rounded-lg px-2.5 py-1.5 outline-none transition-colors w-full"
                       style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                      value={draft.name}
-                      onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
                       onFocus={fa} onBlur={fb}
                       placeholder="Your name"
                     />
@@ -365,8 +424,8 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                     list="role-presets-edit"
                     className="text-sm rounded-lg px-2.5 py-1.5 outline-none transition-colors mb-3 w-48"
                     style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                    value={draft.role}
-                    onChange={e => setDraft(d => ({ ...d, role: e.target.value }))}
+                    value={editRole}
+                    onChange={e => setEditRole(e.target.value)}
                     onFocus={fa} onBlur={fb}
                     placeholder="Role"
                   />
@@ -376,30 +435,30 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                 </>
               ) : (
                 <span className="inline-block text-xs font-medium px-2.5 py-1 rounded-full mb-3" style={{ backgroundColor: rc.bg, color: rc.text }}>
-                  {member.role || 'No role set'}
+                  {displayMember.role || 'No role set'}
                 </span>
               )}
 
-              {editing ? (
+              {isEditing ? (
                 <textarea
                   rows={4}
                   className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors resize-none"
                   style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                  value={draft.bio}
-                  onChange={e => setDraft(d => ({ ...d, bio: e.target.value }))}
+                  value={editBio}
+                  onChange={e => setEditBio(e.target.value)}
                   onFocus={fa} onBlur={fb}
                   placeholder="Tell the team about yourself…"
                 />
               ) : (
-                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{member.bio || 'No bio yet.'}</p>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{displayMember.bio || 'No bio yet.'}</p>
               )}
             </div>
           </div>
 
-          {editing && (
+          {isEditing && (
             <div className="flex gap-2 mt-4 pt-4" style={{ borderTop: '1px solid var(--border-subtle)' }}>
               <button
-                onClick={saveEdit}
+                onClick={saveProfile}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-white transition-opacity hover:opacity-80"
                 style={{ backgroundColor: ACCENT }}
               >
@@ -423,14 +482,14 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
         <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
           <h2 className="font-semibold text-sm mb-3" style={{ color: 'var(--text-primary)' }}>Skills</h2>
           <div className="flex flex-wrap gap-2">
-            {(editing ? draft.skills : (member.skills || [])).map(skill => (
+            {(isEditing ? editSkills : (displayMember.skills || [])).map(skill => (
               <span
                 key={skill}
                 className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full"
                 style={{ border: '1px solid var(--border-default)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-elevated)' }}
               >
                 {skill}
-                {editing && (
+                {isEditing && (
                   <button
                     onClick={() => removeSkill(skill)}
                     className="leading-none ml-0.5 transition-colors"
@@ -443,17 +502,17 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                 )}
               </span>
             ))}
-            {!editing && (member.skills || []).length === 0 && (
+            {!isEditing && (displayMember.skills || []).length === 0 && (
               <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No skills listed yet.</p>
             )}
           </div>
 
-          {editing && (
+          {isEditing && (
             <>
               <div className="flex flex-wrap gap-1.5 mt-2 mb-1">
-                {PRESET_SKILLS.filter(s => !(draft?.skills ?? []).includes(s)).slice(0, 12).map(skill => (
+                {PRESET_SKILLS.filter(s => !editSkills.includes(s)).slice(0, 12).map(skill => (
                   <button key={skill} type="button"
-                    onClick={() => setDraft(d => ({ ...d, skills: [...d.skills, skill] }))}
+                    onClick={() => setEditSkills(prev => [...prev, skill])}
                     className="text-xs px-2.5 py-1 rounded-full border transition-all"
                     style={{ borderColor: 'var(--border-default)', color: 'var(--text-tertiary)', backgroundColor: 'transparent' }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
@@ -487,7 +546,7 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
 
         {/* Achievements */}
         {(() => {
-          const earnedIds = (member.achievements || []).map(a => typeof a === 'string' ? a : a.id)
+          const earnedIds = (displayMember.achievements || []).map(a => typeof a === 'string' ? a : a.id)
           const earned = ACHIEVEMENTS.filter(a => earnedIds.includes(a.id))
           const pathGroups = Object.entries(ACHIEVEMENT_PATHS).map(([pathKey, pathMeta]) => ({
             pathKey, pathMeta,
@@ -551,16 +610,16 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
               <h2 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Verification</h2>
             </div>
             {(() => {
-              const vs = member.verification?.status
+              const vs = displayMember.verification?.status
               if (vs && vs !== 'none') {
-                const tier = VERIFY_TIER_OPTIONS.find(t => t.key === member.verification?.tier)
+                const tier = VERIFY_TIER_OPTIONS.find(t => t.key === displayMember.verification?.tier)
                 if (vs === 'pending') {
                   return (
                     <div className="mt-3 flex items-center gap-2 px-3 py-2.5 rounded-lg" style={{ backgroundColor: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }}>
                       <span className="text-sm">⏳</span>
                       <div>
                         <p className="text-xs font-medium" style={{ color: '#fbbf24' }}>Request pending review</p>
-                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Tier: {tier?.label ?? member.verification.tier}</p>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Tier: {tier?.label ?? displayMember.verification.tier}</p>
                       </div>
                     </div>
                   )
