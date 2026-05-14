@@ -90,14 +90,17 @@ export default function Agreements({
     const myData = allData[myId] || allData[currentUser.id] || {}
     const allAgreements = myData.agreements || []
 
-    console.log('[Agreements] myId:', myId, 'agreements:', allAgreements.length)
-    allAgreements.forEach(a => console.log('  -', a.templateName, 'status:', a.status, 'isReceived:', a.isReceived))
-
+    // Agreements to sign: received and not yet signed
     setAgreementsToSign(allAgreements.filter(a =>
       a.isReceived === true &&
       !['fully_signed', 'signed', 'completed'].includes(a.status)
     ))
-    setMyAgreements(allAgreements.filter(a => !a.isReceived))
+
+    // My Agreements: agreements I created/sent + fully signed received agreements
+    setMyAgreements(allAgreements.filter(a =>
+      !a.isReceived ||
+      ['fully_signed', 'signed', 'completed'].includes(a.status)
+    ))
   }, [currentUser])
 
   useEffect(() => {
@@ -379,6 +382,11 @@ export default function Agreements({
                       <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
                         {a.projectTitle ? `${a.projectTitle} · ` : ''}{formatDate(a.signedAt)}
                       </p>
+                      {a.isReceived && (
+                        <p className="text-xs" style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          From: {a.fromName || a.counterpartyName || 'Unknown'} · Signed by you on {new Date(a.signedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </p>
+                      )}
                     </div>
                     <StatusBadge status={a.status} />
                   </button>
