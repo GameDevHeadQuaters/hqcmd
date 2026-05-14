@@ -193,6 +193,7 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
+  const [showLimitModal, setShowLimitModal] = useState(false)
 
   const [sharedProjects, setSharedProjects] = useState([])
 
@@ -286,6 +287,18 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
     setCreating(false)
   }
 
+  function handleNewProject() {
+    try {
+      const allData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+      const ownedProjects = allData[String(currentUser?.id)]?.projects || []
+      if (ownedProjects.length >= 3) {
+        setShowLimitModal(true)
+        return
+      }
+    } catch {}
+    setCreating(true)
+  }
+
   return (
     <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
 
@@ -294,10 +307,13 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
         <div className="hq-hero rounded-lg p-6 mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold" style={{ color: 'white' }}>My Projects</h1>
-            <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.65)' }}>{projects.length} project{projects.length !== 1 ? 's' : ''}</p>
+            <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.65)' }}>
+              {projects.length} project{projects.length !== 1 ? 's' : ''}
+              <span style={{ marginLeft: '8px', opacity: 0.7 }}>· {projects.length} / 3 used</span>
+            </p>
           </div>
           <button
-            onClick={() => setCreating(true)}
+            onClick={handleNewProject}
             className="flex items-center gap-2 text-sm font-medium px-5 py-2.5 rounded-full transition-opacity hover:opacity-90"
             style={{ background: 'linear-gradient(90deg, #534AB7, #ed2793)', color: 'white' }}
           >
@@ -393,6 +409,24 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
           onSave={handleSave}
           onClose={() => setCreating(false)}
         />
+      )}
+
+      {showLimitModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: '12px', padding: '28px', maxWidth: '380px', textAlign: 'center' }}>
+            <IconFolderOff size={40} style={{ color: 'var(--brand-pink)', marginBottom: '12px' }} />
+            <h3 style={{ color: 'var(--text-primary)', marginBottom: '8px' }}>Beta Project Limit Reached</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.6', marginBottom: '20px' }}>
+              Beta accounts are limited to <strong>3 projects</strong>. This helps us keep things stable while we're getting started. Full launch accounts will have no limit.
+            </p>
+            <button
+              onClick={() => setShowLimitModal(false)}
+              style={{ background: 'var(--brand-accent)', color: 'white', border: 'none', borderRadius: '9999px', padding: '10px 24px', cursor: 'pointer', fontWeight: '500', fontSize: '13px' }}
+            >
+              Got it
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
