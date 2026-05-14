@@ -84,7 +84,11 @@ export default function Agreements({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agreements, currentUser?.id])
 
-  const toSign = myAgreements.filter(a => a.isReceived && a.status === 'awaiting_my_signature')
+  const toSign = myAgreements.filter(a =>
+    a.isReceived === true &&
+    a.status !== 'fully_signed' &&
+    a.status !== 'signed'
+  )
   const myOwnAgreements = myAgreements.filter(a => !a.isReceived)
 
   const filteredTemplates = AGREEMENT_TEMPLATES.filter(t =>

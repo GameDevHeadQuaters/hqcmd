@@ -705,7 +705,7 @@ export default function App() {
           />
         } />
 
-        <Route path="/profile/:memberId" element={
+        <Route path="/profile/:userId" element={
           <MemberProfile
             currentUser={currentUser}
             setCurrentUser={setCurrentUser}

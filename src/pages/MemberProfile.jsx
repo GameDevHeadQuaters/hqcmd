@@ -16,19 +16,23 @@ const ROLE_COLORS = {
 }
 
 export default function MemberProfile({ currentUser, setCurrentUser, projects, setActiveProjectId, getProjectImage }) {
-  const { memberId } = useParams()
+  const { userId } = useParams()
   const navigate = useNavigate()
 
-  const memberIdNum = parseInt(memberId, 10)
-  const isOwnProfile = currentUser && (
-    currentUser.id === memberIdNum || String(currentUser.id) === memberId
-  )
-  const base = isOwnProfile ? currentUser : null
+  const isOwnProfile = !userId || userId === String(currentUser?.id)
 
-  const [member, setMember] = useState(base ? { ...base } : null)
+  const profileUser = isOwnProfile
+    ? currentUser
+    : (() => { try { return JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]').find(u => String(u.id) === String(userId)) ?? null } catch { return null } })()
+
+  const [member, setMember] = useState(profileUser ? { ...profileUser } : null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(null)
   const [newSkill, setNewSkill] = useState('')
+
+  const displayProjects = isOwnProfile
+    ? (projects ?? [])
+    : (() => { try { return (JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')[String(userId)]?.projects ?? []).filter(p => p.visibility?.toLowerCase() === 'public') } catch { return [] } })()
 
   const fa = e => (e.target.style.borderColor = ACCENT)
   const fb = e => (e.target.style.borderColor = 'var(--border-default)')
@@ -354,31 +358,34 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
         {/* Projects */}
         <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
           <h2 className="font-semibold text-sm mb-3" style={{ color: 'var(--text-primary)' }}>Projects</h2>
-          {(projects ?? []).length === 0 ? (
+          {displayProjects.length === 0 ? (
             <div className="flex flex-col items-center py-6 text-center">
               <IconFolderOff size={32} style={{ color: 'var(--brand-purple)' }} className="mb-2" />
               <p className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>No projects yet</p>
-              <button
-                onClick={() => navigate('/projects')}
-                className="text-xs transition-opacity hover:opacity-70"
-                style={{ color: '#805da8' }}
-              >
-                Head to My Projects to create your first one
-              </button>
+              {isOwnProfile && (
+                <button
+                  onClick={() => navigate('/projects')}
+                  className="text-xs transition-opacity hover:opacity-70"
+                  style={{ color: '#805da8' }}
+                >
+                  Head to My Projects to create your first one
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-2">
-              {(projects ?? []).map(project => {
+              {displayProjects.map(project => {
                 const coverImage = getProjectImage?.(project.id)
                 const progress = calculateProgress(project)
+                const Tag = isOwnProfile ? 'button' : 'div'
                 return (
-                  <button
+                  <Tag
                     key={project.id}
-                    onClick={() => { setActiveProjectId?.(project.id); navigate('/workstation') }}
+                    onClick={isOwnProfile ? () => { setActiveProjectId?.(project.id); navigate('/workstation') } : undefined}
                     className="w-full flex items-center gap-3 py-2.5 px-3 rounded-lg text-left transition-colors"
-                    style={{ backgroundColor: 'var(--bg-elevated)' }}
-                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'var(--bg-elevated)')}
+                    style={{ backgroundColor: 'var(--bg-elevated)', cursor: isOwnProfile ? 'pointer' : 'default' }}
+                    onMouseEnter={isOwnProfile ? e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)') : undefined}
+                    onMouseLeave={isOwnProfile ? e => (e.currentTarget.style.backgroundColor = 'var(--bg-elevated)') : undefined}
                   >
                     <div
                       className="w-10 h-10 rounded-lg flex-shrink-0"
@@ -396,7 +403,7 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                         />
                       </div>
                     </div>
-                  </button>
+                  </Tag>
                 )
               })}
             </div>

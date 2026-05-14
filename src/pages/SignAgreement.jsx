@@ -165,8 +165,24 @@ export default function SignAgreement({ userData, onCountersign, onNotifyOwner }
             },
             ...(allUD[ownerKey].notifications ?? []),
           ]
-          localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allUD))
         }
+        // Update the received copy in the signer's agreements so it no longer appears in "to sign"
+        const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+        const signer = allUsers.find(u =>
+          u.email?.toLowerCase().trim() === signerEmail.trim().toLowerCase()
+        )
+        if (signer) {
+          const signerId = String(signer.id)
+          const signerAgreements = allUD[signerId]?.agreements || []
+          const receivedIdx = signerAgreements.findIndex(a =>
+            a.shareToken === token && a.isReceived === true
+          )
+          if (receivedIdx !== -1) {
+            allUD[signerId].agreements[receivedIdx].status = 'fully_signed'
+            allUD[signerId].agreements[receivedIdx].signedAt = counterpartySignedAt
+          }
+        }
+        localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allUD))
       }
     } catch (e) {
       console.warn('hqcmd: failed to write countersignature to localStorage', e)

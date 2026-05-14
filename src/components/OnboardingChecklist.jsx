@@ -65,7 +65,14 @@ function checkInvitedMember(currentUser) {
 
     const isInSharedProject = (allData[myId]?.sharedProjects || []).length > 0
 
-    return hasTeamMembers || hasApplied || isInSharedProject
+    const sentInvite = Object.keys(allData).some(uid => {
+      return (allData[uid]?.directMessages || []).some(m =>
+        m.type === 'invite' &&
+        (m.fromName === currentUser.name || String(m.fromUserId) === String(currentUser.id))
+      )
+    })
+
+    return hasTeamMembers || hasApplied || isInSharedProject || sentInvite
   } catch { return false }
 }
 
