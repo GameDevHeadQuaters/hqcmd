@@ -68,7 +68,7 @@ export default function Agreements({
   onAddDirectMessageForUser,
 }) {
   const navigate = useNavigate()
-  const [tab, setTab] = useState('library')
+  const [tab, setTab] = useState('my-agreements')
   const [search, setSearch] = useState('')
   const [builderTemplate, setBuilderTemplate] = useState(null)
   const [builderOpen, setBuilderOpen] = useState(false)
@@ -221,8 +221,8 @@ export default function Agreements({
         {/* Tabs */}
         <div className="flex mb-6 gap-0.5" style={{ borderBottom: '1px solid var(--border-default)' }}>
           {[
-            { id: 'library', label: 'Template Library' },
             { id: 'my-agreements', label: `My Agreements${myOwnAgreements.length > 0 ? ` (${myOwnAgreements.length})` : ''}` },
+            { id: 'library', label: 'Template Library' },
           ].map(t => (
             <button
               key={t.id}

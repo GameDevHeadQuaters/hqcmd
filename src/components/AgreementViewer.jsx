@@ -153,7 +153,6 @@ export default function AgreementViewer({
       status: 'awaiting_my_signature',
       read: false,
     }
-    alert('[DEBUG] deliverAgreementToRecipient called for: ' + cpEmail.trim())
     deliverAgreementToRecipient(String(counterparty.id), receivedAgreement)
 
     setSendStatus('sent')
@@ -383,13 +382,17 @@ export default function AgreementViewer({
               <div className="flex gap-2">
                 <button
                   onClick={sendToInbox}
+                  disabled={sendStatus === 'sent'}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-sm font-semibold text-white transition-colors"
-                  style={{ backgroundColor: ACCENT }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
+                  style={{
+                    backgroundColor: sendStatus === 'sent' ? 'rgba(34,197,94,0.8)' : ACCENT,
+                    cursor: sendStatus === 'sent' ? 'default' : 'pointer',
+                  }}
+                  onMouseEnter={e => { if (sendStatus !== 'sent') e.currentTarget.style.backgroundColor = ACCENT_DARK }}
+                  onMouseLeave={e => { if (sendStatus !== 'sent') e.currentTarget.style.backgroundColor = ACCENT }}
                 >
-                  <IconSend size={14} />
-                  Send to Inbox
+                  {sendStatus === 'sent' ? <IconCheck size={14} /> : <IconSend size={14} />}
+                  {sendStatus === 'sent' ? '✓ Sent to Inbox' : 'Send to Inbox'}
                 </button>
                 <button
                   onClick={copyLink}

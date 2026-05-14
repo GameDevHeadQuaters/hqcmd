@@ -1,8 +1,21 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconUser, IconSettings, IconLogout, IconLayoutDashboard, IconInbox, IconFileText, IconUsers, IconAddressBook } from '@tabler/icons-react'
 
 export default function ProfileDropdown({ onClose, currentUser, onSignOut, onGoToTeam }) {
   const navigate = useNavigate()
+  const [unsignedCount, setUnsignedCount] = useState(0)
+
+  useEffect(() => {
+    try {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const myAgreements = allData[String(currentUser?.id)]?.agreements || []
+      setUnsignedCount(myAgreements.filter(a =>
+        a.isReceived === true &&
+        (a.status === 'awaiting_my_signature' || a.status === 'pending_countersign')
+      ).length)
+    } catch {}
+  }, [currentUser?.id])
 
   function go(path) {
     onClose()
@@ -23,7 +36,7 @@ export default function ProfileDropdown({ onClose, currentUser, onSignOut, onGoT
     { Icon: IconUsers,           label: 'My Teams',         action: () => go('/teams')       },
     { Icon: IconAddressBook,     label: 'Directory',        action: () => go('/directory')   },
     { Icon: IconInbox,           label: 'Inbox',            action: () => go('/inbox')       },
-    { Icon: IconFileText,        label: 'Agreements',       action: () => go('/agreements')  },
+    { Icon: IconFileText,        label: 'Agreements',       action: () => go('/agreements'),  badge: unsignedCount },
     { Icon: IconSettings,        label: 'Account Settings', action: () => go('/account')     },
   ]
 
@@ -41,7 +54,7 @@ export default function ProfileDropdown({ onClose, currentUser, onSignOut, onGoT
         <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{currentUser?.email ?? 'alex@hqcmd.io'}</p>
       </div>
 
-      {mainItems.map(({ Icon, label, action }) => (
+      {mainItems.map(({ Icon, label, action, badge }) => (
         <button
           key={label}
           onClick={action}
@@ -51,7 +64,14 @@ export default function ProfileDropdown({ onClose, currentUser, onSignOut, onGoT
           onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
         >
           <Icon size={15} style={{ color: 'var(--text-tertiary)' }} />
-          {label}
+          <span className="flex-1">{label}</span>
+          {badge > 0 && (
+            <span style={{
+              backgroundColor: '#ed2793', color: 'white',
+              fontSize: '10px', fontWeight: 600,
+              padding: '1px 6px', borderRadius: '99px',
+            }}>{badge}</span>
+          )}
         </button>
       ))}
 

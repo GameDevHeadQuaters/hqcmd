@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   IconLayoutDashboard, IconDeviceDesktop, IconCompass, IconUsers, IconInbox,
@@ -95,6 +95,23 @@ export default function Sidebar({
   const { theme, setTheme } = useTheme()
   const isDark = theme === 'dark'
   const [projectDropOpen, setProjectDropOpen] = useState(false)
+  const [unsignedReceived, setUnsignedReceived] = useState(0)
+
+  useEffect(() => {
+    function refresh() {
+      try {
+        const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+        const myAgreements = allData[String(currentUser?.id)]?.agreements || []
+        setUnsignedReceived(myAgreements.filter(a =>
+          a.isReceived === true &&
+          (a.status === 'awaiting_my_signature' || a.status === 'pending_countersign')
+        ).length)
+      } catch {}
+    }
+    refresh()
+    const interval = setInterval(refresh, 5000)
+    return () => clearInterval(interval)
+  }, [currentUser?.id])
 
   const activeProject = projects.find(p => p.id === activeProjectId) ?? projects[0] ?? null
 
@@ -275,7 +292,7 @@ export default function Sidebar({
         <NavItem icon={IconInbox}        label="Inbox"           path="/inbox"       active={is('/inbox')}       collapsed={collapsed} badge={unreadInboxCount} />
 
         <SectionLabel label="Manage" collapsed={collapsed} />
-        <NavItem icon={IconWritingSign}     label="Agreements"   path="/agreements"  active={is('/agreements')}  collapsed={collapsed} />
+        <NavItem icon={IconWritingSign}     label="Agreements"   path="/agreements"  active={is('/agreements')}  collapsed={collapsed} badge={unsignedReceived} />
         <NavItem icon={IconCurrencyDollar}  label="Budget"       path={budgetPath}   active={pathname.startsWith('/budget')} collapsed={collapsed} />
 
       </div>
