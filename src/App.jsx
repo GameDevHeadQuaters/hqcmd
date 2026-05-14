@@ -284,7 +284,14 @@ export default function App() {
   const [userData, setUserData] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.userData)
-      return saved ? deserializeUserData(JSON.parse(saved)) : {}
+      if (!saved) return {}
+      const raw = JSON.parse(saved)
+      // Strip agreements from React state — they're managed directly in localStorage.
+      // This prevents stale React state from overwriting signed agreements on persist.
+      const stripped = Object.fromEntries(
+        Object.entries(raw).map(([uid, slot]) => [uid, { ...slot, agreements: [] }])
+      )
+      return deserializeUserData(stripped)
     } catch { return {} }
   })
 
@@ -294,6 +301,25 @@ export default function App() {
       return saved ? JSON.parse(saved) : null
     } catch { return null }
   })
+
+  // Agreements live outside userData React state — read/written directly from localStorage.
+  function loadAgreementsFromLS(uid) {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.userData)
+      const allUD = raw ? JSON.parse(raw) : {}
+      return allUD[uid]?.agreements ?? []
+    } catch { return [] }
+  }
+
+  const [agreementsState, setAgreementsState] = useState(() => {
+    try {
+      const cu = localStorage.getItem(STORAGE_KEYS.currentUser)
+      const user = cu ? JSON.parse(cu) : null
+      if (!user) return []
+      return loadAgreementsFromLS(String(user.id))
+    } catch { return [] }
+  })
+
   const [activeProjectId, setActiveProjectId] = useState(null)
   const [activeOwnerUserId, setActiveOwnerUserId] = useState(null) // null = own project
   const [calendarEvents, setCalendarEvents] = useState([])
@@ -302,19 +328,8 @@ export default function App() {
     safeSet(STORAGE_KEYS.users, JSON.stringify(users))
   }, [users])
 
-  // Agreement status priority — higher number = more advanced state
-  const STATUS_PRIORITY = {
-    'draft': 0,
-    'awaiting_my_signature': 1,
-    'pending_countersign': 2,
-    'fully_signed': 3,
-    'signed': 3,
-    'completed': 3,
-  }
-
-  // Only write the CURRENT user's slot — never overwrite other users' data with stale React state.
-  // Merges agreements (keeps highest-priority status) and notifications (keeps read:true) so that
-  // direct localStorage writes from SignAgreement are never clobbered by stale React state.
+  // Persist current user's slot — agreements are excluded from React state and always
+  // read/written directly from localStorage, so the persist effect never touches them.
   useEffect(() => {
     if (!currentUser) return
     const uid = String(currentUser.id)
@@ -327,27 +342,13 @@ export default function App() {
       const freshSlot = serialized[uid]
       const lsSlot = allUD[uid] || {}
 
-      // Merge agreements: always keep the more advanced status
-      const lsAgreements    = lsSlot.agreements    || []
-      const stateAgreements = freshSlot.agreements || []
-
-      const mergedAgreements = stateAgreements.map(stateAg => {
-        const lsAg = lsAgreements.find(a => a.id === stateAg.id || a.shareToken === stateAg.shareToken)
-        if (!lsAg) return stateAg
-        const lsPri    = STATUS_PRIORITY[lsAg.status]    ?? 0
-        const statePri = STATUS_PRIORITY[stateAg.status] ?? 0
-        return lsPri >= statePri ? lsAg : stateAg
-      })
-      // Preserve any agreements in localStorage not yet in React state
-      lsAgreements.forEach(lsAg => {
-        const exists = mergedAgreements.find(a => a.id === lsAg.id || a.shareToken === lsAg.shareToken)
-        if (!exists) mergedAgreements.push(lsAg)
-      })
+      // Always preserve LS agreements — React state has none (stripped on load).
+      // This is the whole point: no React state write can ever regress a signed status.
+      const agreements = lsSlot.agreements || []
 
       // Merge notifications: keep read:true if either copy has it
       const lsNotifs    = lsSlot.notifications    || []
       const stateNotifs = freshSlot.notifications || []
-
       const mergedNotifs = stateNotifs.map(stateN => {
         const lsN = lsNotifs.find(n => n.id === stateN.id)
         if (!lsN) return stateN
@@ -358,16 +359,16 @@ export default function App() {
         if (!exists) mergedNotifs.push(lsN)
       })
 
-      allUD[uid] = { ...freshSlot, agreements: mergedAgreements, notifications: mergedNotifs }
+      allUD[uid] = { ...freshSlot, agreements, notifications: mergedNotifs }
       safeSet(STORAGE_KEYS.userData, JSON.stringify(allUD))
     } catch (e) {
       console.warn('hqcmd: userData persist failed', e)
-      // Fallback: write as-is rather than losing data entirely
       try {
         const raw = localStorage.getItem(STORAGE_KEYS.userData)
         const allUD = raw ? JSON.parse(raw) : {}
         const serialized = serializeUserData({ [uid]: userData[uid] })
-        allUD[uid] = serialized[uid]
+        const lsAgreements = allUD[uid]?.agreements ?? []
+        allUD[uid] = { ...serialized[uid], agreements: lsAgreements }
         safeSet(STORAGE_KEYS.userData, JSON.stringify(allUD))
       } catch {}
     }
@@ -376,6 +377,23 @@ export default function App() {
   useEffect(() => {
     safeSet(STORAGE_KEYS.currentUser, JSON.stringify(currentUser))
   }, [currentUser])
+
+  // Refresh agreementsState when the user logs in/out
+  useEffect(() => {
+    if (!currentUser) { setAgreementsState([]); return }
+    setAgreementsState(loadAgreementsFromLS(String(currentUser.id)))
+  }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Refresh agreementsState when the tab regains focus (user may have signed on sign page)
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState === 'visible' && currentUser) {
+        setAgreementsState(loadAgreementsFromLS(String(currentUser.id)))
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Achievement polling ────────────────────────────────────────────────────
 
@@ -467,10 +485,19 @@ export default function App() {
   function setAgreements(updater) {
     if (!currentUser) return
     const uid = String(currentUser.id)
-    setUserData(prev => {
-      const d = prev[uid] ?? emptyUserData()
-      const next = typeof updater === 'function' ? updater(d.agreements ?? []) : updater
-      return { ...prev, [uid]: { ...d, agreements: next } }
+    // Write directly to localStorage — agreements never go through userData React state
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.userData)
+      const allUD = raw ? JSON.parse(raw) : {}
+      const current = allUD[uid]?.agreements ?? []
+      const next = typeof updater === 'function' ? updater(current) : updater
+      allUD[uid] = { ...(allUD[uid] ?? {}), agreements: next }
+      safeSet(STORAGE_KEYS.userData, JSON.stringify(allUD))
+    } catch {}
+    // Also update agreementsState for reactive UI
+    setAgreementsState(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      return next
     })
   }
 
@@ -518,18 +545,22 @@ export default function App() {
   }
 
   function countersignAgreement(ownerId, agreementId, updates) {
-    setUserData(prev => {
-      const d = prev[String(ownerId)] ?? emptyUserData()
-      return {
-        ...prev,
-        [String(ownerId)]: {
-          ...d,
-          agreements: (d.agreements ?? []).map(a =>
-            a.id === agreementId ? { ...a, ...updates } : a
-          ),
-        },
+    // Agreements are excluded from React state — write directly to localStorage
+    const sid = String(ownerId)
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.userData)
+      const allUD = raw ? JSON.parse(raw) : {}
+      const current = allUD[sid]?.agreements ?? []
+      allUD[sid] = {
+        ...(allUD[sid] ?? {}),
+        agreements: current.map(a => a.id === agreementId ? { ...a, ...updates } : a),
       }
-    })
+      safeSet(STORAGE_KEYS.userData, JSON.stringify(allUD))
+    } catch {}
+    // Update agreementsState if this is the current user's slot
+    if (currentUser && String(currentUser.id) === sid) {
+      setAgreementsState(prev => prev.map(a => a.id === agreementId ? { ...a, ...updates } : a))
+    }
   }
 
   function setProjects(updater) {
@@ -548,7 +579,13 @@ export default function App() {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.userData)
       const allData = raw ? JSON.parse(raw) : {}
-      setUserData(deserializeUserData(allData))
+      const stripped = Object.fromEntries(
+        Object.entries(allData).map(([uid, slot]) => [uid, { ...slot, agreements: [] }])
+      )
+      setUserData(deserializeUserData(stripped))
+      if (currentUser) {
+        setAgreementsState(allData[String(currentUser.id)]?.agreements ?? [])
+      }
     } catch (e) {
       console.warn('hqcmd: refreshUserData failed', e)
     }
@@ -766,7 +803,9 @@ export default function App() {
 
   // ── Derived data for current user ─────────────────────────────────────────
 
-  const { projects, applications, directMessages, notifications, agreements, contacts, sharedProjects, onboarding } = getUserData()
+  const { projects, applications, directMessages, notifications, contacts, sharedProjects, onboarding } = getUserData()
+  // Agreements are read directly from localStorage state — never from userData React state
+  const agreements = agreementsState
 
   // Resolve the active project — may be from owner's slot (shared project)
   const activeProject = activeOwnerUserId
