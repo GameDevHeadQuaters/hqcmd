@@ -80,8 +80,16 @@ export default function SignAgreement({ userData, onCountersign, onNotifyOwner }
   const [pageState, setPageState] = useState('loading')
   const [found, setFound] = useState(null)
 
-  const [signerName,   setSignerName]   = useState('')
-  const [signerEmail,  setSignerEmail]  = useState('')
+  // Auto-fill from the logged-in user if present
+  const currentUser = (() => {
+    try {
+      const raw = localStorage.getItem('hqcmd_currentUser_v3')
+      return raw ? JSON.parse(raw) : null
+    } catch { return null }
+  })()
+
+  const [signerName,   setSignerName]   = useState(currentUser?.name  || '')
+  const [signerEmail,  setSignerEmail]  = useState(currentUser?.email || '')
   const [readChecked,  setReadChecked]  = useState(false)
   const [iAgree,       setIAgree]       = useState('')
   const [signing,      setSigning]      = useState(false)
@@ -439,35 +447,48 @@ export default function SignAgreement({ userData, onCountersign, onNotifyOwner }
           </h2>
 
           <div className="space-y-4 mb-5">
-            <div>
-              <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>
-                Full Name <span style={{ color: '#ed2793' }}>*</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                Full Legal Name <span style={{ color: '#ed2793' }}>*</span>
+                <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '99px', background: 'rgba(237,39,147,0.15)', color: '#ed2793', border: '1px solid rgba(237,39,147,0.3)' }}>
+                  Must be your legal name
+                </span>
               </label>
               <input
                 type="text"
                 className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
                 style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                placeholder="Enter your full legal name"
+                placeholder="Your full legal name"
                 value={signerName}
                 onChange={e => setSignerName(e.target.value)}
                 onFocus={e => (e.target.style.borderColor = ACCENT)}
                 onBlur={e => (e.target.style.borderColor = 'var(--border-default)')}
               />
+              <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: 0 }}>
+                ⚠ Please use your full legal name as it appears on official documents. This name will appear on the signed agreement.
+              </p>
             </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>
                 Email Address <span style={{ color: '#ed2793' }}>*</span>
               </label>
-              <input
-                type="email"
-                className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
-                style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                placeholder="your@email.com"
-                value={signerEmail}
-                onChange={e => setSignerEmail(e.target.value)}
-                onFocus={e => (e.target.style.borderColor = ACCENT)}
-                onBlur={e => (e.target.style.borderColor = 'var(--border-default)')}
-              />
+              {currentUser ? (
+                <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', fontSize: '13px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>{currentUser.email}</span>
+                  <span style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>from your account</span>
+                </div>
+              ) : (
+                <input
+                  type="email"
+                  className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
+                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                  placeholder="your@email.com"
+                  value={signerEmail}
+                  onChange={e => setSignerEmail(e.target.value)}
+                  onFocus={e => (e.target.style.borderColor = ACCENT)}
+                  onBlur={e => (e.target.style.borderColor = 'var(--border-default)')}
+                />
+              )}
             </div>
           </div>
 
