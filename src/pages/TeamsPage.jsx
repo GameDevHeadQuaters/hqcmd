@@ -9,6 +9,7 @@ import {
 import AgreementSendModal from '../components/AgreementSendModal'
 import { sendEmail, accessGrantedEmail } from '../utils/sendEmail'
 import { debugLog } from '../utils/debugLogger'
+import { canManageMember } from '../utils/permissions'
 
 const ACCENT = '#534AB7'
 const UD_KEY = 'hqcmd_userData_v4'
@@ -654,39 +655,55 @@ export default function TeamsPage({
                                     </div>
                                   </td>
                                   <td className="px-5 py-3">
-                                    {project.isOwned ? (
-                                      <div className="flex items-center gap-2">
-                                        <select
-                                          className="text-xs rounded-lg px-2.5 py-1.5 outline-none appearance-none cursor-pointer"
-                                          style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
-                                          value={pendingPos ?? m.position ?? 'Member'}
-                                          onChange={e => {
-                                            const val = e.target.value
-                                            if (val === (m.position ?? 'Member')) {
-                                              setPendingPositions(prev => { const n = { ...prev }; delete n[pk]; return n })
-                                            } else {
-                                              setPendingPositions(prev => ({ ...prev, [pk]: val }))
-                                            }
-                                          }}
-                                          onFocus={fi} onBlur={fb}
-                                        >
-                                          {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                                        </select>
-                                        {feedback ? (
-                                          <span className="text-xs" style={{ color: 'var(--status-success)' }}>{feedback}</span>
-                                        ) : pendingPos ? (
-                                          <button onClick={() => savePosition(project, m)}
-                                            className="text-xs font-medium px-2.5 py-1 rounded-full text-white transition-opacity hover:opacity-80"
-                                            style={{ backgroundColor: ACCENT }}>
-                                            Save Role
-                                          </button>
-                                        ) : null}
-                                      </div>
-                                    ) : (
-                                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
-                                        {m.position ?? 'Member'}
-                                      </span>
-                                    )}
+                                    {(() => {
+                                      const myRole = project.userRole || 'Observer'
+                                      const memberRole = m.position ?? m.role ?? 'Member'
+                                      const isSelf = String(m.userId || m.id) === String(currentUser?.id)
+                                      const canManage = !isSelf && canManageMember(myRole, memberRole)
+                                      if (isSelf) {
+                                        return <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>{memberRole} (you)</span>
+                                      }
+                                      if (canManage) {
+                                        return (
+                                          <div className="flex items-center gap-2">
+                                            <select
+                                              className="text-xs rounded-lg px-2.5 py-1.5 outline-none appearance-none cursor-pointer"
+                                              style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                                              value={pendingPos ?? m.position ?? 'Member'}
+                                              onChange={e => {
+                                                const val = e.target.value
+                                                if (val === (m.position ?? 'Member')) {
+                                                  setPendingPositions(prev => { const n = { ...prev }; delete n[pk]; return n })
+                                                } else {
+                                                  setPendingPositions(prev => ({ ...prev, [pk]: val }))
+                                                }
+                                              }}
+                                              onFocus={fi} onBlur={fb}
+                                            >
+                                              {myRole === 'Owner' && <option value="Owner">Owner</option>}
+                                              {myRole === 'Owner' && <option value="Co-leader">Co-leader</option>}
+                                              <option value="Member">Member</option>
+                                              <option value="Contributor">Contributor</option>
+                                              <option value="Observer">Observer</option>
+                                            </select>
+                                            {feedback ? (
+                                              <span className="text-xs" style={{ color: 'var(--status-success)' }}>{feedback}</span>
+                                            ) : pendingPos ? (
+                                              <button onClick={() => savePosition(project, m)}
+                                                className="text-xs font-medium px-2.5 py-1 rounded-full text-white transition-opacity hover:opacity-80"
+                                                style={{ backgroundColor: ACCENT }}>
+                                                Save Role
+                                              </button>
+                                            ) : null}
+                                          </div>
+                                        )
+                                      }
+                                      return (
+                                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+                                          {memberRole}
+                                        </span>
+                                      )
+                                    })()}
                                   </td>
                                   <td className="px-5 py-3">
                                     {agStatus.type === 'signed' ? (

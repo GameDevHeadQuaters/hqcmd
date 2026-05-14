@@ -10,6 +10,7 @@ import { AGREEMENT_TEMPLATES } from '../utils/agreementTemplates'
 import AgreementSendModal from '../components/AgreementSendModal'
 import AgreementViewer from '../components/AgreementViewer'
 import { sendEmail, accessGrantedEmail } from '../utils/sendEmail'
+import { canManageMember } from '../utils/permissions'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -416,36 +417,56 @@ export default function ManageTeam({
 
                       {/* Position selector */}
                       <div className="flex items-center gap-1.5">
-                        <div className="relative">
-                          <select className="text-xs rounded-lg px-2.5 py-1.5 outline-none pr-6 appearance-none cursor-pointer"
-                            style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
-                            value={pendingPositions[m.id] ?? m.position ?? 'Member'}
-                            onChange={e => {
-                              const val = e.target.value
-                              if (val === (m.position ?? 'Member')) {
-                                setPendingPositions(prev => { const n = { ...prev }; delete n[m.id]; return n })
-                              } else {
-                                setPendingPositions(prev => ({ ...prev, [m.id]: val }))
-                              }
-                            }}
-                            onFocus={fi} onBlur={fb}>
-                            {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                          </select>
-                          <IconChevronDown size={11} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-tertiary)' }} />
-                        </div>
-                        {pendingPositions[m.id] && (
-                          <button
-                            onClick={() => savePosition(m.id)}
-                            className="text-[10px] font-semibold px-2 py-1.5 rounded-lg text-white transition-opacity hover:opacity-80 whitespace-nowrap"
-                            style={{ backgroundColor: ACCENT }}>
-                            Save Role
-                          </button>
-                        )}
-                        {positionFeedback[m.id] && (
-                          <span className="text-[10px] font-medium whitespace-nowrap" style={{ color: 'var(--status-success)' }}>
-                            {positionFeedback[m.id]}
-                          </span>
-                        )}
+                        {(() => {
+                          const myRole = 'Owner' // ManageTeam is only accessible to project owners
+                          const memberRole = m.position ?? m.role ?? 'Member'
+                          const isSelf = String(m.userId ?? m.id) === String(currentUser?.id)
+                          const canManage = !isSelf && canManageMember(myRole, memberRole)
+                          if (isSelf) {
+                            return <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>{memberRole} (you)</span>
+                          }
+                          if (!canManage) {
+                            return <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{memberRole}</span>
+                          }
+                          return (
+                            <>
+                              <div className="relative">
+                                <select className="text-xs rounded-lg px-2.5 py-1.5 outline-none pr-6 appearance-none cursor-pointer"
+                                  style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                                  value={pendingPositions[m.id] ?? m.position ?? 'Member'}
+                                  onChange={e => {
+                                    const val = e.target.value
+                                    if (val === (m.position ?? 'Member')) {
+                                      setPendingPositions(prev => { const n = { ...prev }; delete n[m.id]; return n })
+                                    } else {
+                                      setPendingPositions(prev => ({ ...prev, [m.id]: val }))
+                                    }
+                                  }}
+                                  onFocus={fi} onBlur={fb}>
+                                  <option value="Owner">Owner</option>
+                                  <option value="Co-leader">Co-leader</option>
+                                  <option value="Member">Member</option>
+                                  <option value="Contributor">Contributor</option>
+                                  <option value="Observer">Observer</option>
+                                </select>
+                                <IconChevronDown size={11} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-tertiary)' }} />
+                              </div>
+                              {pendingPositions[m.id] && (
+                                <button
+                                  onClick={() => savePosition(m.id)}
+                                  className="text-[10px] font-semibold px-2 py-1.5 rounded-lg text-white transition-opacity hover:opacity-80 whitespace-nowrap"
+                                  style={{ backgroundColor: ACCENT }}>
+                                  Save Role
+                                </button>
+                              )}
+                              {positionFeedback[m.id] && (
+                                <span className="text-[10px] font-medium whitespace-nowrap" style={{ color: 'var(--status-success)' }}>
+                                  {positionFeedback[m.id]}
+                                </span>
+                              )}
+                            </>
+                          )
+                        })()}
                       </div>
 
                       {/* Send Agreement (ghost icon button) */}

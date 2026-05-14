@@ -1,46 +1,81 @@
 export const ROLES = {
   OWNER:       'Owner',
-  CO_LEADER:   'Co-leader',
+  COLEADER:    'Co-leader',
+  CO_LEADER:   'Co-leader', // backward-compat alias
   MEMBER:      'Member',
   CONTRIBUTOR: 'Contributor',
   OBSERVER:    'Observer',
 }
 
-const R = ROLES
-
 export const PERMISSIONS = {
-  EDIT_PROJECT:         [R.CO_LEADER],
-  EDIT_PROJECT_PROFILE: [R.CO_LEADER],
-  ADD_MILESTONES:       [R.CO_LEADER],
-  MANAGE_MILESTONES:    [R.CO_LEADER],
-  SCHEDULE_MEETING:     [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
-  MANAGE_TEAM:          [],                                           // Owner only
-  INVITE_MEMBER:        [R.CO_LEADER],
-  MANAGE_BUDGET:        [R.CO_LEADER],
-  ADD_TODO:             [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
-  DELETE_TODO:          [R.CO_LEADER, R.MEMBER],
-  ADD_LINK:             [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
-  ADD_LINKS:            [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
-  DELETE_LINK:          [R.CO_LEADER, R.MEMBER],
-  TEAM_CHAT:            [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
-  ADD_CONTENT:          [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
-  EDIT_OWN_CONTENT:     [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
-  EDIT_ANY_CONTENT:     [R.CO_LEADER, R.MEMBER],
-  VIEW_APPS:            [R.CO_LEADER],
-  VIEW_AGREEMENTS:      [R.CO_LEADER, R.MEMBER],
-  DELETE_PROJECT:       [],                                           // Owner only
-  REMOVE_MEMBER:        [R.CO_LEADER],
+  // Core access
+  VIEW_PROJECT:         ['Owner', 'Co-leader', 'Member', 'Contributor', 'Observer'],
+  TEAM_CHAT:            ['Owner', 'Co-leader', 'Member', 'Contributor'],
+  ADD_CONTENT:          ['Owner', 'Co-leader', 'Member', 'Contributor'],
+  ADD_LINKS:            ['Owner', 'Co-leader', 'Member'],
+  CLAIM_TASKS:          ['Owner', 'Co-leader', 'Member', 'Contributor'],
+  EDIT_OWN_CONTENT:     ['Owner', 'Co-leader', 'Member', 'Contributor'],
+  EDIT_ANY_CONTENT:     ['Owner', 'Co-leader', 'Member'],
+  EDIT_PROJECT_PROFILE: ['Owner', 'Co-leader'],
+  MANAGE_MILESTONES:    ['Owner', 'Co-leader'],
+  MANAGE_BUDGET:        ['Owner', 'Co-leader'],
+  SEND_AGREEMENTS:      ['Owner', 'Co-leader'],
+  MANAGE_APPLICATIONS:  ['Owner', 'Co-leader'],
+  CHANGE_MEMBER_ROLES:  ['Owner', 'Co-leader'],
+  REMOVE_MEMBERS:       ['Owner', 'Co-leader'],
+  DELETE_PROJECT:       ['Owner'],
+  CLOSE_PROJECT:        ['Owner'],
+  CHANGE_VISIBILITY:    ['Owner'],
+  // Legacy keys used by existing components — kept for backward compatibility
+  EDIT_PROJECT:         ['Co-leader'],
+  ADD_MILESTONES:       ['Co-leader'],
+  SCHEDULE_MEETING:     ['Co-leader', 'Member', 'Contributor'],
+  MANAGE_TEAM:          ['Co-leader'],
+  INVITE_MEMBER:        ['Co-leader'],
+  ADD_TODO:             ['Co-leader', 'Member', 'Contributor'],
+  DELETE_TODO:          ['Co-leader', 'Member'],
+  ADD_LINK:             ['Co-leader', 'Member', 'Contributor'],
+  DELETE_LINK:          ['Co-leader', 'Member'],
+  VIEW_APPS:            ['Co-leader'],
+  VIEW_AGREEMENTS:      ['Co-leader', 'Member'],
+  REMOVE_MEMBER:        ['Co-leader'],
 }
 
-// Returns true if userRole can perform permission. Owner always can.
+export function normaliseRole(role) {
+  if (!role) return 'Observer'
+  const map = {
+    'co-leader':   'Co-leader',
+    'coleader':    'Co-leader',
+    'co leader':   'Co-leader',
+    'owner':       'Owner',
+    'member':      'Member',
+    'contributor': 'Contributor',
+    'observer':    'Observer',
+  }
+  return map[role.toLowerCase().trim()] || role
+}
+
 export function hasPermission(userRole, permission) {
-  if (!userRole || userRole === R.OWNER) return true
-  return (PERMISSIONS[permission] ?? []).includes(userRole)
+  const normalised = normaliseRole(userRole)
+  if (!userRole || normalised === 'Owner') return true
+  return (PERMISSIONS[permission] || []).includes(normalised)
 }
 
-// Returns true if actorRole can remove a member with targetRole.
-export function canRemove(actorRole, targetRole) {
-  if (actorRole === R.OWNER) return targetRole !== R.OWNER
-  if (actorRole === R.CO_LEADER) return ![R.OWNER, R.CO_LEADER].includes(targetRole)
+// Co-leader can manage Members/Contributors/Observers only.
+// Owner can manage everyone except themselves (enforced at call site with isSelf).
+export function canManageMember(managerRole, targetRole) {
+  const mgr = normaliseRole(managerRole)
+  const tgt = normaliseRole(targetRole)
+  if (mgr === 'Owner') return tgt !== 'Owner'
+  if (mgr === 'Co-leader') return !['Owner', 'Co-leader'].includes(tgt)
   return false
+}
+
+export function canChangeOwnRole() {
+  return false
+}
+
+// Kept for backward compat with existing callers
+export function canRemove(actorRole, targetRole) {
+  return canManageMember(actorRole, targetRole)
 }

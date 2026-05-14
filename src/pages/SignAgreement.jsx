@@ -128,92 +128,105 @@ export default function SignAgreement({ userData, onCountersign, onNotifyOwner }
     setSigning(true)
     debugLog('Agreement', 'Countersignature submitted', { token, signerName: signerName.trim(), signerEmail: signerEmail.trim() }, 'info')
 
-    const counterpartySignedAt = new Date().toISOString()
-    const { ownerId, agreement } = found
+    const USERDATA_KEY = 'hqcmd_userData_v4'
 
-    const countersignPatch = {
-      counterpartyName: signerName.trim(),
-      counterpartyEmail: signerEmail.trim(),
-      counterpartySignedAt,
-      status: 'fully_signed',
-    }
+    // Read FRESH
+    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+    const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
 
-    // Update React state so any same-session tab sees the change
-    onCountersign(ownerId, agreement.id, countersignPatch)
-    onNotifyOwner?.(ownerId, {
-      type: 'agreement',
-      text: `${signerName.trim()} has signed your agreement: "${agreement.templateName}"`,
-      link: '/agreements',
+    let ownerUserId = null
+    let ownerAgreementIdx = -1
+
+    // Find the original agreement by shareToken
+    Object.keys(allData).forEach(uid => {
+      ;(allData[uid]?.agreements || []).forEach((a, idx) => {
+        if (String(a.shareToken) === String(token) && !a.isReceived) {
+          ownerUserId = uid
+          ownerAgreementIdx = idx
+        }
+      })
     })
 
-    // Write directly to localStorage so the owner's next session sees it immediately
-    try {
-      const raw = localStorage.getItem('hqcmd_userData_v4')
-      if (raw) {
-        const allUD = JSON.parse(raw)
-        const ownerKey = String(ownerId)
-        if (allUD[ownerKey]) {
-          allUD[ownerKey].agreements = (allUD[ownerKey].agreements ?? []).map(a =>
-            a.id === agreement.id ? { ...a, ...countersignPatch } : a
-          )
-          allUD[ownerKey].notifications = [
-            {
-              id: Date.now(),
-              iconType: 'agreement',
-              text: `${signerName.trim()} has signed your agreement: "${agreement.templateName}"`,
-              time: 'Just now',
-              read: false,
-              link: '/agreements',
-            },
-            ...(allUD[ownerKey].notifications ?? []),
-          ]
-        }
-        // Update the received copy in the signer's agreements so it no longer appears in "to sign"
-        const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
-        const signer = allUsers.find(u =>
-          u.email?.toLowerCase().trim() === signerEmail.trim().toLowerCase()
-        )
-        if (signer) {
-          const signerId = String(signer.id)
-          const signerAgreements = allUD[signerId]?.agreements || []
-          const receivedIdx = signerAgreements.findIndex(a =>
-            a.shareToken === token && a.isReceived === true
-          )
-          if (receivedIdx !== -1) {
-            allUD[signerId].agreements[receivedIdx].status = 'fully_signed'
-            allUD[signerId].agreements[receivedIdx].signedAt = counterpartySignedAt
-          }
-        }
-        localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allUD))
+    console.log('[Sign] Found owner:', ownerUserId, 'agreementIdx:', ownerAgreementIdx)
 
-        // Brute-force scan: ensure every copy (owner + received) with this token is marked fully_signed
-        const freshData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-        let updatedCount = 0
-        const allStatuses = []
-        Object.keys(freshData).forEach(uid => {
-          ;(freshData[uid]?.agreements || []).forEach((a, idx) => {
-            if (String(a.shareToken) === String(token)) {
-              freshData[uid].agreements[idx].status = 'fully_signed'
-              freshData[uid].agreements[idx].counterpartyName = signerName.trim()
-              freshData[uid].agreements[idx].counterpartyEmail = signerEmail.trim()
-              if (a.isReceived) {
-                freshData[uid].agreements[idx].signedAt = new Date().toISOString()
-              } else {
-                freshData[uid].agreements[idx].counterpartySignedAt = new Date().toISOString()
-              }
-              updatedCount++
-              allStatuses.push({ uid, isReceived: a.isReceived })
-            }
-          })
-        })
-        localStorage.setItem('hqcmd_userData_v4', JSON.stringify(freshData))
-        debugLog('Agreement', 'Agreement status updated', { updatedCount, allStatuses }, 'success')
-      }
-    } catch (e) {
-      console.warn('hqcmd: failed to write countersignature to localStorage', e)
+    if (!ownerUserId || ownerAgreementIdx === -1) {
+      console.error('[Sign] Could not find original agreement')
+      alert('Error finding agreement. Please use the direct link.')
+      setSigning(false)
+      return
     }
 
-    setSignedAgreement({ ...agreement, ...countersignPatch })
+    const now = new Date().toISOString()
+
+    // Update ALL agreements with this shareToken in one pass
+    Object.keys(allData).forEach(uid => {
+      ;(allData[uid]?.agreements || []).forEach((a, idx) => {
+        if (String(a.shareToken) === String(token)) {
+          allData[uid].agreements[idx] = {
+            ...allData[uid].agreements[idx],
+            status: 'fully_signed',
+            counterpartyName: signerName.trim(),
+            counterpartyEmail: signerEmail.trim(),
+            counterpartySignedAt: now,
+            signedAt: now,
+          }
+          console.log('[Sign] Updated agreement for user:', uid, 'isReceived:', a.isReceived)
+        }
+      })
+    })
+
+    // Notify owner
+    if (ownerUserId) {
+      if (!Array.isArray(allData[ownerUserId].notifications)) allData[ownerUserId].notifications = []
+      allData[ownerUserId].notifications.push({
+        id: String(Date.now()) + '_signed',
+        type: 'agreement_signed',
+        message: `✍ ${signerName.trim()} has signed your agreement`,
+        read: false,
+        timestamp: now,
+        link: '/teams',
+      })
+    }
+
+    // Also notify the signer
+    const signer = allUsers.find(u => u.email?.toLowerCase() === signerEmail.trim().toLowerCase())
+    if (signer && allData[String(signer.id)]) {
+      if (!Array.isArray(allData[String(signer.id)].notifications)) allData[String(signer.id)].notifications = []
+      allData[String(signer.id)].notifications.push({
+        id: String(Date.now()) + '_yoursigned',
+        type: 'agreement_signed',
+        message: `✍ You have signed the agreement. The project owner has been notified.`,
+        read: false,
+        timestamp: now,
+        link: '/agreements',
+      })
+    }
+
+    // Single atomic save
+    localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+
+    // Verify
+    const verify = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+    let allUpdated = true
+    Object.keys(verify).forEach(uid => {
+      ;(verify[uid]?.agreements || []).forEach(a => {
+        if (String(a.shareToken) === String(token) && a.status !== 'fully_signed') {
+          console.error('[Sign] VERIFICATION FAILED for user:', uid)
+          allUpdated = false
+        }
+      })
+    })
+    console.log('[Sign] All agreements updated:', allUpdated)
+    debugLog('Agreement', 'Agreement status updated', { allUpdated, token }, 'success')
+
+    const ownerAgreement = allData[ownerUserId]?.agreements?.[ownerAgreementIdx] ?? found.agreement
+    setSignedAgreement({
+      ...ownerAgreement,
+      counterpartyName: signerName.trim(),
+      counterpartyEmail: signerEmail.trim(),
+      counterpartySignedAt: now,
+      status: 'fully_signed',
+    })
     setPageState('success')
   }
 

@@ -78,26 +78,30 @@ export default function Agreements({
   // Poll localStorage every 3s so cross-user agreement deliveries appear without a reload
   const [myAgreements, setMyAgreements] = useState([])
   const [agreementsToSign, setAgreementsToSign] = useState([])
+
+  function loadAgreements() {
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const myId = String(currentUser?.id)
+    const allAgreements = allData[myId]?.agreements || []
+
+    const toSign = allAgreements.filter(a =>
+      a.isReceived === true &&
+      a.status !== 'fully_signed' &&
+      a.status !== 'signed' &&
+      a.status !== 'completed'
+    )
+
+    setAgreementsToSign(toSign)
+    setMyAgreements(allAgreements.filter(a => !a.isReceived))
+  }
+
   useEffect(() => {
-    function loadAgreements() {
-      try {
-        const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-        const agrs = allData[String(currentUser?.id)]?.agreements || agreements || []
-        setMyAgreements(agrs)
-        setAgreementsToSign(agrs.filter(a =>
-          a.isReceived === true &&
-          a.status !== 'fully_signed' &&
-          a.status !== 'signed' &&
-          a.status !== 'completed'
-        ))
-      } catch { setMyAgreements(agreements || []); setAgreementsToSign([]) }
-    }
     loadAgreements()
     const interval = setInterval(loadAgreements, 3000)
     return () => clearInterval(interval)
   }, [currentUser]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const myOwnAgreements = myAgreements.filter(a => !a.isReceived)
+  const myOwnAgreements = myAgreements
 
   const filteredTemplates = AGREEMENT_TEMPLATES.filter(t =>
     t.name.toLowerCase().includes(search.toLowerCase()) ||
