@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconInbox, IconFileText, IconFileOff,
@@ -75,19 +75,25 @@ export default function Agreements({
   const [viewerAgreement, setViewerAgreement] = useState(null)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
 
-  // Read fresh from localStorage so cross-user agreement deliveries appear immediately
-  const myAgreements = useMemo(() => {
-    try {
-      const allUD = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-      return allUD[String(currentUser?.id)]?.agreements ?? agreements ?? []
-    } catch { return agreements ?? [] }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agreements, currentUser?.id])
+  // Poll localStorage every 5s so cross-user agreement deliveries appear without a reload
+  const [myAgreements, setMyAgreements] = useState([])
+  useEffect(() => {
+    const load = () => {
+      try {
+        const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+        setMyAgreements(allData[String(currentUser?.id)]?.agreements || agreements || [])
+      } catch { setMyAgreements(agreements || []) }
+    }
+    load()
+    const interval = setInterval(load, 5000)
+    return () => clearInterval(interval)
+  }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const toSign = myAgreements.filter(a =>
     a.isReceived === true &&
     a.status !== 'fully_signed' &&
-    a.status !== 'signed'
+    a.status !== 'signed' &&
+    a.status !== 'completed'
   )
   const myOwnAgreements = myAgreements.filter(a => !a.isReceived)
 

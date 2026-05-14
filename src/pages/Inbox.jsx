@@ -254,16 +254,33 @@ function MessageCard({ dm, onUpdate, navigate, currentUser }) {
   )
 }
 
-function NotifCard({ notif, onMarkRead }) {
+function NotifCard({ notif, onMarkRead, navigate }) {
   const Icon = notif.Icon ?? IconBell
+
+  function handleClick() {
+    if (!notif.read) onMarkRead(notif.id)
+    const dest = notif.link || (
+      notif.type === 'agreement'     ? '/agreements' :
+      notif.type === 'application'   ? '/teams' :
+      notif.type === 'project_invite'? '/browse' :
+      notif.type === 'achievement'   ? '/profile' :
+      null
+    )
+    if (dest) navigate(dest)
+  }
+
   return (
     <div
+      onClick={handleClick}
       className="rounded-lg p-4 flex items-start gap-3"
       style={{
         backgroundColor: 'var(--bg-surface)',
         border: '1px solid var(--border-default)',
         borderLeft: !notif.read ? '3px solid #534AB7' : '1px solid var(--border-default)',
+        cursor: 'pointer',
       }}
+      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'var(--bg-surface)')}
     >
       <div
         className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -277,7 +294,7 @@ function NotifCard({ notif, onMarkRead }) {
       </div>
       {!notif.read && (
         <button
-          onClick={() => onMarkRead(notif.id)}
+          onClick={e => { e.stopPropagation(); onMarkRead(notif.id) }}
           title="Mark as read"
           className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0 transition-colors"
           style={{ color: 'var(--text-tertiary)' }}
@@ -304,6 +321,15 @@ export default function Inbox({
   const navigate = useNavigate()
   const [tab, setTab] = useState('messages')
   const [profileDropOpen, setProfileDropOpen] = useState(false)
+  const [newContactsCount, setNewContactsCount] = useState(() => {
+    const lastSeen = localStorage.getItem('hqcmd_contacts_seen_' + currentUser?.id)
+    if (!lastSeen) return (contacts ?? []).length
+    try {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const myContacts = allData[String(currentUser?.id)]?.contacts || []
+      return myContacts.filter(c => new Date(c.addedAt) > new Date(lastSeen)).length
+    } catch { return 0 }
+  })
 
   useEffect(() => {
     if (tab === 'messages') {
@@ -314,6 +340,14 @@ export default function Inbox({
 
   const unreadMsgs   = directMessages.filter(m => !m.read).length
   const unreadNotifs = (notifications ?? []).filter(n => !n.read).length
+
+  function handleTabSwitch(newTab) {
+    setTab(newTab)
+    if (newTab === 'contacts') {
+      localStorage.setItem('hqcmd_contacts_seen_' + currentUser?.id, new Date().toISOString())
+      setNewContactsCount(0)
+    }
+  }
 
   function updateDm(updated) {
     setDirectMessages(prev => prev.map(m => m.id === updated.id ? updated : m))
@@ -332,9 +366,9 @@ export default function Inbox({
   }
 
   const TABS = [
-    { id: 'messages',      label: 'Messages',       count: unreadMsgs   },
-    { id: 'notifications', label: 'Notifications',  count: unreadNotifs },
-    { id: 'contacts',      label: 'Contacts',       count: (contacts ?? []).length, icon: IconAddressBook },
+    { id: 'messages',      label: 'Messages',       count: unreadMsgs        },
+    { id: 'notifications', label: 'Notifications',  count: unreadNotifs      },
+    { id: 'contacts',      label: 'Contacts',       count: newContactsCount, icon: IconAddressBook },
   ]
 
   return (
@@ -358,7 +392,7 @@ export default function Inbox({
           {TABS.map(t => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => handleTabSwitch(t.id)}
               className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors relative"
               style={{ color: tab === t.id ? ACCENT : 'var(--text-tertiary)' }}
             >
@@ -447,7 +481,7 @@ export default function Inbox({
                 </div>
                 <div className="space-y-2">
                   {(notifications ?? []).slice(0, 10).map(n => (
-                    <NotifCard key={n.id} notif={n} onMarkRead={markNotifRead} />
+                    <NotifCard key={n.id} notif={n} onMarkRead={markNotifRead} navigate={navigate} />
                   ))}
                 </div>
               </>

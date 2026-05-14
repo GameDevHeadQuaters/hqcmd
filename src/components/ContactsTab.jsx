@@ -350,6 +350,35 @@ function InviteModal({ contact, currentUser, projects, onAddNotificationForUser,
       timestamp: new Date().toISOString(),
       read: false,
     })
+    // Direct localStorage write so the recipient sees it even across sessions
+    try {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const recipientId = String(contact.userId)
+      if (!allData[recipientId]) allData[recipientId] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
+      if (!Array.isArray(allData[recipientId].notifications)) allData[recipientId].notifications = []
+      allData[recipientId].notifications.unshift({
+        id: String(Date.now()) + '_invite',
+        iconType: 'message',
+        type: 'project_invite',
+        text: `${currentUser?.name ?? 'Someone'} invited you to apply to "${project.title}"`,
+        time: 'Just now',
+        read: false,
+        timestamp: new Date().toISOString(),
+        link: `/browse?search=${encodeURIComponent(project.title)}`,
+      })
+      if (!Array.isArray(allData[recipientId].directMessages)) allData[recipientId].directMessages = []
+      allData[recipientId].directMessages.unshift({
+        id: String(Date.now() + 1) + '_invite_msg',
+        type: 'invite',
+        fromName: currentUser?.name ?? 'HQCMD User',
+        fromUserId: String(currentUser?.id),
+        projectTitle: project.title,
+        message: msg,
+        timestamp: new Date().toISOString(),
+        read: false,
+      })
+      localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allData))
+    } catch {}
     setSent(true)
   }
 

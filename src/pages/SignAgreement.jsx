@@ -183,6 +183,18 @@ export default function SignAgreement({ userData, onCountersign, onNotifyOwner }
           }
         }
         localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allUD))
+
+        // Brute-force scan: ensure every received copy with this token is marked fully_signed
+        const freshData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+        Object.keys(freshData).forEach(uid => {
+          ;(freshData[uid]?.agreements || []).forEach((a, idx) => {
+            if (a.shareToken === token && a.isReceived) {
+              freshData[uid].agreements[idx].status = 'fully_signed'
+              freshData[uid].agreements[idx].signedAt = new Date().toISOString()
+            }
+          })
+        })
+        localStorage.setItem('hqcmd_userData_v4', JSON.stringify(freshData))
       }
     } catch (e) {
       console.warn('hqcmd: failed to write countersignature to localStorage', e)
