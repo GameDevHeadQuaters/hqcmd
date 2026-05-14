@@ -131,6 +131,7 @@ function cleanOrphanedData() {
     // Remove userData entries with no matching user
     let dirty = false
     for (const uid of Object.keys(userData)) {
+      if (uid === 'superadmin') continue // NEVER delete superadmin data
       if (!validIds.has(uid)) {
         delete userData[uid]
         dirty = true
@@ -157,6 +158,22 @@ function cleanOrphanedData() {
   }
 }
 
+// Snapshot the superadmin slot before any cleanup so it can be restored if ever lost
+;(function backupSuperadminSlot() {
+  try {
+    const allData = JSON.parse(localStorage.getItem(STORAGE_KEYS.userData) || '{}')
+    if (allData.superadmin) {
+      localStorage.setItem('hqcmd_superadmin_bak', JSON.stringify(allData.superadmin))
+    } else {
+      const bak = localStorage.getItem('hqcmd_superadmin_bak')
+      if (bak) {
+        allData.superadmin = JSON.parse(bak)
+        localStorage.setItem(STORAGE_KEYS.userData, JSON.stringify(allData))
+        console.warn('[superadmin] Restored superadmin slot from backup')
+      }
+    }
+  } catch {}
+})()
 cleanOrphanedData()
 migrateUserIds()
 const _integrityResult = runIntegrityCheck()

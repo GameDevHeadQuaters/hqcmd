@@ -13,6 +13,9 @@ export function migrateUserIds() {
       const stringKey = String(key)
       newData[stringKey] = { ...allData[key] }
 
+      // superadmin is intentionally not in the users array — always preserve its slot
+      if (stringKey === 'superadmin') return
+
       if (Array.isArray(newData[stringKey].sharedProjects)) {
         newData[stringKey].sharedProjects = newData[stringKey].sharedProjects.map(sp => ({
           ...sp,
