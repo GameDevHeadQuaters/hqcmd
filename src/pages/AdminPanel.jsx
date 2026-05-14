@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   IconShield, IconUsers, IconMailCheck, IconKey, IconLayoutGrid,
   IconSearch, IconTrash, IconCheck, IconX, IconRefresh, IconCopy, IconPlus,
-  IconEye, IconEyeOff, IconHeartbeat, IconBug,
+  IconEye, IconEyeOff, IconHeartbeat, IconBug, IconAlertTriangle,
 } from '@tabler/icons-react'
 import { runIntegrityCheck, migrateUserIds, REQUIRED_ARRAYS } from '../utils/dataIntegrity'
 import { sendEmail, betaApprovedEmail } from '../utils/sendEmail'
@@ -657,6 +657,7 @@ function SystemDebugTab() {
   const [showRawData, setShowRawData] = useState(false)
   const [showResetModal, setShowResetModal] = useState(false)
   const [resetConfirmText, setResetConfirmText] = useState('')
+  const [debugError, setDebugError] = useState(null)
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
   useEffect(() => { runReport() }, [])
@@ -716,6 +717,7 @@ function SystemDebugTab() {
 
       setReport({ userHealth, sharedRefs, orphanedAgreements, allApps, agreementsByUser, generatedAt: new Date().toISOString() })
     } catch (e) {
+      setDebugError('Report failed: ' + e.message)
       setActionFeedback('Report failed: ' + e.message)
     }
   }
@@ -866,12 +868,23 @@ function SystemDebugTab() {
     window.location.href = '/'
   }
 
+  if (debugError) return (
+    <div className="rounded-lg p-6 text-center" style={{ border: '1px solid rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.05)' }}>
+      <IconAlertTriangle size={28} className="mx-auto mb-3" style={{ color: 'var(--status-error)' }} />
+      <p className="text-sm font-semibold mb-1" style={{ color: 'var(--status-error)' }}>System Debug Error</p>
+      <p className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>{debugError}</p>
+      <button onClick={() => { setDebugError(null); runReport() }} className="mt-4 text-xs px-4 py-1.5 rounded-full text-white" style={{ backgroundColor: ACCENT }}>Retry</button>
+    </div>
+  )
+
   if (!report) return <div className="text-center py-12 text-sm" style={{ color: 'var(--text-tertiary)' }}>Generating report…</div>
 
-  const brokenRefs = report.sharedRefs.filter(r => r.broken)
-  const stuckApps  = report.allApps.filter(a => a.isStuck)
+  const brokenRefs = (report.sharedRefs ?? []).filter(r => r.broken)
+  const stuckApps  = (report.allApps ?? []).filter(a => a.isStuck)
 
-  return (
+  function renderSystemDebug() {
+    try {
+      return (
     <>
       {/* Action bar */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -1328,7 +1341,20 @@ function SystemDebugTab() {
         </div>
       )}
     </>
-  )
+      )
+    } catch (e) {
+      return (
+        <div className="rounded-lg p-6 text-center" style={{ border: '1px solid rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.05)' }}>
+          <IconAlertTriangle size={28} className="mx-auto mb-3" style={{ color: 'var(--status-error)' }} />
+          <p className="text-sm font-semibold mb-1" style={{ color: 'var(--status-error)' }}>Render Error</p>
+          <p className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>{e.message}</p>
+          <button onClick={() => { setDebugError(null); runReport() }} className="mt-4 text-xs px-4 py-1.5 rounded-full text-white" style={{ backgroundColor: ACCENT }}>Retry</button>
+        </div>
+      )
+    }
+  }
+
+  return renderSystemDebug()
 }
 
 // ── Main AdminPanel ───────────────────────────────────────────────────────────
