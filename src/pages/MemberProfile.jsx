@@ -1,10 +1,34 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { IconArrowLeft, IconPencil, IconCheck, IconX, IconPlus, IconFolderOff } from '@tabler/icons-react'
+import { IconArrowLeft, IconPencil, IconCheck, IconX, IconPlus, IconFolderOff, IconShieldCheck, IconChevronDown, IconChevronUp } from '@tabler/icons-react'
 import { calculateProgress } from '../utils/progress'
 import { PRESET_SKILLS, PRESET_ROLES } from '../utils/skillsList'
+import { ACHIEVEMENTS, ACHIEVEMENT_PATHS } from '../utils/achievements'
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
+const PINK = '#ed2793'
+
+const VERIFY_TIER_OPTIONS = [
+  { key: 'individual', label: 'Verified Individual', color: '#3b82f6', description: 'For solo developers and freelancers' },
+  { key: 'studio',     label: 'Verified Studio',     color: '#805da8', description: 'For small to mid-size studios' },
+  { key: 'publisher',  label: 'Verified Publisher',  color: '#f59e0b', description: 'For publishers and larger organisations' },
+]
+
+function VerificationBadge({ verification }) {
+  if (!verification?.status || verification.status === 'none') return null
+  const tier = VERIFY_TIER_OPTIONS.find(t => t.key === verification.tier)
+  if (!tier) return null
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ml-2"
+      style={{ backgroundColor: tier.color + '22', color: tier.color, border: `1px solid ${tier.color}44` }}
+      title={tier.label}
+    >
+      <IconShieldCheck size={11} />
+      {tier.label}
+    </span>
+  )
+}
 
 const ROLE_COLORS = {
   'Lead Dev':  { bg: 'rgba(59,130,246,0.15)',  text: '#60a5fa' },
@@ -30,6 +54,12 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(null)
   const [newSkill, setNewSkill] = useState('')
+  const [achievementsExpanded, setAchievementsExpanded] = useState(true)
+  const [verifyStep, setVerifyStep] = useState(null)
+  const [verifyTier, setVerifyTier] = useState('')
+  const [verifyLinks, setVerifyLinks] = useState('')
+  const [verifyNotes, setVerifyNotes] = useState('')
+  const [verifyFeedback, setVerifyFeedback] = useState('')
 
   const displayProjects = isOwnProfile
     ? (projects ?? [])
@@ -93,6 +123,37 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
     if (!s || draft.skills.includes(s)) return
     setDraft(d => ({ ...d, skills: [...d.skills, s] }))
     setNewSkill('')
+  }
+
+  function submitVerification() {
+    if (!verifyTier || !currentUser) return
+    try {
+      const requests = JSON.parse(localStorage.getItem('hqcmd_verification_requests') || '[]')
+      const existing = requests.find(r => String(r.userId) === String(currentUser.id) && r.status === 'pending')
+      if (existing) { setVerifyFeedback('You already have a pending request.'); return }
+      const newReq = {
+        id: String(Date.now()),
+        userId: String(currentUser.id),
+        userName: currentUser.name,
+        userEmail: currentUser.email,
+        tier: verifyTier,
+        links: verifyLinks.trim(),
+        notes: verifyNotes.trim(),
+        requestedAt: new Date().toISOString(),
+        status: 'pending',
+      }
+      requests.unshift(newReq)
+      localStorage.setItem('hqcmd_verification_requests', JSON.stringify(requests))
+      const users = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+      localStorage.setItem('hqcmd_users_v3', JSON.stringify(
+        users.map(u => String(u.id) === String(currentUser.id) ? { ...u, verification: { status: 'pending', tier: verifyTier, requestedAt: newReq.requestedAt } } : u)
+      ))
+      const stored = JSON.parse(localStorage.getItem('hqcmd_currentUser_v3') || '{}')
+      const updatedVerif = { status: 'pending', tier: verifyTier, requestedAt: newReq.requestedAt }
+      localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify({ ...stored, verification: updatedVerif }))
+      setCurrentUser?.(prev => ({ ...prev, verification: updatedVerif }))
+      setVerifyStep('submitted')
+    } catch { setVerifyFeedback('Something went wrong. Please try again.') }
   }
 
   // ── Setup flow: member not found but user is logged in ─────────────────────
@@ -263,7 +324,10 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2 mb-2">
-                <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{member.name}</h1>
+                <div className="flex items-center flex-wrap gap-1">
+                  <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{member.name}</h1>
+                  <VerificationBadge verification={member.verification} />
+                </div>
                 {!editing && isOwnProfile && (
                   <button
                     onClick={startEdit}
@@ -420,6 +484,190 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
             </>
           )}
         </div>
+
+        {/* Achievements */}
+        {(() => {
+          const earnedIds = (member.achievements || []).map(a => typeof a === 'string' ? a : a.id)
+          const earned = ACHIEVEMENTS.filter(a => earnedIds.includes(a.id))
+          const pathGroups = Object.entries(ACHIEVEMENT_PATHS).map(([pathKey, pathMeta]) => ({
+            pathKey, pathMeta,
+            items: earned.filter(a => a.path === pathKey),
+          })).filter(g => g.items.length > 0)
+          return (
+            <div className="rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+              <div
+                className="flex items-center justify-between px-5 py-4 cursor-pointer select-none"
+                style={{ borderBottom: achievementsExpanded && earned.length > 0 ? '1px solid var(--border-subtle)' : 'none' }}
+                onClick={() => setAchievementsExpanded(v => !v)}
+              >
+                <div className="flex items-center gap-2">
+                  <h2 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Achievements</h2>
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ backgroundColor: earned.length > 0 ? 'rgba(83,74,183,0.15)' : 'var(--bg-elevated)', color: earned.length > 0 ? ACCENT : 'var(--text-tertiary)' }}>
+                    {earned.length} / {ACHIEVEMENTS.length}
+                  </span>
+                </div>
+                {achievementsExpanded
+                  ? <IconChevronUp size={15} style={{ color: 'var(--text-tertiary)' }} />
+                  : <IconChevronDown size={15} style={{ color: 'var(--text-tertiary)' }} />
+                }
+              </div>
+              {achievementsExpanded && (
+                <div className="px-5 py-4">
+                  {earned.length === 0 ? (
+                    <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No achievements yet. Complete actions on HQCMD to unlock them.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {pathGroups.map(({ pathKey, pathMeta, items }) => (
+                        <div key={pathKey}>
+                          <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: pathMeta.color }}>{pathMeta.name}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {items.map(ach => (
+                              <div key={ach.id}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs"
+                                style={{ backgroundColor: 'var(--bg-elevated)', border: `1px solid ${pathMeta.color}33` }}
+                                title={`${ach.description} — ${ach.flavour}`}
+                              >
+                                <span>{ach.icon}</span>
+                                <span style={{ color: 'var(--text-primary)' }}>{ach.name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
+        {/* Verification */}
+        {isOwnProfile && !currentUser?.isAdmin && (
+          <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+            <div className="flex items-center gap-2 mb-1">
+              <IconShieldCheck size={15} style={{ color: ACCENT }} />
+              <h2 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Verification</h2>
+            </div>
+            {(() => {
+              const vs = member.verification?.status
+              if (vs && vs !== 'none') {
+                const tier = VERIFY_TIER_OPTIONS.find(t => t.key === member.verification?.tier)
+                if (vs === 'pending') {
+                  return (
+                    <div className="mt-3 flex items-center gap-2 px-3 py-2.5 rounded-lg" style={{ backgroundColor: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                      <span className="text-sm">⏳</span>
+                      <div>
+                        <p className="text-xs font-medium" style={{ color: '#fbbf24' }}>Request pending review</p>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Tier: {tier?.label ?? member.verification.tier}</p>
+                      </div>
+                    </div>
+                  )
+                }
+                if (vs?.startsWith('verified_')) {
+                  return (
+                    <div className="mt-3 flex items-center gap-2 px-3 py-2.5 rounded-lg" style={{ backgroundColor: tier ? tier.color + '11' : 'var(--bg-elevated)', border: `1px solid ${tier ? tier.color + '33' : 'var(--border-default)'}` }}>
+                      <IconShieldCheck size={16} style={{ color: tier?.color ?? ACCENT }} />
+                      <div>
+                        <p className="text-xs font-medium" style={{ color: tier?.color ?? ACCENT }}>{tier?.label ?? 'Verified'}</p>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Your account is verified</p>
+                      </div>
+                    </div>
+                  )
+                }
+              }
+
+              if (verifyStep === 'submitted') {
+                return (
+                  <div className="mt-3 flex items-center gap-2 px-3 py-2.5 rounded-lg" style={{ backgroundColor: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                    <span className="text-sm">⏳</span>
+                    <p className="text-xs font-medium" style={{ color: '#fbbf24' }}>Verification request submitted — pending review.</p>
+                  </div>
+                )
+              }
+
+              if (!verifyStep) {
+                return (
+                  <>
+                    <p className="text-xs mt-1 mb-3" style={{ color: 'var(--text-secondary)' }}>
+                      Get a verified badge on your profile to build trust with collaborators.
+                    </p>
+                    <button
+                      onClick={() => setVerifyStep('form')}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-full transition-opacity hover:opacity-80"
+                      style={{ backgroundColor: 'rgba(83,74,183,0.15)', color: ACCENT }}
+                    >
+                      Request Verification
+                    </button>
+                  </>
+                )
+              }
+
+              return (
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Tier</label>
+                    <div className="space-y-1.5">
+                      {VERIFY_TIER_OPTIONS.map(opt => (
+                        <label key={opt.key}
+                          className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-colors"
+                          style={{ border: `1px solid ${verifyTier === opt.key ? opt.color + '66' : 'var(--border-default)'}`, backgroundColor: verifyTier === opt.key ? opt.color + '11' : 'var(--bg-elevated)' }}>
+                          <input type="radio" name="verifyTier" value={opt.key} checked={verifyTier === opt.key}
+                            onChange={() => setVerifyTier(opt.key)} className="mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs font-semibold" style={{ color: opt.color }}>{opt.label}</p>
+                            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{opt.description}</p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Portfolio / website links</label>
+                    <textarea rows={2}
+                      className="w-full text-xs rounded-lg px-3 py-2 outline-none transition-colors resize-none"
+                      style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                      placeholder="https://your-site.com, github.com/you, itch.io/you…"
+                      value={verifyLinks}
+                      onChange={e => setVerifyLinks(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Additional notes (optional)</label>
+                    <textarea rows={2}
+                      className="w-full text-xs rounded-lg px-3 py-2 outline-none transition-colors resize-none"
+                      style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                      placeholder="Anything you'd like the team to know…"
+                      value={verifyNotes}
+                      onChange={e => setVerifyNotes(e.target.value)}
+                    />
+                  </div>
+                  {verifyFeedback && <p className="text-xs" style={{ color: 'var(--status-error)' }}>{verifyFeedback}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={submitVerification}
+                      disabled={!verifyTier}
+                      className="text-xs font-semibold px-4 py-1.5 rounded-full text-white transition-opacity hover:opacity-80 disabled:opacity-40"
+                      style={{ backgroundColor: ACCENT }}
+                    >
+                      Submit Request
+                    </button>
+                    <button
+                      onClick={() => { setVerifyStep(null); setVerifyTier(''); setVerifyLinks(''); setVerifyNotes(''); setVerifyFeedback('') }}
+                      className="text-xs px-4 py-1.5 rounded-full transition-colors"
+                      style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        )}
 
         {/* Projects */}
         <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   IconShield, IconUsers, IconMailCheck, IconKey, IconLayoutGrid,
   IconSearch, IconTrash, IconCheck, IconX, IconRefresh, IconCopy, IconPlus,
-  IconEye, IconEyeOff, IconHeartbeat, IconBug, IconAlertTriangle,
+  IconEye, IconEyeOff, IconHeartbeat, IconBug, IconAlertTriangle, IconShieldCheck,
 } from '@tabler/icons-react'
 import { runIntegrityCheck, migrateUserIds, REQUIRED_ARRAYS } from '../utils/dataIntegrity'
 import { sendEmail, betaApprovedEmail } from '../utils/sendEmail'
@@ -1357,6 +1357,267 @@ function SystemDebugTab() {
   return renderSystemDebug()
 }
 
+// ── Verification Tab ──────────────────────────────────────────────────────────
+
+const VERIFY_TIER_CONFIG = {
+  individual: { label: 'Verified Individual', color: '#3b82f6', statusKey: 'verified_individual' },
+  studio:     { label: 'Verified Studio',     color: '#805da8', statusKey: 'verified_studio' },
+  publisher:  { label: 'Verified Publisher',  color: '#f59e0b', statusKey: 'verified_publisher' },
+}
+
+function VerificationTab() {
+  const [requests, setRequests] = useState(() => readLS('hqcmd_verification_requests', []))
+  const [filter, setFilter] = useState('pending')
+  const [declineTarget, setDeclineTarget] = useState(null)
+  const [declineReason, setDeclineReason] = useState('')
+  const [feedback, setFeedback] = useState('')
+
+  function refresh() { setRequests(readLS('hqcmd_verification_requests', [])) }
+
+  function flash(msg) { setFeedback(msg); setTimeout(() => setFeedback(''), 3000) }
+
+  function pushNotifToUser(userId, text) {
+    try {
+      const allData = readLS(UD_KEY, {})
+      const slot = allData[String(userId)]
+      if (!slot) return
+      if (!Array.isArray(slot.notifications)) slot.notifications = []
+      slot.notifications.unshift({
+        id: String(Date.now()) + '_ver',
+        iconType: 'message',
+        type: 'verification',
+        text,
+        time: 'Just now',
+        read: false,
+        timestamp: new Date().toISOString(),
+      })
+      writeLS(UD_KEY, allData)
+    } catch {}
+  }
+
+  function approveRequest(req) {
+    const tierCfg = VERIFY_TIER_CONFIG[req.tier]
+    if (!tierCfg) return
+    const verificationData = {
+      status: tierCfg.statusKey,
+      tier: req.tier,
+      requestedAt: req.requestedAt,
+      verifiedAt: new Date().toISOString(),
+      verifiedBy: 'admin',
+      companyName: req.companyName || '',
+      website: req.website || '',
+      steamPage: req.steamPage || '',
+      companiesHouse: req.companiesHouse || '',
+      notes: req.notes || '',
+    }
+
+    // Update user in users array
+    const users = readLS('hqcmd_users_v3', [])
+    writeLS('hqcmd_users_v3', users.map(u =>
+      String(u.id) === String(req.userId) ? { ...u, verification: verificationData } : u
+    ))
+
+    // Update request status
+    const updated = requests.map(r =>
+      r.id === req.id ? { ...r, status: 'approved', verifiedAt: new Date().toISOString() } : r
+    )
+    writeLS('hqcmd_verification_requests', updated)
+    setRequests(updated)
+
+    pushNotifToUser(req.userId,
+      `🛡️ Your ${tierCfg.label} verification has been approved! Your badge is now live on your profile.`
+    )
+    flash(`✓ ${req.userName} verified as ${tierCfg.label}`)
+  }
+
+  function declineRequest() {
+    if (!declineTarget) return
+    const updated = requests.map(r =>
+      r.id === declineTarget.id ? { ...r, status: 'declined', declinedAt: new Date().toISOString(), declineReason } : r
+    )
+    writeLS('hqcmd_verification_requests', updated)
+    setRequests(updated)
+
+    // Reset user verification status
+    const users = readLS('hqcmd_users_v3', [])
+    writeLS('hqcmd_users_v3', users.map(u =>
+      String(u.id) === String(declineTarget.userId) ? { ...u, verification: { ...u.verification, status: 'none' } } : u
+    ))
+
+    pushNotifToUser(declineTarget.userId,
+      `Your verification request was not approved at this time.${declineReason ? ' Reason: ' + declineReason : ''} You can reapply once you meet the requirements.`
+    )
+    setDeclineTarget(null)
+    setDeclineReason('')
+    flash('Request declined')
+  }
+
+  const pendingCount = requests.filter(r => r.status === 'pending').length
+  const filtered = filter === 'all'
+    ? requests
+    : requests.filter(r => r.status === filter)
+
+  const FILTERS = [
+    { id: 'pending',  label: 'Pending',  count: requests.filter(r => r.status === 'pending').length },
+    { id: 'approved', label: 'Verified', count: requests.filter(r => r.status === 'approved').length },
+    { id: 'declined', label: 'Declined', count: requests.filter(r => r.status === 'declined').length },
+    { id: 'all',      label: 'All',      count: requests.length },
+  ]
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2 flex-wrap">
+          {FILTERS.map(f => (
+            <button key={f.id} onClick={() => setFilter(f.id)}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-all"
+              style={filter === f.id
+                ? { backgroundColor: ACCENT, color: 'white', borderColor: ACCENT }
+                : { borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }
+              }>
+              {f.label}
+              {f.count > 0 && (
+                <span className="text-[10px] font-bold px-1 rounded-full" style={{ backgroundColor: filter === f.id ? 'rgba(255,255,255,0.3)' : '#ed2793', color: 'white' }}>{f.count}</span>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          {feedback && <span className="text-xs font-medium" style={{ color: 'var(--status-success)' }}>{feedback}</span>}
+          <button onClick={refresh} className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full text-white" style={{ backgroundColor: ACCENT }}>
+            <IconRefresh size={12} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="text-center py-16" style={{ color: 'var(--text-tertiary)' }}>
+          <IconShieldCheck size={36} className="mx-auto mb-3 opacity-30" />
+          <p className="text-sm">No {filter === 'all' ? '' : filter} verification requests</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filtered.map(req => {
+            const tierCfg = VERIFY_TIER_CONFIG[req.tier] || { label: req.tier, color: ACCENT }
+            const statusColors = {
+              pending:  { bg: 'rgba(245,158,11,0.12)', text: 'var(--status-warning)' },
+              approved: { bg: 'rgba(34,197,94,0.1)',   text: 'var(--status-success)' },
+              declined: { bg: 'rgba(239,68,68,0.1)',   text: 'var(--status-error)' },
+            }
+            const sc = statusColors[req.status] ?? statusColors.pending
+            return (
+              <div key={req.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                      style={{ backgroundColor: tierCfg.color }}>
+                      {(req.userName || '?')[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{req.userName}</p>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: sc.bg, color: sc.text }}>
+                          {req.status}
+                        </span>
+                      </div>
+                      <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{req.userEmail}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold px-2 py-1 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: tierCfg.color + '22', color: tierCfg.color, border: `1px solid ${tierCfg.color}44` }}>
+                    {tierCfg.label}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs mb-4">
+                  {req.companyName && (
+                    <div><p className="font-medium mb-0.5" style={{ color: 'var(--text-tertiary)' }}>Company / Studio</p>
+                      <p style={{ color: 'var(--text-primary)' }}>{req.companyName}</p></div>
+                  )}
+                  {req.website && (
+                    <div><p className="font-medium mb-0.5" style={{ color: 'var(--text-tertiary)' }}>Website</p>
+                      <a href={req.website} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: ACCENT }}>{req.website}</a></div>
+                  )}
+                  {req.steamPage && (
+                    <div><p className="font-medium mb-0.5" style={{ color: 'var(--text-tertiary)' }}>Game URL</p>
+                      <a href={req.steamPage} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: ACCENT }}>{req.steamPage}</a></div>
+                  )}
+                  {req.companiesHouse && (
+                    <div><p className="font-medium mb-0.5" style={{ color: 'var(--text-tertiary)' }}>Companies House #</p>
+                      <p style={{ color: 'var(--text-primary)' }}>{req.companiesHouse}</p></div>
+                  )}
+                </div>
+
+                {req.notes && (
+                  <div className="rounded-lg p-3 mb-4 text-xs" style={{ backgroundColor: 'var(--bg-elevated)', borderLeft: `2px solid ${tierCfg.color}` }}>
+                    <p className="font-medium mb-1" style={{ color: 'var(--text-tertiary)' }}>Notes / Evidence</p>
+                    <p style={{ color: 'var(--text-secondary)' }}>{req.notes}</p>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
+                    Requested {new Date(req.requestedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {req.verifiedAt && ` · Verified ${new Date(req.verifiedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                    {req.declinedAt && ` · Declined ${new Date(req.declinedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                  </p>
+                  {req.status === 'pending' && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => approveRequest(req)}
+                        className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white transition-colors"
+                        style={{ backgroundColor: '#16a34a' }}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#15803d')}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#16a34a')}>
+                        <IconCheck size={12} /> Verify
+                      </button>
+                      <button
+                        onClick={() => { setDeclineTarget(req); setDeclineReason('') }}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors"
+                        style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--status-error)', border: '1px solid rgba(239,68,68,0.2)' }}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.2)')}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)')}>
+                        <IconX size={12} /> Decline
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Decline modal */}
+      {declineTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setDeclineTarget(null)} />
+          <div className="relative rounded-xl shadow-2xl w-full max-w-sm p-6" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-strong)' }}>
+            <h3 className="font-semibold text-sm mb-2" style={{ color: 'var(--text-primary)' }}>Decline Verification</h3>
+            <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>Optionally add a reason that will be sent to <strong>{declineTarget.userName}</strong>:</p>
+            <textarea
+              rows={3}
+              value={declineReason}
+              onChange={e => setDeclineReason(e.target.value)}
+              placeholder="Reason (optional)…"
+              className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none mb-4"
+              style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setDeclineTarget(null)} className="flex-1 py-2 rounded-full text-sm font-medium transition-colors"
+                style={{ border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>Cancel</button>
+              <button onClick={declineRequest} className="flex-1 py-2 rounded-full text-sm font-medium text-white"
+                style={{ backgroundColor: '#dc2626' }}>Decline</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 // ── Main AdminPanel ───────────────────────────────────────────────────────────
 
 export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) {
@@ -1367,13 +1628,16 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
 
   const pendingBeta = readLS(BETA_KEY, []).filter(r => r.status === 'pending').length
 
+  const pendingVerifications = readLS('hqcmd_verification_requests', []).filter(r => r.status === 'pending').length
+
   const TABS = [
-    { id: 'users',     label: 'Users',           Icon: IconUsers,       count: users.length },
-    { id: 'beta',      label: 'Beta Requests',   Icon: IconMailCheck,   count: pendingBeta > 0 ? pendingBeta : null },
-    { id: 'codes',     label: 'Invite Codes',    Icon: IconKey,         count: null },
-    { id: 'projects',  label: 'Public Projects', Icon: IconLayoutGrid,  count: null },
-    { id: 'integrity', label: 'Data Integrity',  Icon: IconHeartbeat,   count: null },
-    { id: 'debug',     label: 'System Debug',    Icon: IconBug,         count: null },
+    { id: 'users',        label: 'Users',           Icon: IconUsers,        count: users.length },
+    { id: 'beta',         label: 'Beta Requests',   Icon: IconMailCheck,    count: pendingBeta > 0 ? pendingBeta : null },
+    { id: 'codes',        label: 'Invite Codes',    Icon: IconKey,          count: null },
+    { id: 'projects',     label: 'Public Projects', Icon: IconLayoutGrid,   count: null },
+    { id: 'verification', label: 'Verification',    Icon: IconShieldCheck,  count: pendingVerifications > 0 ? pendingVerifications : null },
+    { id: 'integrity',    label: 'Data Integrity',  Icon: IconHeartbeat,    count: null },
+    { id: 'debug',        label: 'System Debug',    Icon: IconBug,          count: null },
   ]
 
   return (
@@ -1404,12 +1668,13 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
       </div>
 
       <div className="max-w-6xl mx-auto px-6 py-6">
-        {tab === 'users'     && <UsersTab users={users} setUsers={setUsers} />}
-        {tab === 'beta'      && <BetaRequestsTab />}
-        {tab === 'codes'     && <InviteCodesTab />}
-        {tab === 'projects'  && <PublicProjectsTab />}
-        {tab === 'integrity' && <DataIntegrityTab />}
-        {tab === 'debug'     && <SystemDebugTab />}
+        {tab === 'users'        && <UsersTab users={users} setUsers={setUsers} />}
+        {tab === 'beta'         && <BetaRequestsTab />}
+        {tab === 'codes'        && <InviteCodesTab />}
+        {tab === 'projects'     && <PublicProjectsTab />}
+        {tab === 'verification' && <VerificationTab />}
+        {tab === 'integrity'    && <DataIntegrityTab />}
+        {tab === 'debug'        && <SystemDebugTab />}
       </div>
     </div>
   )

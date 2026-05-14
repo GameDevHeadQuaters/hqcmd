@@ -17,6 +17,7 @@ import BudgetPage from './pages/BudgetPage'
 import ManageTeam from './pages/ManageTeam'
 import { IconMessages, IconBriefcase, IconWritingSign } from '@tabler/icons-react'
 import { writeToUserData, updateUserDataItem, checkUserDataWrite, crossUserPrepend, crossUserMap } from './utils/crossUserWrite'
+import { checkAndAwardAchievements } from './utils/checkAchievements'
 import { runIntegrityCheck, migrateUserIds } from './utils/dataIntegrity'
 import AdminPanel from './pages/AdminPanel'
 import MemberDirectory from './pages/MemberDirectory'
@@ -256,6 +257,17 @@ export default function App() {
   useEffect(() => {
     safeSet(STORAGE_KEYS.currentUser, JSON.stringify(currentUser))
   }, [currentUser])
+
+  // ── Achievement polling ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!currentUser || currentUser.isAdmin) return
+    checkAndAwardAchievements(currentUser, setCurrentUser)
+    const interval = setInterval(() => {
+      checkAndAwardAchievements(currentUser, setCurrentUser)
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Per-user data helpers ─────────────────────────────────────────────────
 
@@ -576,6 +588,7 @@ export default function App() {
     setUserData(prev => ({ ...prev, [String(newUser.id)]: emptyUserData() }))
     setActiveProjectId(null)
     setCalendarEvents([])
+    setTimeout(() => checkAndAwardAchievements(newUser, setCurrentUser), 1000)
   }
 
   function handleLogin({ email, password }) {
@@ -597,6 +610,7 @@ export default function App() {
     } catch {}
     setCurrentUser(byEmail)
     setActiveProjectId(null)
+    setTimeout(() => checkAndAwardAchievements(byEmail, setCurrentUser), 1000)
     return null
   }
 
