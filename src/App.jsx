@@ -302,9 +302,19 @@ export default function App() {
     safeSet(STORAGE_KEYS.users, JSON.stringify(users))
   }, [users])
 
+  // Agreement status priority — higher number = more advanced state
+  const STATUS_PRIORITY = {
+    'draft': 0,
+    'awaiting_my_signature': 1,
+    'pending_countersign': 2,
+    'fully_signed': 3,
+    'signed': 3,
+    'completed': 3,
+  }
+
   // Only write the CURRENT user's slot — never overwrite other users' data with stale React state.
-  // Cross-user writes (addApplicationForUser, addNotificationForUser, etc.) go directly to
-  // localStorage via crossUserPrepend so this effect can't clobber them.
+  // Merges agreements (keeps highest-priority status) and notifications (keeps read:true) so that
+  // direct localStorage writes from SignAgreement are never clobbered by stale React state.
   useEffect(() => {
     if (!currentUser) return
     const uid = String(currentUser.id)
@@ -314,10 +324,52 @@ export default function App() {
       const raw = localStorage.getItem(STORAGE_KEYS.userData)
       const allUD = raw ? JSON.parse(raw) : {}
       const serialized = serializeUserData({ [uid]: currentSlot })
-      allUD[uid] = serialized[uid]
+      const freshSlot = serialized[uid]
+      const lsSlot = allUD[uid] || {}
+
+      // Merge agreements: always keep the more advanced status
+      const lsAgreements    = lsSlot.agreements    || []
+      const stateAgreements = freshSlot.agreements || []
+
+      const mergedAgreements = stateAgreements.map(stateAg => {
+        const lsAg = lsAgreements.find(a => a.id === stateAg.id || a.shareToken === stateAg.shareToken)
+        if (!lsAg) return stateAg
+        const lsPri    = STATUS_PRIORITY[lsAg.status]    ?? 0
+        const statePri = STATUS_PRIORITY[stateAg.status] ?? 0
+        return lsPri >= statePri ? lsAg : stateAg
+      })
+      // Preserve any agreements in localStorage not yet in React state
+      lsAgreements.forEach(lsAg => {
+        const exists = mergedAgreements.find(a => a.id === lsAg.id || a.shareToken === lsAg.shareToken)
+        if (!exists) mergedAgreements.push(lsAg)
+      })
+
+      // Merge notifications: keep read:true if either copy has it
+      const lsNotifs    = lsSlot.notifications    || []
+      const stateNotifs = freshSlot.notifications || []
+
+      const mergedNotifs = stateNotifs.map(stateN => {
+        const lsN = lsNotifs.find(n => n.id === stateN.id)
+        if (!lsN) return stateN
+        return { ...stateN, read: stateN.read || lsN.read }
+      })
+      lsNotifs.forEach(lsN => {
+        const exists = mergedNotifs.find(n => n.id === lsN.id)
+        if (!exists) mergedNotifs.push(lsN)
+      })
+
+      allUD[uid] = { ...freshSlot, agreements: mergedAgreements, notifications: mergedNotifs }
       safeSet(STORAGE_KEYS.userData, JSON.stringify(allUD))
     } catch (e) {
       console.warn('hqcmd: userData persist failed', e)
+      // Fallback: write as-is rather than losing data entirely
+      try {
+        const raw = localStorage.getItem(STORAGE_KEYS.userData)
+        const allUD = raw ? JSON.parse(raw) : {}
+        const serialized = serializeUserData({ [uid]: userData[uid] })
+        allUD[uid] = serialized[uid]
+        safeSet(STORAGE_KEYS.userData, JSON.stringify(allUD))
+      } catch {}
     }
   }, [userData, currentUser])
 

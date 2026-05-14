@@ -102,7 +102,7 @@ export default function Agreements({
 
   useEffect(() => {
     loadAgreements()
-    const interval = setInterval(loadAgreements, 2000)
+    const interval = setInterval(loadAgreements, 5000)
     return () => clearInterval(interval)
   }, [loadAgreements])
 
