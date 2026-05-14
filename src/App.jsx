@@ -283,14 +283,15 @@ export default function App() {
 
   const [userData, setUserData] = useState(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEYS.userData)
-      if (!saved) return {}
-      const raw = JSON.parse(saved)
-      // Strip agreements from React state — they're managed directly in localStorage.
-      // This prevents stale React state from overwriting signed agreements on persist.
-      const stripped = Object.fromEntries(
-        Object.entries(raw).map(([uid, slot]) => [uid, { ...slot, agreements: [] }])
-      )
+      const raw = localStorage.getItem(STORAGE_KEYS.userData)
+      if (!raw) return {}
+      const data = JSON.parse(raw)
+      // Strip agreements from React state — they live only in localStorage.
+      // App.jsx must never hold or persist agreement data through React state.
+      const stripped = {}
+      Object.keys(data).forEach(uid => {
+        stripped[uid] = { ...data[uid], agreements: [] }
+      })
       return deserializeUserData(stripped)
     } catch { return {} }
   })
@@ -328,51 +329,43 @@ export default function App() {
     safeSet(STORAGE_KEYS.users, JSON.stringify(users))
   }, [users])
 
-  // Persist current user's slot — agreements are excluded from React state and always
-  // read/written directly from localStorage, so the persist effect never touches them.
+  // Nuclear persist — save userData state but ALWAYS restore agreements from localStorage.
+  // App.jsx React state must never overwrite agreement data under any circumstances.
   useEffect(() => {
-    if (!currentUser) return
-    const uid = String(currentUser.id)
-    const currentSlot = userData[uid]
-    if (!currentSlot) return
     try {
-      const raw = localStorage.getItem(STORAGE_KEYS.userData)
-      const allUD = raw ? JSON.parse(raw) : {}
-      const serialized = serializeUserData({ [uid]: currentSlot })
-      const freshSlot = serialized[uid]
-      const lsSlot = allUD[uid] || {}
+      const key = STORAGE_KEYS.userData
+      const currentRaw = localStorage.getItem(key)
+      const currentData = currentRaw ? JSON.parse(currentRaw) : {}
 
-      // Always preserve LS agreements — React state has none (stripped on load).
-      // This is the whole point: no React state write can ever regress a signed status.
-      const agreements = lsSlot.agreements || []
+      // Serialize React state (converts Icon components → iconType strings for storage)
+      const serialized = serializeUserData(userData)
 
-      // Merge notifications: keep read:true if either copy has it
-      const lsNotifs    = lsSlot.notifications    || []
-      const stateNotifs = freshSlot.notifications || []
-      const mergedNotifs = stateNotifs.map(stateN => {
-        const lsN = lsNotifs.find(n => n.id === stateN.id)
-        if (!lsN) return stateN
-        return { ...stateN, read: stateN.read || lsN.read }
-      })
-      lsNotifs.forEach(lsN => {
-        const exists = mergedNotifs.find(n => n.id === lsN.id)
-        if (!exists) mergedNotifs.push(lsN)
+      // Start with the serialized React state as the base to save
+      const toSave = { ...serialized }
+
+      // For EVERY user in localStorage: hard-override agreements with the LS copy.
+      // React state agreements are always [] (stripped on load) so this is purely defensive.
+      Object.keys(currentData).forEach(uid => {
+        if (!toSave[uid]) {
+          toSave[uid] = currentData[uid]
+        } else {
+          toSave[uid] = { ...toSave[uid], agreements: currentData[uid].agreements || [] }
+        }
       })
 
-      allUD[uid] = { ...freshSlot, agreements, notifications: mergedNotifs }
-      safeSet(STORAGE_KEYS.userData, JSON.stringify(allUD))
+      // Ensure users only in toSave (new signups) have an empty agreements array
+      Object.keys(toSave).forEach(uid => {
+        if (!currentData[uid] && !toSave[uid].agreements) {
+          toSave[uid].agreements = []
+        }
+      })
+
+      safeSet(key, JSON.stringify(toSave))
     } catch (e) {
       console.warn('hqcmd: userData persist failed', e)
-      try {
-        const raw = localStorage.getItem(STORAGE_KEYS.userData)
-        const allUD = raw ? JSON.parse(raw) : {}
-        const serialized = serializeUserData({ [uid]: userData[uid] })
-        const lsAgreements = allUD[uid]?.agreements ?? []
-        allUD[uid] = { ...serialized[uid], agreements: lsAgreements }
-        safeSet(STORAGE_KEYS.userData, JSON.stringify(allUD))
-      } catch {}
+      try { safeSet(STORAGE_KEYS.userData, JSON.stringify(serializeUserData(userData))) } catch {}
     }
-  }, [userData, currentUser])
+  }, [userData])
 
   useEffect(() => {
     safeSet(STORAGE_KEYS.currentUser, JSON.stringify(currentUser))
