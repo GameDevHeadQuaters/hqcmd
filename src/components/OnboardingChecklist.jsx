@@ -99,11 +99,42 @@ function checkInvitedMember(currentUser) {
   } catch { return false }
 }
 
-function computeSteps(currentUser, projects, storedSteps) {
+function checkProfileComplete(currentUser) {
+  try {
+    const users = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+    const freshUser = users.find(u => String(u.id) === String(currentUser?.id))
+    const user = freshUser || currentUser
+    if (!user) return false
+    const hasBio    = (user.bio?.trim()?.length   || 0) >= 20
+    const hasSkills = (user.skills?.length         || 0) > 0
+    const hasRole   = (user.role?.trim()?.length   || 0) > 0
+    console.log('[Onboarding] Profile check — bio:', hasBio, 'skills:', hasSkills, 'role:', hasRole)
+    console.log('[Onboarding] Bio length:', user.bio?.trim()?.length, 'Skills:', user.skills, 'Role:', user.role)
+    return hasBio && hasSkills && hasRole
+  } catch { return false }
+}
+
+function checkFirstProject(currentUser) {
+  try {
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const myId = String(currentUser?.id)
+    return (allData[myId]?.projects?.length || 0) > 0
+  } catch { return false }
+}
+
+function checkBrowsedProjects(currentUser) {
+  try {
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const myId = String(currentUser?.id)
+    return allData[myId]?.onboarding?.steps?.browsedProjects === true
+  } catch { return false }
+}
+
+function computeSteps(currentUser) {
   return {
-    profileComplete: (currentUser?.bio?.length ?? 0) > 20 && (currentUser?.skills?.length ?? 0) > 0,
-    projectCreated:  (projects?.length ?? 0) > 0,
-    browsedProjects: storedSteps?.browsedProjects ?? false,
+    profileComplete: checkProfileComplete(currentUser),
+    projectCreated:  checkFirstProject(currentUser),
+    browsedProjects: checkBrowsedProjects(currentUser),
     invitedMember:   checkInvitedMember(currentUser),
     firstMessage:    checkFirstMessage(currentUser),
   }
@@ -158,10 +189,10 @@ export default function OnboardingChecklist({ currentUser, projects, application
   const [celebrating, setCelebrating] = useState(false)
 
   const storedSteps = onboarding?.steps ?? DEFAULT_STEPS
-  const [steps, setSteps] = useState(() => computeSteps(currentUser, projects, storedSteps))
+  const [steps, setSteps] = useState(() => computeSteps(currentUser))
 
   function checkAllSteps() {
-    setSteps(computeSteps(currentUser, projects, onboarding?.steps ?? DEFAULT_STEPS))
+    setSteps(computeSteps(currentUser))
   }
 
   useEffect(() => {
