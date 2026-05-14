@@ -7,7 +7,7 @@ const STATUS_BG     = { success: 'rgba(34,197,94,0.1)', error: 'rgba(239,68,68,0
 const CATEGORIES    = ['All', 'Agreement', 'Application', 'Access', 'Notification', 'Storage', 'Auth']
 
 export default function DebugPanel() {
-  const [visible,    setVisible]    = useState(() => localStorage.getItem('hqcmd_debug_mode') === 'true')
+  const [visible,    setVisible]    = useState(false)
   const [logs,       setLogs]       = useState(getLogHistory())
   const [minimised,  setMinimised]  = useState(false)
   const [filter,     setFilter]     = useState('All')
@@ -17,18 +17,24 @@ export default function DebugPanel() {
   const panelRef   = useRef(null)
 
   useEffect(() => {
-    const handleToggle = e => setVisible(e.detail.enabled)
-    window.addEventListener('hqcmd_debug_toggle', handleToggle)
+    // Check on mount
+    setVisible(localStorage.getItem('hqcmd_debug_mode') === 'true')
 
+    // Listen for toggle
+    const handleToggle = e => {
+      console.log('[DebugPanel] Toggle event received:', e.detail)
+      setVisible(e.detail.enabled)
+    }
+    window.addEventListener('hqcmd_debug_toggle', handleToggle)
+    return () => window.removeEventListener('hqcmd_debug_toggle', handleToggle)
+  }, [])
+
+  useEffect(() => {
     const unsub = onDebugLog(entry => {
       if (entry === null) { setLogs([]); return }
       setLogs(prev => [entry, ...prev].slice(0, 100))
     })
-
-    return () => {
-      window.removeEventListener('hqcmd_debug_toggle', handleToggle)
-      unsub()
-    }
+    return unsub
   }, [])
 
   useEffect(() => {

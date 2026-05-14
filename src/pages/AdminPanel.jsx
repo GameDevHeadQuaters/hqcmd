@@ -6,7 +6,7 @@ import {
   IconEye, IconEyeOff, IconHeartbeat, IconBug, IconAlertTriangle, IconShieldCheck,
 } from '@tabler/icons-react'
 import { runIntegrityCheck, migrateUserIds, REQUIRED_ARRAYS } from '../utils/dataIntegrity'
-import { isDebugMode, setDebugMode } from '../utils/debugLogger'
+import { isDebugMode, setDebugMode, debugLog } from '../utils/debugLogger'
 import { sendEmail, betaApprovedEmail } from '../utils/sendEmail'
 
 const ACCENT = '#534AB7'
@@ -930,6 +930,11 @@ function SystemDebugTab() {
     console.log('[Admin] Setting debug mode:', newVal)
     setDebugMode(newVal)
     setDebugEnabled(newVal)
+    if (newVal) {
+      setTimeout(() => {
+        debugLog('System', 'Debug Console enabled', { adminId: 'superadmin', time: new Date().toISOString() }, 'success')
+      }, 100)
+    }
   }
 
   function renderSystemDebug() {
