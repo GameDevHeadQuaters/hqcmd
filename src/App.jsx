@@ -19,6 +19,7 @@ import { IconMessages, IconBriefcase, IconWritingSign } from '@tabler/icons-reac
 import { writeToUserData, updateUserDataItem, checkUserDataWrite, crossUserPrepend, crossUserMap } from './utils/crossUserWrite'
 import { runIntegrityCheck, migrateUserIds } from './utils/dataIntegrity'
 import AdminPanel from './pages/AdminPanel'
+import MemberDirectory from './pages/MemberDirectory'
 import TeamsPage from './pages/TeamsPage'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
@@ -55,7 +56,14 @@ function hashColor(name) {
 }
 
 function emptyUserData() {
-  return { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
+  return {
+    projects: [], applications: [], directMessages: [], notifications: [],
+    agreements: [], contacts: [], sharedProjects: [],
+    onboarding: {
+      completed: false,
+      steps: { profileComplete: false, projectCreated: false, browsedProjects: false, invitedMember: false, firstMessage: false },
+    },
+  }
 }
 
 function makeContact(user, source, projectTitle = null) {
@@ -344,6 +352,29 @@ export default function App() {
     })
   }
 
+  function setOnboarding(newOnboarding) {
+    if (!currentUser) return
+    const uid = String(currentUser.id)
+    setUserData(prev => {
+      const d = prev[uid] ?? emptyUserData()
+      return { ...prev, [uid]: { ...d, onboarding: newOnboarding } }
+    })
+  }
+
+  function markBrowsedProjects() {
+    if (!currentUser) return
+    const uid = String(currentUser.id)
+    setUserData(prev => {
+      const d = prev[uid] ?? emptyUserData()
+      const ob = d.onboarding ?? emptyUserData().onboarding
+      if (ob.steps?.browsedProjects) return prev
+      return {
+        ...prev,
+        [uid]: { ...d, onboarding: { ...ob, steps: { ...(ob.steps ?? {}), browsedProjects: true } } },
+      }
+    })
+  }
+
   function countersignAgreement(ownerId, agreementId, updates) {
     setUserData(prev => {
       const d = prev[String(ownerId)] ?? emptyUserData()
@@ -577,7 +608,7 @@ export default function App() {
 
   // ── Derived data for current user ─────────────────────────────────────────
 
-  const { projects, applications, directMessages, notifications, agreements, contacts, sharedProjects } = getUserData()
+  const { projects, applications, directMessages, notifications, agreements, contacts, sharedProjects, onboarding } = getUserData()
 
   // Resolve the active project — may be from owner's slot (shared project)
   const activeProject = activeOwnerUserId
@@ -702,6 +733,9 @@ export default function App() {
               setActiveProjectId={setActiveProjectId}
               setActiveOwnerUserId={setActiveOwnerUserId}
               sharedProjects={sharedProjects ?? []}
+              applications={applications}
+              onboarding={onboarding}
+              onUpdateOnboarding={setOnboarding}
               unreadInboxCount={unreadInboxCount}
               currentUser={currentUser}
               onSignOut={handleSignOut}
@@ -719,6 +753,7 @@ export default function App() {
             onAddNotificationToOwner={addNotificationForUser}
             onAddDirectMessageToOwner={addDirectMessageForUser}
             onAddContactToOwner={addContactForUser}
+            onMarkBrowsed={markBrowsedProjects}
             unreadInboxCount={unreadInboxCount}
             onSignOut={handleSignOut}
             getProjectImage={getProjectImage}
@@ -844,6 +879,16 @@ export default function App() {
               onSignOut={handleSignOut}
             />
           )
+        } />
+
+        <Route path="/directory" element={
+          currentUser ? (
+            <MemberDirectory
+              currentUser={currentUser}
+              onAddDirectMessageForUser={addDirectMessageForUser}
+              onAddNotificationForUser={addNotificationForUser}
+            />
+          ) : <Navigate to="/login" replace />
         } />
       </Routes>
       </AppLayout>

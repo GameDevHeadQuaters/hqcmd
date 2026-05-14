@@ -4,7 +4,7 @@ import {
   IconLayoutDashboard, IconDeviceDesktop, IconCompass, IconUsers, IconInbox,
   IconWritingSign, IconCurrencyDollar, IconUser, IconSettings, IconShield,
   IconLogout, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand,
-  IconChevronDown, IconBell, IconSun, IconMoon,
+  IconChevronDown, IconBell, IconSun, IconMoon, IconAddressBook,
 } from '@tabler/icons-react'
 import { useTheme } from '../context/ThemeContext'
 
@@ -269,8 +269,9 @@ export default function Sidebar({
         <NavItem icon={IconDeviceDesktop}   label="Workstation"  path="/workstation"  active={is('/workstation')}  collapsed={collapsed} />
 
         <SectionLabel label="Collaborate" collapsed={collapsed} />
-        <NavItem icon={IconCompass}      label="Browse Projects" path="/browse"      active={is('/browse')}      collapsed={collapsed} />
-        <NavItem icon={IconUsers}        label="My Teams"        path="/teams"       active={is('/teams')}       collapsed={collapsed} />
+        <NavItem icon={IconCompass}       label="Browse Projects" path="/browse"      active={is('/browse')}      collapsed={collapsed} />
+        <NavItem icon={IconAddressBook}   label="Directory"       path="/directory"   active={is('/directory')}   collapsed={collapsed} />
+        <NavItem icon={IconUsers}         label="My Teams"        path="/teams"       active={is('/teams')}       collapsed={collapsed} />
         <NavItem icon={IconInbox}        label="Inbox"           path="/inbox"       active={is('/inbox')}       collapsed={collapsed} badge={unreadInboxCount} />
 
         <SectionLabel label="Manage" collapsed={collapsed} />

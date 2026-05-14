@@ -4,6 +4,8 @@ import { IconPlus, IconUsers, IconFolderOff, IconInbox, IconAlertTriangle, IconF
 import ProjectProfile from '../components/ProjectProfile'
 import ProfileDropdown from '../components/ProfileDropdown'
 import { calculateProgress, getProjectStatus } from '../utils/progress'
+import OnboardingChecklist from '../components/OnboardingChecklist'
+import MatchedProjects from '../components/MatchedProjects'
 
 const STORAGE_KEY = 'hqcmd_userData_v4'
 
@@ -189,7 +191,7 @@ function SharedProjectCard({ project, ref_, topBorder, onOpen }) {
   )
 }
 
-export default function MyProjects({ projects, setProjects, setActiveProjectId, setActiveOwnerUserId, unreadInboxCount, currentUser, onSignOut, getProjectImage }) {
+export default function MyProjects({ projects, setProjects, setActiveProjectId, setActiveOwnerUserId, applications, onboarding, onUpdateOnboarding, unreadInboxCount, currentUser, onSignOut, getProjectImage }) {
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
@@ -321,6 +323,19 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
             New Project
           </button>
         </div>
+
+        <OnboardingChecklist
+          currentUser={currentUser}
+          projects={projects}
+          applications={applications ?? []}
+          onboarding={onboarding}
+          onUpdateOnboarding={onUpdateOnboarding}
+        />
+
+        <MatchedProjects
+          currentUser={currentUser}
+          getProjectImage={getProjectImage}
+        />
 
         {/* ── My Projects (owned) ── */}
         {projects.length === 0 && sharedProjects.length === 0 ? (

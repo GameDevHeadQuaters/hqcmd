@@ -378,6 +378,7 @@ export default function BrowseProjects({
   onAddNotificationToOwner,
   onAddDirectMessageToOwner,
   onAddContactToOwner,
+  onMarkBrowsed,
   unreadInboxCount,
   onSignOut,
   getProjectImage,
@@ -387,6 +388,11 @@ export default function BrowseProjects({
   const isLoggedIn = !!currentUser
 
   const [search, setSearch]     = useState('')
+
+  // Mark browsed step for onboarding checklist
+  useEffect(() => {
+    if (currentUser) onMarkBrowsed?.()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-fill search from ?search= URL param (used by invite links)
   useEffect(() => {
