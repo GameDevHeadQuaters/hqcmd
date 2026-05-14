@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { IconArrowLeft, IconPencil, IconCheck, IconX, IconPlus, IconFolderOff } from '@tabler/icons-react'
 import { calculateProgress } from '../utils/progress'
+import { PRESET_SKILLS, PRESET_ROLES } from '../utils/skillsList'
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
 
@@ -134,6 +135,7 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                   <div className="flex-1 min-w-0">
                     <h1 className="text-xl font-bold mb-3" style={{ color: 'var(--text-primary)' }}>{currentUser.name}</h1>
                     <input
+                      list="role-presets-setup"
                       className="text-sm rounded-lg px-2.5 py-1.5 outline-none transition-colors mb-3 w-48"
                       style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
                       value={draft?.role ?? ''}
@@ -141,6 +143,9 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                       onFocus={fa} onBlur={fb}
                       placeholder="Your role / title"
                     />
+                    <datalist id="role-presets-setup">
+                      {PRESET_ROLES.map(r => <option key={r} value={r} />)}
+                    </datalist>
                     <textarea
                       rows={4}
                       className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors resize-none"
@@ -186,11 +191,23 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                     <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No skills added yet.</p>
                   )}
                 </div>
+                <div className="flex flex-wrap gap-1.5 mt-2 mb-1">
+                  {PRESET_SKILLS.filter(s => !(draft?.skills ?? []).includes(s)).slice(0, 12).map(skill => (
+                    <button key={skill} type="button"
+                      onClick={() => setDraft(d => ({ ...d, skills: [...d.skills, skill] }))}
+                      className="text-xs px-2.5 py-1 rounded-full border transition-all"
+                      style={{ borderColor: 'var(--border-default)', color: 'var(--text-tertiary)', backgroundColor: 'transparent' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-tertiary)' }}>
+                      + {skill}
+                    </button>
+                  ))}
+                </div>
                 <div className="flex gap-2 mt-3">
                   <input
                     className="flex-1 text-xs rounded-lg px-2.5 py-1.5 outline-none transition-colors"
                     style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                    placeholder="Add skill…"
+                    placeholder="Custom skill…"
                     value={newSkill}
                     onChange={e => setNewSkill(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && addSkill()}
@@ -250,14 +267,20 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
               </div>
 
               {editing ? (
-                <input
-                  className="text-sm rounded-lg px-2.5 py-1.5 outline-none transition-colors mb-3 w-48"
-                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                  value={draft.role}
-                  onChange={e => setDraft(d => ({ ...d, role: e.target.value }))}
-                  onFocus={fa} onBlur={fb}
-                  placeholder="Role"
-                />
+                <>
+                  <input
+                    list="role-presets-edit"
+                    className="text-sm rounded-lg px-2.5 py-1.5 outline-none transition-colors mb-3 w-48"
+                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                    value={draft.role}
+                    onChange={e => setDraft(d => ({ ...d, role: e.target.value }))}
+                    onFocus={fa} onBlur={fb}
+                    placeholder="Role"
+                  />
+                  <datalist id="role-presets-edit">
+                    {PRESET_ROLES.map(r => <option key={r} value={r} />)}
+                  </datalist>
+                </>
               ) : (
                 <span className="inline-block text-xs font-medium px-2.5 py-1 rounded-full mb-3" style={{ backgroundColor: rc.bg, color: rc.text }}>
                   {member.role || 'No role set'}
@@ -333,25 +356,39 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
           </div>
 
           {editing && (
-            <div className="flex gap-2 mt-3">
-              <input
-                className="flex-1 text-xs rounded-lg px-2.5 py-1.5 outline-none transition-colors"
-                style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                placeholder="Add skill…"
-                value={newSkill}
-                onChange={e => setNewSkill(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addSkill()}
-                onFocus={fa} onBlur={fb}
-              />
-              <button
-                onClick={addSkill}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium text-white transition-opacity hover:opacity-80"
-                style={{ backgroundColor: ACCENT }}
-              >
-                <IconPlus size={12} />
-                Add
-              </button>
-            </div>
+            <>
+              <div className="flex flex-wrap gap-1.5 mt-2 mb-1">
+                {PRESET_SKILLS.filter(s => !(draft?.skills ?? []).includes(s)).slice(0, 12).map(skill => (
+                  <button key={skill} type="button"
+                    onClick={() => setDraft(d => ({ ...d, skills: [...d.skills, skill] }))}
+                    className="text-xs px-2.5 py-1 rounded-full border transition-all"
+                    style={{ borderColor: 'var(--border-default)', color: 'var(--text-tertiary)', backgroundColor: 'transparent' }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-tertiary)' }}>
+                    + {skill}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 mt-3">
+                <input
+                  className="flex-1 text-xs rounded-lg px-2.5 py-1.5 outline-none transition-colors"
+                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                  placeholder="Custom skill…"
+                  value={newSkill}
+                  onChange={e => setNewSkill(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addSkill()}
+                  onFocus={fa} onBlur={fb}
+                />
+                <button
+                  onClick={addSkill}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium text-white transition-opacity hover:opacity-80"
+                  style={{ backgroundColor: ACCENT }}
+                >
+                  <IconPlus size={12} />
+                  Add
+                </button>
+              </div>
+            </>
           )}
         </div>
 
@@ -377,15 +414,21 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
               {displayProjects.map(project => {
                 const coverImage = getProjectImage?.(project.id)
                 const progress = calculateProgress(project)
-                const Tag = isOwnProfile ? 'button' : 'div'
                 return (
-                  <Tag
+                  <button
                     key={project.id}
-                    onClick={isOwnProfile ? () => { setActiveProjectId?.(project.id); navigate('/workstation') } : undefined}
+                    onClick={() => {
+                      if (isOwnProfile) {
+                        setActiveProjectId?.(project.id)
+                        navigate('/workstation')
+                      } else {
+                        navigate('/browse?search=' + encodeURIComponent(project.title))
+                      }
+                    }}
                     className="w-full flex items-center gap-3 py-2.5 px-3 rounded-lg text-left transition-colors"
-                    style={{ backgroundColor: 'var(--bg-elevated)', cursor: isOwnProfile ? 'pointer' : 'default' }}
-                    onMouseEnter={isOwnProfile ? e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)') : undefined}
-                    onMouseLeave={isOwnProfile ? e => (e.currentTarget.style.backgroundColor = 'var(--bg-elevated)') : undefined}
+                    style={{ backgroundColor: 'var(--bg-elevated)', cursor: 'pointer' }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'var(--bg-elevated)')}
                   >
                     <div
                       className="w-10 h-10 rounded-lg flex-shrink-0"
@@ -403,7 +446,7 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                         />
                       </div>
                     </div>
-                  </Tag>
+                  </button>
                 )
               })}
             </div>

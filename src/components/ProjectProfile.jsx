@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react'
 import { IconX, IconUpload, IconToggleLeft, IconToggleRight } from '@tabler/icons-react'
+import { PRESET_ROLES } from '../utils/skillsList'
 
 const ACCENT = '#534AB7'
 
 const CATEGORIES = ['RPG', 'FPS', 'Puzzle', 'Platformer', 'Strategy', 'Simulation', 'Horror', 'Adventure', 'Sports', 'Other']
-const PRESET_ROLES = ['Programmer', 'Artist', '2D Artist', '3D Artist', 'Animator', 'Sound Designer', 'Composer', 'Writer', 'UI Designer', 'QA Tester', 'Producer']
 
 function Pill({ label, active, onClick }) {
   return (

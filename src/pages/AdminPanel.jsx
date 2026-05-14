@@ -564,6 +564,10 @@ function SystemDebugTab() {
   const [actionFeedback, setActionFeedback] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [refreshed, setRefreshed] = useState(false)
+  const [selectedUserId, setSelectedUserId] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [showRawData, setShowRawData] = useState(false)
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
   useEffect(() => { runReport() }, [])
@@ -695,6 +699,68 @@ function SystemDebugTab() {
     } catch (e) { flash('Export failed: ' + e.message) }
   }
 
+  function fixAgreementStatuses() {
+    const allData = readLS(UD_KEY, {})
+    let fixed = 0
+    Object.keys(allData).forEach(uid => {
+      ;(allData[uid]?.agreements ?? []).forEach((a, i) => {
+        if (a.isReceived && a.signedAt && a.status !== 'fully_signed') {
+          allData[uid].agreements[i].status = 'fully_signed'
+          fixed++
+        }
+      })
+    })
+    writeLS(UD_KEY, allData)
+    runReport()
+    flash(fixed > 0 ? `Fixed ${fixed} agreement status${fixed !== 1 ? 'es' : ''}` : 'All agreement statuses OK')
+  }
+
+  function clearStuckApps() {
+    const allData = readLS(UD_KEY, {})
+    let cleared = 0
+    Object.keys(allData).forEach(uid => {
+      ;(allData[uid]?.applications ?? []).forEach((app, i) => {
+        const ageMs = Date.now() - new Date(app.timestamp ?? 0).getTime()
+        if (ageMs > SEVEN_DAYS_MS && app.status !== 'access_granted' && app.status !== 'declined') {
+          allData[uid].applications[i].status = 'declined'
+          cleared++
+        }
+      })
+    })
+    writeLS(UD_KEY, allData)
+    runReport()
+    flash(`Cleared ${cleared} stuck application${cleared !== 1 ? 's' : ''}`)
+  }
+
+  function resetUserPassword() {
+    if (!selectedUserId || !newPassword || newPassword.length < 6) {
+      flash('Select a user and enter a password (min 6 chars)')
+      return
+    }
+    const allUsers = readLS('hqcmd_users_v3', [])
+    const updated = allUsers.map(u =>
+      String(u.id) === selectedUserId ? { ...u, password: newPassword } : u
+    )
+    writeLS('hqcmd_users_v3', updated)
+    setNewPassword('')
+    flash('Password reset successfully')
+  }
+
+  function clearUserData() {
+    if (!selectedUserId) return
+    const allData = readLS(UD_KEY, {})
+    if (allData[selectedUserId]) {
+      allData[selectedUserId] = {
+        projects: [], applications: [], directMessages: [], notifications: [],
+        agreements: [], contacts: [], sharedProjects: [], onboarding: null,
+      }
+      writeLS(UD_KEY, allData)
+    }
+    setConfirmClear(false)
+    runReport()
+    flash('User data cleared')
+  }
+
   if (!report) return <div className="text-center py-12 text-sm" style={{ color: 'var(--text-tertiary)' }}>Generating report…</div>
 
   const brokenRefs = report.sharedRefs.filter(r => r.broken)
@@ -706,10 +772,14 @@ function SystemDebugTab() {
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
           {[
-            ['Clear Duplicates',    clearDuplicates],
-            ['Fix All Broken Refs', fixAllBrokenRefs],
-            ['Normalise IDs',       normaliseIds],
-            ['Export Data',         exportData],
+            ['Clear Duplicates',       clearDuplicates],
+            ['Fix All Broken Refs',    fixAllBrokenRefs],
+            ['Fix Agreement Statuses', fixAgreementStatuses],
+            ['Clear Stuck Apps',       clearStuckApps],
+            ['Normalise IDs',          normaliseIds],
+            ['Force Refresh All',      forceResync],
+            ['Export Data',            exportData],
+            ['View Raw localStorage',  () => setShowRawData(true)],
           ].map(([label, fn]) => (
             <button key={label} onClick={fn}
               className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors"
@@ -950,7 +1020,128 @@ function SystemDebugTab() {
             </div>
           )}
         </section>
+        {/* 5. User Management */}
+        <section>
+          <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-tertiary)' }}>
+            User Management
+          </h3>
+          <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)' }}>
+            <div className="mb-3">
+              <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Select user</label>
+              <select
+                value={selectedUserId}
+                onChange={e => setSelectedUserId(e.target.value)}
+                className="w-full text-xs rounded-lg px-2.5 py-2 outline-none"
+                style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+              >
+                <option value="">— Select a user —</option>
+                {report.userHealth.map(uh => (
+                  <option key={uh.uid} value={uh.uid}>{uh.user.name} · {uh.user.email}</option>
+                ))}
+              </select>
+            </div>
+            {selectedUserId && (
+              <div className="space-y-3 pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Reset Password</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      placeholder="New password (min 6 chars)"
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      className="flex-1 text-xs rounded-lg px-2.5 py-2 outline-none"
+                      style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                      onKeyDown={e => e.key === 'Enter' && resetUserPassword()}
+                    />
+                    <button
+                      onClick={resetUserPassword}
+                      disabled={!newPassword || newPassword.length < 6}
+                      className="text-xs font-medium px-3 py-1.5 rounded-full text-white transition-opacity"
+                      style={{ backgroundColor: ACCENT, opacity: (!newPassword || newPassword.length < 6) ? 0.4 : 1 }}
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-2" style={{ borderTop: '1px solid var(--border-subtle)' }}>
+                  <div>
+                    <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Clear User Data</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Removes projects, messages, and activity. Keeps account.</p>
+                  </div>
+                  <button
+                    onClick={() => setConfirmClear(true)}
+                    className="text-xs font-medium px-3 py-1.5 rounded-full transition-colors"
+                    style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--status-error)', border: '1px solid rgba(239,68,68,0.2)' }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.2)')}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)')}
+                  >
+                    Clear Data
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
+
+      {/* Confirm clear modal */}
+      {confirmClear && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setConfirmClear(false)} />
+          <div className="relative rounded-xl shadow-2xl w-full max-w-sm p-6" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-strong)' }}>
+            <h3 className="font-semibold text-sm mb-2" style={{ color: 'var(--text-primary)' }}>Clear User Data?</h3>
+            <p className="text-xs mb-4 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              This will permanently remove all projects, messages, agreements, and activity for this user. Their account login will be preserved. This cannot be undone.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmClear(false)} className="flex-1 py-2 rounded-full text-sm font-medium transition-colors"
+                style={{ border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>Cancel</button>
+              <button onClick={clearUserData} className="flex-1 py-2 rounded-full text-sm font-medium text-white"
+                style={{ backgroundColor: '#dc2626' }}>
+                Clear Data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Raw localStorage viewer */}
+      {showRawData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowRawData(false)} />
+          <div className="relative rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+            <div className="flex items-center justify-between px-5 py-3 flex-shrink-0" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+              <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Raw localStorage</span>
+              <button onClick={() => setShowRawData(false)} className="p-1 rounded-lg" style={{ color: 'var(--text-tertiary)' }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+                <IconX size={16} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {(() => {
+                const keys = []
+                for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i))
+                return keys.sort().map(key => {
+                  let val
+                  try { val = JSON.parse(localStorage.getItem(key)) } catch { val = localStorage.getItem(key) }
+                  return (
+                    <div key={key} className="mb-3 text-xs">
+                      <p className="font-mono font-semibold mb-1" style={{ color: ACCENT }}>{key}</p>
+                      <pre className="rounded p-2 overflow-x-auto text-[10px]" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+                        {JSON.stringify(val, null, 2)}
+                      </pre>
+                    </div>
+                  )
+                })
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

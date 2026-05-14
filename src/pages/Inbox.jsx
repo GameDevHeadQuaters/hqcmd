@@ -109,7 +109,7 @@ function InviteMessageCard({ dm, onUpdate, navigate }) {
   )
 }
 
-function MessageCard({ dm, onUpdate, navigate }) {
+function MessageCard({ dm, onUpdate, navigate, currentUser }) {
   const [showReply, setShowReply] = useState(false)
   const [replyText, setReplyText] = useState(dm.reply || '')
   const initials = dm.fromName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
@@ -123,6 +123,42 @@ function MessageCard({ dm, onUpdate, navigate }) {
 
   function sendReply() {
     if (!replyText.trim()) return
+    try {
+      const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      let senderId = dm.fromUserId ? String(dm.fromUserId) : null
+      if (!senderId) {
+        const senderUser = allUsers.find(u => u.name === dm.fromName)
+        if (senderUser) senderId = String(senderUser.id)
+      }
+      if (senderId && allData[senderId]) {
+        allData[senderId].directMessages = [
+          ...(allData[senderId].directMessages || []),
+          {
+            id: Date.now(),
+            fromName: currentUser?.name ?? 'Project Owner',
+            fromUserId: currentUser?.id,
+            projectTitle: dm.projectTitle,
+            message: replyText.trim(),
+            isReply: true,
+            timestamp: new Date().toISOString(),
+            read: false,
+            type: 'reply',
+          },
+        ]
+        allData[senderId].notifications = [
+          ...(allData[senderId].notifications || []),
+          {
+            id: Date.now() + 1,
+            type: 'reply',
+            text: `${currentUser?.name ?? 'Someone'} replied to your message about ${dm.projectTitle}`,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            read: false,
+          },
+        ]
+        localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allData))
+      }
+    } catch {}
     onUpdate({ ...dm, reply: replyText.trim(), read: true })
     setShowReply(false)
   }
@@ -372,7 +408,7 @@ export default function Inbox({
             ) : (
               <div className="space-y-3">
                 {directMessages.map(dm => (
-                  <MessageCard key={dm.id} dm={dm} onUpdate={updateDm} navigate={navigate} />
+                  <MessageCard key={dm.id} dm={dm} onUpdate={updateDm} navigate={navigate} currentUser={currentUser} />
                 ))}
               </div>
             )}

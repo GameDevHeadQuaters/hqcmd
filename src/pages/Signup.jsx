@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { IconCheck, IconAlertTriangle, IconBrandGoogle } from '@tabler/icons-react'
+import { PRESET_SKILLS } from '../utils/skillsList'
 
 const ACCENT = '#534AB7'
 const BETA_REQUESTS_KEY = 'hqcmd_beta_requests'
@@ -47,6 +48,10 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
   const [form,   setForm]   = useState({ name: '', email: '', password: '' })
   const [errors, setErrors] = useState({ name: '', email: '', password: '' })
 
+  // Optional skills step shown after form validation passes
+  const [skillsStep,     setSkillsStep]     = useState(false)
+  const [selectedSkills, setSelectedSkills] = useState([])
+
   function setField(field, value) {
     setForm(f => ({ ...f, [field]: value }))
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }))
@@ -62,10 +67,7 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
     return errs
   }
 
-  function submit(e) {
-    e.preventDefault()
-    const errs = validate()
-    if (Object.keys(errs).length > 0) { setErrors(prev => ({ ...prev, ...errs })); return }
+  function finishSignup() {
     if (betaMode && inviteVerified) {
       try {
         const codes = JSON.parse(localStorage.getItem(INVITE_CODES_KEY) ?? '[]')
@@ -77,8 +79,15 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
         localStorage.setItem(INVITE_CODES_KEY, JSON.stringify(updated))
       } catch {}
     }
-    onSignup?.(form)
+    onSignup?.({ ...form, skills: selectedSkills })
     navigate('/workstation')
+  }
+
+  function submit(e) {
+    e.preventDefault()
+    const errs = validate()
+    if (Object.keys(errs).length > 0) { setErrors(prev => ({ ...prev, ...errs })); return }
+    setSkillsStep(true)
   }
 
   // Invite code
@@ -352,44 +361,96 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
             )
           ) : showSignupForm ? (
             <>
-              {betaMode && inviteVerified && (
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg mb-4 text-sm"
-                  style={{ backgroundColor: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: 'var(--status-success)' }}>
-                  <IconCheck size={15} />
-                  <span className="font-medium">Valid invite code! Complete your registration below.</span>
+              {skillsStep ? (
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm font-medium mb-0.5" style={{ color: 'var(--text-primary)' }}>What are your skills?</p>
+                    <p className="text-xs mb-3" style={{ color: 'var(--text-tertiary)' }}>Select any that apply — you can update these later.</p>
+                    <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
+                      {PRESET_SKILLS.map(skill => (
+                        <button
+                          key={skill}
+                          type="button"
+                          onClick={() => setSelectedSkills(prev =>
+                            prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]
+                          )}
+                          className="text-xs font-medium px-2.5 py-1 rounded-full border transition-all"
+                          style={
+                            selectedSkills.includes(skill)
+                              ? { backgroundColor: ACCENT, color: 'white', borderColor: ACCENT }
+                              : { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)', borderColor: 'var(--border-default)' }
+                          }
+                        >
+                          {skill}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={finishSignup}
+                      className="flex-1 py-2.5 rounded-full text-sm font-semibold text-white hover:opacity-80 transition-opacity"
+                      style={{ backgroundColor: ACCENT }}
+                    >
+                      {selectedSkills.length > 0
+                        ? `Continue with ${selectedSkills.length} skill${selectedSkills.length !== 1 ? 's' : ''}`
+                        : 'Continue'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedSkills([]); finishSignup() }}
+                      className="px-4 py-2.5 rounded-full text-sm font-medium transition-colors"
+                      style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
+                    >
+                      Skip
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  {betaMode && inviteVerified && (
+                    <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg mb-4 text-sm"
+                      style={{ backgroundColor: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: 'var(--status-success)' }}>
+                      <IconCheck size={15} />
+                      <span className="font-medium">Valid invite code! Complete your registration below.</span>
+                    </div>
+                  )}
+                  <form onSubmit={submit} className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Full Name</label>
+                      <input type="text" className="w-full text-sm rounded-lg px-3 py-2.5 outline-none transition-colors"
+                        style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                        placeholder="Alex Chen" value={form.name} onChange={e => setField('name', e.target.value)}
+                        onFocus={focusAccent} onBlur={blurReset} />
+                      {errors.name && <p className="text-xs text-red-500 font-medium mt-1">{errors.name}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Email</label>
+                      <input type="text" className="w-full text-sm rounded-lg px-3 py-2.5 outline-none transition-colors"
+                        style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                        placeholder="you@studio.com" value={form.email} onChange={e => setField('email', e.target.value)}
+                        onFocus={focusAccent} onBlur={blurReset} />
+                      {errors.email && <p className="text-xs text-red-500 font-medium mt-1">{errors.email}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Password</label>
+                      <input type="password" className="w-full text-sm rounded-lg px-3 py-2.5 outline-none transition-colors"
+                        style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+                        placeholder="Min 6 characters" value={form.password} onChange={e => setField('password', e.target.value)}
+                        onFocus={focusAccent} onBlur={blurReset} />
+                      {errors.password && <p className="text-xs text-red-500 font-medium mt-1">{errors.password}</p>}
+                    </div>
+                    <button type="submit"
+                      className="w-full py-2.5 rounded-full text-sm font-semibold text-white hover:opacity-80 transition-opacity mt-1"
+                      style={{ backgroundColor: ACCENT }}>
+                      Create Account
+                    </button>
+                  </form>
+                </>
               )}
-              <form onSubmit={submit} className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Full Name</label>
-                  <input type="text" className="w-full text-sm rounded-lg px-3 py-2.5 outline-none transition-colors"
-                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                    placeholder="Alex Chen" value={form.name} onChange={e => setField('name', e.target.value)}
-                    onFocus={focusAccent} onBlur={blurReset} />
-                  {errors.name && <p className="text-xs text-red-500 font-medium mt-1">{errors.name}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Email</label>
-                  <input type="text" className="w-full text-sm rounded-lg px-3 py-2.5 outline-none transition-colors"
-                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                    placeholder="you@studio.com" value={form.email} onChange={e => setField('email', e.target.value)}
-                    onFocus={focusAccent} onBlur={blurReset} />
-                  {errors.email && <p className="text-xs text-red-500 font-medium mt-1">{errors.email}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Password</label>
-                  <input type="password" className="w-full text-sm rounded-lg px-3 py-2.5 outline-none transition-colors"
-                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                    placeholder="Min 6 characters" value={form.password} onChange={e => setField('password', e.target.value)}
-                    onFocus={focusAccent} onBlur={blurReset} />
-                  {errors.password && <p className="text-xs text-red-500 font-medium mt-1">{errors.password}</p>}
-                </div>
-                <button type="submit"
-                  className="w-full py-2.5 rounded-full text-sm font-semibold text-white hover:opacity-80 transition-opacity mt-1"
-                  style={{ backgroundColor: ACCENT }}>
-                  Create Account
-                </button>
-              </form>
             </>
           ) : requestSent ? (
             <div className="text-center py-4">
