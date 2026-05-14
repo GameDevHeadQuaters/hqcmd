@@ -206,6 +206,71 @@ function safeSet(key, value) {
   }
 }
 
+function ensureAdminShadowAccount() {
+  const USERS_KEY    = 'hqcmd_users_v3'
+  const USERDATA_KEY = 'hqcmd_userData_v4'
+
+  const users   = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
+  const existing = users.find(u => u.isSuperAdmin === true || String(u.id) === 'superadmin')
+
+  if (existing) {
+    console.log('[Admin] Shadow account exists:', existing.id)
+    return existing
+  }
+
+  const shadowUser = {
+    id: 'superadmin',
+    name: 'HQCMD Admin',
+    email: 'admin@hqcmd.app',
+    role: 'Platform Administrator',
+    bio: 'The official HQCMD admin account. Here to test the platform, showcase features, and help the community.',
+    skills: ['Game Design', 'Project Management', 'Community Management', 'Unity', 'Unreal Engine'],
+    initials: 'HA',
+    avatarColor: '#534AB7',
+    isSuperAdmin: true,
+    isAdmin: true,
+    createdAt: new Date().toISOString(),
+    achievements: [],
+    verification: {
+      status: 'verified_studio',
+      tier: 'verified_studio',
+      verifiedAt: new Date().toISOString(),
+      companyName: 'HQCMD',
+      website: 'https://hqcmd.vercel.app',
+    },
+  }
+
+  users.push(shadowUser)
+  localStorage.setItem(USERS_KEY, JSON.stringify(users))
+  console.log('[Admin] Shadow account created')
+
+  const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+  if (!allData['superadmin']) {
+    allData['superadmin'] = {
+      projects: [],
+      applications: [],
+      directMessages: [],
+      notifications: [],
+      agreements: [],
+      contacts: [],
+      sharedProjects: [],
+      onboarding: {
+        completed: true,
+        steps: {
+          profileComplete: true,
+          projectCreated: true,
+          browsedProjects: true,
+          invitedMember: true,
+          firstMessage: true,
+        },
+      },
+    }
+    localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+  }
+
+  return shadowUser
+}
+
 export default function App() {
   const [users, setUsers] = useState(() => {
     try {
@@ -594,8 +659,11 @@ export default function App() {
   function handleLogin({ email, password }) {
     const normalEmail = email.trim().toLowerCase()
     if (SUPER_ADMIN.email && SUPER_ADMIN.password && normalEmail === SUPER_ADMIN.email && password === SUPER_ADMIN.password) {
-      const adminProfile = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
-      setCurrentUser({ ...SUPER_ADMIN, ...adminProfile, isAdmin: true })
+      const shadowAccount = ensureAdminShadowAccount()
+      const adminProfile  = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
+      const adminUser     = { ...shadowAccount, ...adminProfile, isAdmin: true, isSuperAdmin: true }
+      setCurrentUser(adminUser)
+      localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify(adminUser))
       setActiveProjectId(null)
       return null
     }

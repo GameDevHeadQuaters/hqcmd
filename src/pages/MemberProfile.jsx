@@ -116,9 +116,17 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
         const adminProfile = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
         localStorage.setItem('hqcmd_admin_profile', JSON.stringify({ ...adminProfile, ...updates }))
       } catch {}
+      // Also update the shadow account in the users array so the profile is visible system-wide
+      try {
+        const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+        localStorage.setItem('hqcmd_users_v3', JSON.stringify(
+          allUsers.map(u => (u.isSuperAdmin === true || String(u.id) === 'superadmin') ? { ...u, ...updates } : u)
+        ))
+      } catch {}
       const updatedUser = { ...currentUser, ...updates }
       try { localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify(updatedUser)) } catch {}
       setCurrentUser(updatedUser)
+      setProfileData(updatedUser)
       setMember(updatedUser)
       setIsEditing(false)
       return

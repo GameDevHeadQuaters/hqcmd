@@ -31,6 +31,10 @@ function genCode() {
 }
 
 function completelyDeleteUser(targetUserId, targetEmail) {
+  if (String(targetUserId) === 'superadmin') {
+    console.warn('[DELETE] Cannot delete super admin account')
+    return false
+  }
   const USERDATA_KEY = 'hqcmd_userData_v4'
   const USERS_KEY = 'hqcmd_users_v3'
   const userId = String(targetUserId)
@@ -250,29 +254,33 @@ function UsersTab({ users, setUsers }) {
                   </td>
                   <td className="px-4 py-3 text-xs text-center" style={{ color: 'var(--text-secondary)' }}>{projectCount(u.id)}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5">
-                      {susp ? (
-                        <button onClick={() => reinstate(u.id)} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium transition-colors"
-                          style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--status-success)' }}
-                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(34,197,94,0.2)')}
-                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(34,197,94,0.1)')}>
-                          <IconCheck size={11} /> Reinstate
+                    {u.isSuperAdmin ? (
+                      <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Protected</span>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        {susp ? (
+                          <button onClick={() => reinstate(u.id)} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium transition-colors"
+                            style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--status-success)' }}
+                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(34,197,94,0.2)')}
+                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(34,197,94,0.1)')}>
+                            <IconCheck size={11} /> Reinstate
+                          </button>
+                        ) : (
+                          <button onClick={() => suspend(u.id)} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium transition-colors"
+                            style={{ backgroundColor: 'rgba(245,158,11,0.1)', color: 'var(--status-warning)' }}
+                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.2)')}
+                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.1)')}>
+                            <IconEyeOff size={11} /> Suspend
+                          </button>
+                        )}
+                        <button onClick={() => { setDeleteTarget(u); setDeleteInput('') }} className="p-1.5 rounded-lg transition-colors"
+                          style={{ color: 'var(--text-tertiary)' }}
+                          onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = 'var(--status-error)' }}
+                          onMouseLeave={e => { e.currentTarget.style.backgroundColor = ''; e.currentTarget.style.color = 'var(--text-tertiary)' }}>
+                          <IconTrash size={13} />
                         </button>
-                      ) : (
-                        <button onClick={() => suspend(u.id)} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium transition-colors"
-                          style={{ backgroundColor: 'rgba(245,158,11,0.1)', color: 'var(--status-warning)' }}
-                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.2)')}
-                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(245,158,11,0.1)')}>
-                          <IconEyeOff size={11} /> Suspend
-                        </button>
-                      )}
-                      <button onClick={() => { setDeleteTarget(u); setDeleteInput('') }} className="p-1.5 rounded-lg transition-colors"
-                        style={{ color: 'var(--text-tertiary)' }}
-                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)'; e.currentTarget.style.color = 'var(--status-error)' }}
-                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = ''; e.currentTarget.style.color = 'var(--text-tertiary)' }}>
-                        <IconTrash size={13} />
-                      </button>
-                    </div>
+                      </div>
+                    )}
                   </td>
                 </tr>
               )
@@ -855,6 +863,36 @@ function SystemDebugTab() {
     flash('User data cleared')
   }
 
+  function createTestProject() {
+    const allData = readLS(UD_KEY, {})
+    if (!allData['superadmin']) {
+      allData['superadmin'] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
+    }
+    const existing = (allData['superadmin'].projects ?? []).find(p => p.title === 'HQCMD Test Project')
+    if (existing) { flash('Test project already exists'); return }
+    const testProject = {
+      id: String(Date.now()),
+      title: 'HQCMD Test Project',
+      description: 'Official test project for platform testing and feature demonstration.',
+      status: 'Planning',
+      visibility: 'public',
+      category: 'Game Development',
+      rolesNeeded: ['Programmer', 'Artist', 'Composer', 'Writer'],
+      roles: ['Programmer', 'Artist', 'Composer', 'Writer'],
+      compensation: 'Passion Project',
+      createdAt: new Date().toISOString(),
+      ownerId: 'superadmin',
+      ownerName: 'HQCMD Admin',
+      members: [],
+      applications: [],
+      chatMessages: [],
+    }
+    allData['superadmin'].projects = [testProject, ...(allData['superadmin'].projects ?? [])]
+    writeLS(UD_KEY, allData)
+    runReport()
+    flash('Test project created — visible on Browse')
+  }
+
   function handleSiteReset() {
     const keysToKeep = ['hqcmd_admin_profile', 'hqcmd_theme', 'hqcmd_sidebar_collapsed']
     const allKeys = []
@@ -910,6 +948,13 @@ function SystemDebugTab() {
               {label}
             </button>
           ))}
+          <button onClick={createTestProject}
+            className="text-xs font-medium px-3 py-1.5 rounded-full text-white transition-colors"
+            style={{ backgroundColor: ACCENT }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#3C3489')}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}>
+            Create Test Project
+          </button>
         </div>
         <div className="flex items-center gap-3">
           {actionFeedback && <span className="text-xs font-medium" style={{ color: 'var(--status-success)' }}>{actionFeedback}</span>}

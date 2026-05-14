@@ -223,6 +223,7 @@ export default function OnboardingChecklist({ currentUser, projects, application
     }
   }, [allDone]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (currentUser?.isAdmin) return null
   if (onboarding?.completed) return null
 
   function dismiss() {
