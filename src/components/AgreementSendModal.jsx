@@ -40,6 +40,18 @@ function deliverAgreementToRecipient(recipientUserId, agreement) {
       allData[uid].agreements = []
     }
     allData[uid].agreements = [agreement, ...allData[uid].agreements]
+    allData[uid].notifications = [
+      {
+        id: Date.now(),
+        iconType: 'agreement',
+        type: 'agreement',
+        text: `📝 An agreement has been sent to you for "${agreement.projectTitle}". Review and sign it to join the team.`,
+        time: 'Just now',
+        read: false,
+        link: '/agreements',
+      },
+      ...(allData[uid].notifications || []),
+    ]
     localStorage.setItem(key, JSON.stringify(allData))
     return true
   } catch (err) {
@@ -159,7 +171,7 @@ export default function AgreementSendModal({
       timestamp: new Date().toISOString(),
       read: false,
     }
-    onAddNotificationForUser?.(counterparty.id, { type: 'agreement', text: notifText, link: '/inbox' })
+    onAddNotificationForUser?.(counterparty.id, { type: 'agreement', text: notifText, link: '/agreements' })
     onAddDirectMessageForUser?.(counterparty.id, dmObj)
 
     const signLink = `${window.location.origin}/sign/${createdAgreement.shareToken}`

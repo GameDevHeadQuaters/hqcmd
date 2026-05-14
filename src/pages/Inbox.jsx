@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   IconInbox, IconMessageCircle, IconMail, IconFileText,
   IconWritingSign, IconBell, IconCheck, IconUserPlus, IconAddressBook,
-  IconArrowRight, IconX, IconBriefcase,
+  IconArrowRight, IconX, IconBriefcase, IconSend,
 } from '@tabler/icons-react'
 import ProfileDropdown from '../components/ProfileDropdown'
 import ContactsTab from '../components/ContactsTab'
@@ -259,13 +259,18 @@ function NotifCard({ notif, onMarkRead, navigate }) {
 
   function handleClick() {
     if (!notif.read) onMarkRead(notif.id)
-    const dest = notif.link || (
-      notif.type === 'agreement'     ? '/agreements' :
-      notif.type === 'application'   ? '/teams' :
-      notif.type === 'project_invite'? '/browse' :
-      notif.type === 'achievement'   ? '/profile' :
-      null
-    )
+    const destinations = {
+      agreement:           '/agreements',
+      agreement_signed:    '/agreements',
+      access_granted:      '/projects',
+      application:         '/teams',
+      application_accepted:'/inbox',
+      message:             '/inbox',
+      project_invite:      '/browse',
+      achievement:         '/profile',
+      system:              '/admin',
+    }
+    const dest = notif.link || destinations[notif.type] || null
     if (dest) navigate(dest)
   }
 
@@ -303,6 +308,71 @@ function NotifCard({ notif, onMarkRead, navigate }) {
         >
           <IconCheck size={14} />
         </button>
+      )}
+    </div>
+  )
+}
+
+const APP_STATUS = {
+  pending:                    { label: 'Pending',        bg: 'rgba(245,158,11,0.12)',  color: 'var(--status-warning)' },
+  accepted_pending_agreement: { label: 'Accepted',       bg: 'rgba(59,130,246,0.12)',  color: '#60a5fa' },
+  agreement_sent:             { label: 'Agreement Sent', bg: 'rgba(83,74,183,0.12)',   color: '#534AB7' },
+  access_granted:             { label: 'Access Granted', bg: 'rgba(34,197,94,0.12)',   color: 'var(--status-success)' },
+  declined:                   { label: 'Declined',       bg: 'rgba(239,68,68,0.12)',   color: 'var(--status-error)' },
+}
+
+function ApplicationCard({ app, navigate }) {
+  const s = APP_STATUS[app.status] ?? APP_STATUS.pending
+  const dateApplied = app.createdAt
+    ? new Date(app.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : '—'
+  return (
+    <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+      <div className="flex items-start gap-3 mb-2">
+        <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'var(--brand-accent-glow)' }}>
+          <IconSend size={16} style={{ color: '#534AB7' }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{app.projectTitle || 'Unknown Project'}</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+            Role: {app.role || '—'} · {dateApplied}
+          </p>
+          {app.ownerName && (
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+              By: <span style={{ color: 'var(--text-secondary)' }}>{app.ownerName}</span>
+            </p>
+          )}
+        </div>
+        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+          style={{ backgroundColor: s.bg, color: s.color }}>
+          {s.label}
+        </span>
+      </div>
+      {(app.status === 'agreement_sent' || app.status === 'access_granted') && (
+        <div className="flex gap-2 mt-3">
+          {app.status === 'agreement_sent' && (
+            <button
+              onClick={() => navigate('/agreements')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-colors"
+              style={{ backgroundColor: ACCENT }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
+            >
+              <IconWritingSign size={12} /> Review &amp; Sign
+            </button>
+          )}
+          {app.status === 'access_granted' && (
+            <button
+              onClick={() => navigate('/projects')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-colors"
+              style={{ backgroundColor: 'var(--status-success)' }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+            >
+              <IconArrowRight size={12} /> Open Project
+            </button>
+          )}
+        </div>
       )}
     </div>
   )
@@ -365,9 +435,37 @@ export default function Inbox({
     setNotifications?.(() => [])
   }
 
+  function getMyApplications() {
+    try {
+      const myId    = String(currentUser?.id)
+      const myEmail = currentUser?.email
+      const myName  = currentUser?.name
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+      const found = []
+      Object.keys(allData).forEach(ownerId => {
+        const ownerUser = allUsers.find(u => String(u.id) === ownerId)
+        ;(allData[ownerId]?.projects || []).forEach(project => {
+          ;(project.applications || []).forEach(app => {
+            if (
+              String(app.applicantUserId) === myId ||
+              app.applicantEmail === myEmail ||
+              app.applicantName === myName
+            ) {
+              found.push({ ...app, projectTitle: project.title, projectId: project.id, ownerId, ownerName: ownerUser?.name || 'Unknown' })
+            }
+          })
+        })
+      })
+      found.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      return found
+    } catch { return [] }
+  }
+
   const TABS = [
     { id: 'messages',      label: 'Messages',       count: unreadMsgs        },
     { id: 'notifications', label: 'Notifications',  count: unreadNotifs      },
+    { id: 'applications',  label: 'My Applications', count: 0                },
     { id: 'contacts',      label: 'Contacts',       count: newContactsCount, icon: IconAddressBook },
   ]
 
@@ -488,6 +586,32 @@ export default function Inbox({
             )}
           </>
         )}
+
+        {tab === 'applications' && (() => {
+          const myApps = getMyApplications()
+          return myApps.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <IconSend size={48} style={{ color: 'var(--brand-purple)' }} className="mb-4" />
+              <p className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>No applications yet</p>
+              <p className="text-xs mb-4" style={{ color: 'var(--text-tertiary)' }}>Browse projects to find opportunities</p>
+              <button
+                onClick={() => navigate('/browse')}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white transition-colors"
+                style={{ backgroundColor: ACCENT }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = ACCENT_DARK)}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}
+              >
+                <IconArrowRight size={14} /> Browse Projects
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {myApps.map((app, i) => (
+                <ApplicationCard key={app.id || i} app={app} navigate={navigate} />
+              ))}
+            </div>
+          )
+        })()}
 
         {tab === 'contacts' && (
           <ContactsTab

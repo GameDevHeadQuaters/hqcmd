@@ -52,10 +52,13 @@ export default function Workstation({
     try {
       const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
       const refs = allData[String(currentUser?.id)]?.sharedProjects || []
-      const ref = refs.find(sp => String(sp.projectId) === String(activeProject?.id))
-      return ref?.role || userRole || 'Member'
+      const projectIdToLookup = urlProjectId || activeProject?.id
+      const ref = refs.find(sp => String(sp.projectId) === String(projectIdToLookup))
+      const role = ref?.role || ref?.userRole || userRole || 'Member'
+      console.log('[Workstation] myRole:', role, 'for project:', projectIdToLookup)
+      return role
     } catch { return userRole || 'Member' }
-  }, [activeProject, isSharedProject, currentUser, userRole])
+  }, [activeProject, isSharedProject, currentUser, userRole, urlProjectId])
 
   // Seed calendarEvents from localStorage on first mount and keep in sync with TodoList writes
   useEffect(() => {

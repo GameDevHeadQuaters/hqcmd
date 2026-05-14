@@ -276,8 +276,36 @@ export default function TeamsPage({
   function acceptApp(app, project) {
     setActionedIds(prev => [...prev, app.id])
     updateApp({ ...app, status: 'accepted_pending_agreement', read: true })
-    onAddNotification?.({ type: 'application', text: `You accepted ${app.applicantName} for ${app.role}.`, link: `/team/${project.id}` })
+    onAddNotification?.({ type: 'application', text: `You accepted ${app.applicantName} for ${app.role}.`, link: '/teams' })
     setPipelineTab(project.id, 'accepted')
+
+    // Notify the applicant directly in localStorage
+    try {
+      const allUD = readAllUD()
+      const applicantUser = (users ?? []).find(u =>
+        (app.applicantId && String(u.id) === String(app.applicantId)) ||
+        (app.applicantUserId && String(u.id) === String(app.applicantUserId)) ||
+        u.email?.toLowerCase() === app.applicantEmail?.toLowerCase() ||
+        u.name?.toLowerCase() === app.applicantName?.toLowerCase()
+      )
+      if (applicantUser) {
+        const apId = String(applicantUser.id)
+        if (!allUD[apId]) allUD[apId] = {}
+        allUD[apId].notifications = [
+          {
+            id: Date.now(),
+            iconType: 'application_accepted',
+            type: 'application_accepted',
+            text: `Your application for ${app.role} on "${project.title || app.projectTitle}" has been accepted! Check your agreements for next steps.`,
+            time: 'Just now',
+            read: false,
+            link: '/inbox',
+          },
+          ...(allUD[apId].notifications || []),
+        ]
+        localStorage.setItem(UD_KEY, JSON.stringify(allUD))
+      }
+    } catch {}
   }
 
   function declineApp(app) {

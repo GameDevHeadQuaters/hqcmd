@@ -75,26 +75,28 @@ export default function Agreements({
   const [viewerAgreement, setViewerAgreement] = useState(null)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
 
-  // Poll localStorage every 5s so cross-user agreement deliveries appear without a reload
+  // Poll localStorage every 3s so cross-user agreement deliveries appear without a reload
   const [myAgreements, setMyAgreements] = useState([])
+  const [agreementsToSign, setAgreementsToSign] = useState([])
   useEffect(() => {
-    const load = () => {
+    function loadAgreements() {
       try {
         const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-        setMyAgreements(allData[String(currentUser?.id)]?.agreements || agreements || [])
-      } catch { setMyAgreements(agreements || []) }
+        const agrs = allData[String(currentUser?.id)]?.agreements || agreements || []
+        setMyAgreements(agrs)
+        setAgreementsToSign(agrs.filter(a =>
+          a.isReceived === true &&
+          a.status !== 'fully_signed' &&
+          a.status !== 'signed' &&
+          a.status !== 'completed'
+        ))
+      } catch { setMyAgreements(agreements || []); setAgreementsToSign([]) }
     }
-    load()
-    const interval = setInterval(load, 5000)
+    loadAgreements()
+    const interval = setInterval(loadAgreements, 3000)
     return () => clearInterval(interval)
-  }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentUser]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const toSign = myAgreements.filter(a =>
-    a.isReceived === true &&
-    a.status !== 'fully_signed' &&
-    a.status !== 'signed' &&
-    a.status !== 'completed'
-  )
   const myOwnAgreements = myAgreements.filter(a => !a.isReceived)
 
   const filteredTemplates = AGREEMENT_TEMPLATES.filter(t =>
@@ -181,17 +183,17 @@ export default function Agreements({
         </div>
 
         {/* Agreements to Sign */}
-        {toSign.length > 0 && (
+        {agreementsToSign.length > 0 && (
           <div className="mb-6 rounded-lg p-5" style={{ backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
             <div className="flex items-center gap-2 mb-3">
               <IconWritingSign size={15} style={{ color: 'var(--status-warning)' }} />
               <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Agreements to Sign</h3>
               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white leading-none" style={{ backgroundColor: '#ed2793' }}>
-                {toSign.length}
+                {agreementsToSign.length}
               </span>
             </div>
             <div className="space-y-2">
-              {toSign.map(a => (
+              {agreementsToSign.map(a => (
                 <div
                   key={a.id}
                   className="flex items-center gap-3 p-3 rounded-lg"
