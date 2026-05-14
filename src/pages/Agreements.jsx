@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconInbox, IconFileText, IconFileOff,
@@ -75,14 +75,20 @@ export default function Agreements({
   const [viewerAgreement, setViewerAgreement] = useState(null)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
 
-  // Poll localStorage every 3s so cross-user agreement deliveries appear without a reload
+  // Poll localStorage every 2s so cross-user agreement deliveries appear without a reload
   const [myAgreements, setMyAgreements] = useState([])
   const [agreementsToSign, setAgreementsToSign] = useState([])
 
-  function loadAgreements() {
-    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+  const loadAgreements = useCallback(() => {
+    // Always read completely fresh - no caching
+    const raw = localStorage.getItem('hqcmd_userData_v4')
+    if (!raw) return
+
+    const allData = JSON.parse(raw)
     const myId = String(currentUser?.id)
     const allAgreements = allData[myId]?.agreements || []
+
+    console.log('[Agreements] Loading - total:', allAgreements.length, 'statuses:', allAgreements.map(a => ({ id: a.id?.slice(-6), status: a.status, isReceived: a.isReceived })))
 
     const toSign = allAgreements.filter(a =>
       a.isReceived === true &&
@@ -91,15 +97,34 @@ export default function Agreements({
       a.status !== 'completed'
     )
 
+    const mySent = allAgreements.filter(a => !a.isReceived)
+
     setAgreementsToSign(toSign)
-    setMyAgreements(allAgreements.filter(a => !a.isReceived))
-  }
+    setMyAgreements(mySent)
+
+    console.log('[Agreements] To sign:', toSign.length, 'My sent:', mySent.length)
+  }, [currentUser?.id])
 
   useEffect(() => {
     loadAgreements()
-    const interval = setInterval(loadAgreements, 3000)
+    const interval = setInterval(loadAgreements, 2000)
     return () => clearInterval(interval)
-  }, [currentUser]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadAgreements])
+
+  // Reload when page becomes visible (user returns from sign page)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadAgreements()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [loadAgreements])
+
+  // Reload on cross-tab storage writes
+  useEffect(() => {
+    window.addEventListener('storage', loadAgreements)
+    return () => window.removeEventListener('storage', loadAgreements)
+  }, [loadAgreements])
 
   const myOwnAgreements = myAgreements
 

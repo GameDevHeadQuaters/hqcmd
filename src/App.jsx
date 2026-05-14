@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import TopNav from './components/TopNav'
 import Sidebar from './components/Sidebar'
@@ -327,11 +327,22 @@ export default function App() {
 
   // ── Achievement polling ────────────────────────────────────────────────────
 
+  const achievementTimeout = useRef(null)
+
+  function debouncedAchievementCheck(user) {
+    const target = user || currentUser
+    if (!target || target.isAdmin) return
+    if (achievementTimeout.current) clearTimeout(achievementTimeout.current)
+    achievementTimeout.current = setTimeout(() => {
+      checkAndAwardAchievements(target, setCurrentUser)
+    }, 2000)
+  }
+
   useEffect(() => {
     if (!currentUser || currentUser.isAdmin) return
-    checkAndAwardAchievements(currentUser, setCurrentUser)
+    debouncedAchievementCheck(currentUser)
     const interval = setInterval(() => {
-      checkAndAwardAchievements(currentUser, setCurrentUser)
+      debouncedAchievementCheck(currentUser)
     }, 30000)
     return () => clearInterval(interval)
   }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -655,7 +666,7 @@ export default function App() {
     setUserData(prev => ({ ...prev, [String(newUser.id)]: emptyUserData() }))
     setActiveProjectId(null)
     setCalendarEvents([])
-    setTimeout(() => checkAndAwardAchievements(newUser, setCurrentUser), 1000)
+    debouncedAchievementCheck(newUser)
   }
 
   function handleLogin({ email, password }) {
@@ -690,7 +701,7 @@ export default function App() {
     setCurrentUser(byEmail)
     setActiveProjectId(null)
     debugLog('Auth', 'Login success', { userId: byEmail.id, isAdmin: byEmail.isAdmin }, 'success')
-    setTimeout(() => checkAndAwardAchievements(byEmail, setCurrentUser), 1000)
+    debouncedAchievementCheck(byEmail)
     return null
   }
 
