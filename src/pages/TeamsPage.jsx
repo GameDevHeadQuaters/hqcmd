@@ -561,8 +561,30 @@ export default function TeamsPage({
             const members = getProjectMembers(project)
             const pipeline = getProjectPipeline(project)
             const pipelineTab = getPipelineTab(project.id)
-            const totalPipelineApps = pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + pipeline.active.length
             const isManager = canManage(project.userRole)
+
+            // Active tab: all current team members (direct + sharedProject refs)
+            const activeMembers = project.members || []
+            const sharedActiveMembers = []
+            Object.keys(allUD).forEach(userId => {
+              const refs = allUD[userId]?.sharedProjects || []
+              const ref = refs.find(sp => String(sp.projectId) === String(project.id))
+              if (ref) {
+                const user = (users ?? []).find(u => String(u.id) === userId)
+                if (user && !activeMembers.some(m => String(m.userId || m.id) === userId)) {
+                  sharedActiveMembers.push({
+                    id: userId,
+                    userId,
+                    name: user.name,
+                    role: ref.role || 'Member',
+                    initials: user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+                    joinedAt: ref.joinedAt,
+                  })
+                }
+              }
+            })
+            const allActiveMembers = [...activeMembers, ...sharedActiveMembers]
+            const totalPipelineApps = pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + allActiveMembers.length
 
             return (
               <div key={project.id} className="rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
@@ -751,7 +773,7 @@ export default function TeamsPage({
                           <IconBriefcase size={16} style={{ color: ACCENT }} />
                           <h4 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Application Pipeline</h4>
                           <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-tertiary)' }}>
-                            {pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + pipeline.active.length}
+                            {pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + allActiveMembers.length}
                           </span>
                           <button
                             onClick={e => { e.stopPropagation(); navigate(`/team/${project.id}`) }}
@@ -769,7 +791,7 @@ export default function TeamsPage({
                             { id: 'applied',   label: 'Applied',   count: pipeline.applied.length,   icon: IconUserPlus },
                             { id: 'accepted',  label: 'Accepted',  count: pipeline.accepted.length,  icon: IconCheck },
                             { id: 'agreement', label: 'Agreement', count: pipeline.agreement.length, icon: IconWritingSign },
-                            { id: 'active',    label: 'Active',    count: pipeline.active.length,    icon: IconUserCheck },
+                            { id: 'active',    label: 'Active',    count: allActiveMembers.length,   icon: IconUserCheck },
                           ].map((stage, idx, arr) => (
                             <button
                               key={stage.id}
@@ -973,28 +995,49 @@ export default function TeamsPage({
 
                         {/* Stage 4: Active */}
                         {pipelineTab === 'active' && (
-                          pipeline.active.length === 0 ? (
+                          allActiveMembers.length === 0 ? (
                             <div className="rounded-lg p-10 text-center" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
                               <IconUserCheck size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-2" />
-                              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No applications have been fully onboarded yet.</p>
+                              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No active team members yet.</p>
                             </div>
                           ) : (
                             <div className="space-y-3">
-                              {pipeline.active.map(app => (
-                                <div key={app.id} className="rounded-lg p-5 flex items-center gap-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
-                                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: '#16a34a' }}>
-                                    {initials(app.applicantName)}
+                              {allActiveMembers.map(member => {
+                                const agStatus = getMemberAgreementStatus(member, project.id)
+                                const av = member.avatarColor ?? hashColor(member.name)
+                                return (
+                                  <div key={member.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: av }}>
+                                        {member.initials || initials(member.name)}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{member.name}</p>
+                                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--brand-accent-glow)', color: ACCENT }}>
+                                            {member.role || member.position || 'Member'}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-3 mt-0.5">
+                                          {member.joinedAt && (
+                                            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Joined {formatDate(member.joinedAt)}</p>
+                                          )}
+                                          {agStatus.type === 'signed' && (
+                                            <span className="text-xs font-medium" style={{ color: 'var(--status-success)' }}>Agreement signed ✓</span>
+                                          )}
+                                          {agStatus.type === 'sent' && (
+                                            <span className="text-xs font-medium" style={{ color: 'var(--status-warning)' }}>Agreement pending</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <span className="text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1 flex-shrink-0"
+                                        style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: 'var(--status-success)' }}>
+                                        <IconCircleCheck size={11} /> Active
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{app.applicantName}</p>
-                                    <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{app.role}</p>
-                                  </div>
-                                  <span className="text-xs font-semibold px-2 py-1 rounded-full flex items-center gap-1"
-                                    style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: 'var(--status-success)' }}>
-                                    <IconCircleCheck size={11} /> Active Member
-                                  </span>
-                                </div>
-                              ))}
+                                )
+                              })}
                             </div>
                           )
                         )}
