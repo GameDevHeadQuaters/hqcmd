@@ -1,33 +1,22 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconUserPlus, IconX, IconUsers, IconAlertTriangle, IconPencil } from '@tabler/icons-react'
+import { IconUserPlus, IconX, IconUsers, IconAlertTriangle } from '@tabler/icons-react'
 import InviteModal from './InviteModal'
 import { hasPermission, canRemove } from '../utils/permissions'
 
 const ACCENT = '#534AB7'
-const AVATAR_CYCLES = [
-  { bg: 'rgba(83,74,183,0.2)',  text: '#534AB7' },
-  { bg: 'rgba(237,39,147,0.15)', text: '#ed2793' },
-  { bg: 'rgba(128,93,168,0.2)', text: '#805da8' },
-]
 
-const ROLE_COLORS = {
-  'Lead Dev':   { bg: 'rgba(83,74,183,0.15)',  text: '#534AB7' },
-  'Producer':   { bg: 'rgba(83,74,183,0.15)',  text: '#534AB7' },
-  'Artist':     { bg: 'rgba(128,93,168,0.15)', text: '#805da8' },
-  'Designer':   { bg: 'rgba(128,93,168,0.15)', text: '#805da8' },
-  'Composer':   { bg: 'rgba(128,93,168,0.15)', text: '#805da8' },
-  'Writer':     { bg: 'rgba(237,39,147,0.12)', text: '#ed2793' },
-  'QA':         { bg: 'rgba(237,39,147,0.12)', text: '#ed2793' },
-  'Programmer': { bg: 'rgba(237,39,147,0.12)', text: '#ed2793' },
-}
-
-const POSITIONS = ['Owner', 'Co-leader', 'Member', 'Contributor', 'Observer']
-
-function avatarStyle(name) {
-  let h = 0
-  for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff
-  return AVATAR_CYCLES[Math.abs(h) % AVATAR_CYCLES.length]
+function normaliseRole(role) {
+  const map = {
+    'co-leader':  'Co-leader',
+    'coleader':   'Co-leader',
+    'co leader':  'Co-leader',
+    'owner':      'Owner',
+    'member':     'Member',
+    'contributor':'Contributor',
+    'observer':   'Observer',
+  }
+  return map[role?.toLowerCase?.()] || role || 'Member'
 }
 
 function RemoveModal({ member, agreements, projectId, onConfirm, onClose }) {
@@ -52,9 +41,9 @@ function RemoveModal({ member, agreements, projectId, onConfirm, onClose }) {
         <div className="flex items-center gap-3 mb-4">
           <div
             className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0"
-            style={{ backgroundColor: member.avatarColor ?? ACCENT }}
+            style={{ backgroundColor: ACCENT }}
           >
-            {member.initials}
+            {member.initials || member.name?.slice(0, 2).toUpperCase()}
           </div>
           <div>
             <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Remove {member.name}?</h3>
@@ -111,96 +100,121 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
   const [members, setMembers] = useState([])
   const [inviteOpen, setInviteOpen] = useState(false)
   const [removeTarget, setRemoveTarget] = useState(null)
-  const [editingMemberId, setEditingMemberId] = useState(null)
-  const [pendingRoles, setPendingRoles] = useState({})
+  const [editingRoles, setEditingRoles] = useState({})
+
+  function loadMembers() {
+    const USERDATA_KEY = 'hqcmd_userData_v4'
+    const USERS_KEY = 'hqcmd_users_v3'
+
+    try {
+      const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+      const allUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
+      const effectiveOwnerId = String(ownerUserId || currentUser?.id)
+      const effectiveProjectId = String(projectId)
+
+      const ownerProjects = allData[effectiveOwnerId]?.projects || []
+      const project = ownerProjects.find(p => String(p.id) === effectiveProjectId)
+
+      if (!project) {
+        console.log('[TeamMembers] Project not found:', effectiveProjectId, 'owner:', effectiveOwnerId)
+        setMembers([])
+        return
+      }
+
+      const projectMembers = (project.members || []).map(m => ({
+        ...m,
+        userId: String(m.userId || m.id),
+        name: m.name || allUsers.find(u => String(u.id) === String(m.userId || m.id))?.name || 'Unknown',
+        initials: m.initials || (m.name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+      }))
+
+      const memberIds = new Set(projectMembers.map(m => String(m.userId)))
+
+      Object.keys(allData).forEach(uid => {
+        if (memberIds.has(uid)) return
+        const refs = allData[uid]?.sharedProjects || []
+        const ref = refs.find(sp => String(sp.projectId) === effectiveProjectId)
+        if (ref) {
+          const user = allUsers.find(u => String(u.id) === uid)
+          if (user) {
+            projectMembers.push({
+              id: uid,
+              userId: uid,
+              name: user.name,
+              role: normaliseRole(ref.role) || 'Member',
+              initials: user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+              joinedAt: ref.joinedAt,
+            })
+            memberIds.add(uid)
+          }
+        }
+      })
+
+      console.log('[TeamMembers] Loaded', projectMembers.length, 'members for project:', effectiveProjectId)
+      setMembers(projectMembers)
+    } catch (e) {
+      console.warn('[TeamMembers] loadMembers failed:', e)
+    }
+  }
 
   useEffect(() => {
-    const loadMembers = () => {
-      try {
-        const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-        const ownerId = ownerUserId || String(currentUser?.id)
-        const ownerProjects = allData[ownerId]?.projects || []
-        const project = ownerProjects.find(p => String(p.id) === String(projectId))
-        const projectMembers = project?.members || []
-
-        const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
-        const sharedMembers = []
-        Object.keys(allData).forEach(userId => {
-          const shared = allData[userId]?.sharedProjects || []
-          const ref = shared.find(sp => String(sp.projectId) === String(projectId))
-          if (ref) {
-            const user = allUsers.find(u => String(u.id) === userId)
-            if (user && !projectMembers.some(m => String(m.userId || m.id) === userId)) {
-              sharedMembers.push({
-                id: userId,
-                userId: userId,
-                name: user.name,
-                role: ref.role || 'Member',
-                position: ref.role || 'Member',
-                initials: user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
-                joinedAt: ref.joinedAt,
-              })
-            }
-          }
-        })
-
-        setMembers([...projectMembers, ...sharedMembers])
-      } catch (e) {
-        console.warn('[TeamMembers] loadMembers failed:', e)
-      }
-    }
-
-    console.log('[TeamMembers] projectId:', projectId, 'ownerUserId:', ownerUserId)
+    console.log('[TeamMembers] Props - projectId:', projectId, 'ownerUserId:', ownerUserId, 'userRole:', userRole)
     loadMembers()
     const interval = setInterval(loadMembers, 5000)
     window.addEventListener('storage', loadMembers)
-    return () => { clearInterval(interval); window.removeEventListener('storage', loadMembers) }
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('storage', loadMembers)
+    }
   }, [projectId, ownerUserId, currentUser])
 
-  function updateMemberRole(memberId, newRole) {
+  function saveRole(member, newRole) {
+    const USERDATA_KEY = 'hqcmd_userData_v4'
     try {
-      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-      const ownerId = ownerUserId || String(currentUser?.id)
-      const projectIdx = (allData[ownerId]?.projects ?? []).findIndex(p => String(p.id) === String(projectId))
+      const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+      const effectiveOwnerId = String(ownerUserId || currentUser?.id)
+      const effectiveProjectId = String(projectId)
 
-      if (projectIdx !== -1) {
-        const memberIdx = (allData[ownerId].projects[projectIdx].members ?? []).findIndex(
-          m => String(m.userId || m.id) === String(memberId)
+      const projectIdx = allData[effectiveOwnerId]?.projects?.findIndex(p => String(p.id) === effectiveProjectId)
+      if (projectIdx !== undefined && projectIdx !== -1) {
+        const memberIdx = allData[effectiveOwnerId].projects[projectIdx].members?.findIndex(
+          m => String(m.userId || m.id) === String(member.userId)
         )
-        if (memberIdx !== -1) {
-          allData[ownerId].projects[projectIdx].members[memberIdx].role = newRole
-          allData[ownerId].projects[projectIdx].members[memberIdx].position = newRole
+        if (memberIdx !== undefined && memberIdx !== -1) {
+          allData[effectiveOwnerId].projects[projectIdx].members[memberIdx].role = newRole
+          allData[effectiveOwnerId].projects[projectIdx].members[memberIdx].position = newRole
         }
       }
 
-      if (allData[String(memberId)]?.sharedProjects) {
-        const spIdx = allData[String(memberId)].sharedProjects.findIndex(
-          sp => String(sp.projectId) === String(projectId)
-        )
+      const memberId = String(member.userId)
+      if (allData[memberId]?.sharedProjects) {
+        const spIdx = allData[memberId].sharedProjects.findIndex(sp => String(sp.projectId) === effectiveProjectId)
         if (spIdx !== -1) {
-          allData[String(memberId)].sharedProjects[spIdx].role = newRole
-          allData[String(memberId)].sharedProjects[spIdx].userRole = newRole
+          allData[memberId].sharedProjects[spIdx].role = newRole
+          allData[memberId].sharedProjects[spIdx].userRole = newRole
         }
       }
 
-      localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allData))
+      localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
       window.dispatchEvent(new Event('storage'))
     } catch (e) {
-      console.error('[TeamMembers] updateMemberRole failed:', e)
+      console.error('[TeamMembers] saveRole failed:', e)
     }
-    setEditingMemberId(null)
-    setPendingRoles(prev => { const n = { ...prev }; delete n[memberId]; return n })
+
+    setEditingRoles(prev => { const n = { ...prev }; delete n[member.userId]; return n })
+    loadMembers()
   }
 
   function remove(memberId) {
+    const USERDATA_KEY = 'hqcmd_userData_v4'
     try {
-      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-      const ownerId = ownerUserId || String(currentUser?.id)
-      const projectIdx = (allData[ownerId]?.projects ?? []).findIndex(p => String(p.id) === String(projectId))
+      const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+      const effectiveOwnerId = String(ownerUserId || currentUser?.id)
+      const projectIdx = (allData[effectiveOwnerId]?.projects ?? []).findIndex(p => String(p.id) === String(projectId))
 
       if (projectIdx !== -1) {
-        allData[ownerId].projects[projectIdx].members = (
-          allData[ownerId].projects[projectIdx].members ?? []
+        allData[effectiveOwnerId].projects[projectIdx].members = (
+          allData[effectiveOwnerId].projects[projectIdx].members ?? []
         ).filter(m => String(m.userId || m.id) !== String(memberId) && String(m.id) !== String(memberId))
       }
 
@@ -210,15 +224,14 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
         )
       }
 
-      localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allData))
+      localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
       window.dispatchEvent(new Event('storage'))
     } catch (e) {
       console.error('[TeamMembers] remove failed:', e)
     }
     setRemoveTarget(null)
+    loadMembers()
   }
-
-  const canManage = userRole === 'Owner' || userRole === 'Co-leader'
 
   return (
     <>
@@ -248,98 +261,67 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
           )}
         </div>
 
-        <div className="space-y-2.5">
-          {members.map(m => {
-            const rc = ROLE_COLORS[m.role] || { bg: 'var(--bg-elevated)', text: 'var(--text-secondary)' }
-            const av = avatarStyle(m.name)
-            const memberId = String(m.userId || m.id)
-            const isEditing = editingMemberId === memberId
-            const pendingRole = pendingRoles[memberId]
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {members.length === 0 ? (
+            <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', textAlign: 'center', padding: '12px 0' }}>
+              No team members yet
+            </p>
+          ) : members.map(member => {
+            const isSelf = String(member.userId) === String(currentUser?.id)
+            const canEdit = hasPermission(userRole, 'CHANGE_MEMBER_ROLES') && !isSelf
+            const isEditing = editingRoles[member.userId] !== undefined
+
             return (
-              <div key={memberId} className="flex items-center gap-2.5 group">
-                <div
-                  className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-semibold"
-                  style={{ backgroundColor: av.bg, color: av.text }}
-                >
-                  {m.initials}
+              <div key={member.userId} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--brand-accent-glow)', border: '1px solid var(--brand-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '600', color: 'var(--brand-accent)', flexShrink: 0 }}>
+                  {member.initials || member.name?.slice(0, 2).toUpperCase()}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <button
-                    onClick={() => navigate(`/profile/${m.id || m.userId}`)}
-                    className="text-sm font-medium leading-tight truncate block hover:underline text-left w-full"
-                    style={{ color: 'var(--text-primary)', textDecorationColor: ACCENT }}
-                  >
-                    {m.name}
-                  </button>
-                  {isEditing ? (
-                    <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {member.name}{isSelf ? ' (you)' : ''}
+                  </p>
+                  {canEdit ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
                       <select
-                        className="text-xs rounded px-1.5 py-0.5 outline-none"
-                        style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
-                        value={pendingRole ?? m.role}
-                        onChange={e => setPendingRoles(prev => ({ ...prev, [memberId]: e.target.value }))}
+                        value={editingRoles[member.userId] ?? (member.role || 'Member')}
+                        onChange={e => setEditingRoles(prev => ({ ...prev, [member.userId]: e.target.value }))}
+                        style={{ fontSize: '11px', padding: '1px 4px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
                       >
-                        {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                        <option value="Owner">Owner</option>
+                        <option value="Co-leader">Co-leader</option>
+                        <option value="Member">Member</option>
+                        <option value="Contributor">Contributor</option>
+                        <option value="Observer">Observer</option>
                       </select>
-                      {pendingRole && pendingRole !== m.role && (
+                      {isEditing && (
                         <button
-                          onClick={() => updateMemberRole(memberId, pendingRole)}
-                          className="text-[10px] font-semibold px-1.5 py-0.5 rounded text-white"
-                          style={{ backgroundColor: ACCENT }}
+                          onClick={() => saveRole(member, editingRoles[member.userId])}
+                          style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', border: 'none', background: 'var(--brand-accent)', color: 'white', cursor: 'pointer' }}
                         >
                           Save
                         </button>
                       )}
-                      <button
-                        onClick={() => {
-                          setEditingMemberId(null)
-                          setPendingRoles(prev => { const n = { ...prev }; delete n[memberId]; return n })
-                        }}
-                        className="text-[10px] px-1"
-                        style={{ color: 'var(--text-tertiary)' }}
-                      >
-                        ✕
-                      </button>
                     </div>
                   ) : (
-                    <span
-                      className="text-xs px-1.5 py-0.5 rounded-full inline-block mt-0.5"
-                      style={{ backgroundColor: rc.bg, color: rc.text }}
-                    >
-                      {m.role}
+                    <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '99px', background: 'var(--brand-accent-glow)', color: 'var(--brand-accent)', border: '1px solid var(--brand-accent)' }}>
+                      {member.role || 'Member'}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  {canManage && !isEditing && (
-                    <button
-                      onClick={() => setEditingMemberId(memberId)}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded transition-all"
-                      style={{ color: 'var(--text-tertiary)' }}
-                      onMouseEnter={e => { e.currentTarget.style.color = ACCENT }}
-                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)' }}
-                    >
-                      <IconPencil size={11} />
-                    </button>
-                  )}
-                  {canRemove(userRole, m.position ?? 'Member') && !isEditing && (
-                    <button
-                      onClick={() => setRemoveTarget(m)}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded transition-all"
-                      style={{ color: 'var(--text-tertiary)' }}
-                      onMouseEnter={e => { e.currentTarget.style.color = '#ef4444' }}
-                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)' }}
-                    >
-                      <IconX size={13} />
-                    </button>
-                  )}
-                </div>
+                {canRemove(userRole, member.position ?? member.role ?? 'Member') && !isSelf && (
+                  <button
+                    onClick={() => setRemoveTarget(member)}
+                    className="p-1 rounded transition-all"
+                    style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#ef4444' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)' }}
+                  >
+                    <IconX size={13} />
+                  </button>
+                )}
               </div>
             )
           })}
-          {members.length === 0 && (
-            <p className="text-xs text-center py-2" style={{ color: 'var(--text-tertiary)' }}>No members yet.</p>
-          )}
         </div>
       </div>
 
