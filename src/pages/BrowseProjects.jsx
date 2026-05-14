@@ -425,7 +425,20 @@ export default function BrowseProjects({
   const [msgProject,   setMsgProject]   = useState(null)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
   const [applyAlert, setApplyAlert] = useState(null) // { type: 'incomplete' | 'skill_mismatch' }
-  const [appliedProjectIds, setAppliedProjectIds] = useState(new Set())
+  const [appliedProjectIds, setAppliedProjectIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('hqcmd_applied_projects_' + currentUser?.id)
+      return new Set(JSON.parse(saved || '[]'))
+    } catch { return new Set() }
+  })
+
+  useEffect(() => {
+    if (!currentUser) return
+    localStorage.setItem(
+      'hqcmd_applied_projects_' + currentUser.id,
+      JSON.stringify([...appliedProjectIds])
+    )
+  }, [appliedProjectIds, currentUser]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function requireAuth(cb) {
     if (!currentUser) { navigate('/login', { state: { from: 'browse', message: 'Sign in to apply or message project owners.' } }); return }
@@ -453,9 +466,9 @@ export default function BrowseProjects({
     if (appliedProjectIds.has(String(project.id))) return true
     if (!currentUser) return false
     try {
-      const data = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-      const ownerProjects = data[project.ownerId]?.projects || []
-      const proj = ownerProjects.find(p => String(p.id) === String(project.originalId ?? project.id))
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const ownerData = allData[String(project.ownerId)] || {}
+      const proj = (ownerData.projects || []).find(p => String(p.id) === String(project.originalId ?? project.id))
       return (proj?.applications || []).some(a =>
         a.applicantEmail === currentUser.email ||
         a.applicantName === currentUser.name ||

@@ -110,7 +110,10 @@ function completelyDeleteUser(targetUserId, targetEmail) {
     codes.map(c => c.usedBy === targetEmail ? { ...c, used: false, usedBy: null, usedAt: null } : c)
   ))
 
-  // 10. Update backup
+  // 10. Remove their applied projects key
+  localStorage.removeItem('hqcmd_applied_projects_' + userId)
+
+  // 11. Update backup
   const freshData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
   localStorage.setItem('hqcmd_userData_backup', JSON.stringify(freshData))
 

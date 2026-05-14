@@ -48,16 +48,24 @@ function checkFirstMessage(currentUser) {
 
 function checkInvitedMember(currentUser) {
   try {
-    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    if (!currentUser) return false
     const myId = String(currentUser.id)
 
-    const isInSharedProject = (allData[myId]?.sharedProjects || []).length > 0
-    console.log('[Onboarding] isInSharedProject:', isInSharedProject)
-    if (isInSharedProject) return true
+    // Check 1: persisted applied project IDs key
+    const appliedIds = JSON.parse(localStorage.getItem('hqcmd_applied_projects_' + myId) || '[]')
+    if (appliedIds.length > 0) {
+      console.log('[Onboarding] Found applied projects in localStorage:', appliedIds)
+      return true
+    }
 
-    let hasApplied = false
+    // Check 2: sharedProjects
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    if ((allData[myId]?.sharedProjects || []).length > 0) return true
+
+    // Check 3: scan all project owners for applications from this user
+    let found = false
     Object.keys(allData).forEach(ownerId => {
-      if (ownerId === myId) return
+      if (ownerId === myId || found) return
       ;(allData[ownerId]?.projects || []).forEach(p => {
         ;(p.applications || []).forEach(a => {
           if (
@@ -66,19 +74,21 @@ function checkInvitedMember(currentUser) {
             String(a.applicantUserId) === myId
           ) {
             console.log('[Onboarding] Found application in project:', p.title)
-            hasApplied = true
+            found = true
           }
         })
       })
     })
-    if (hasApplied) return true
+    if (found) return true
 
+    // Check 4: own projects with members or applications
     const hasActivity = (allData[myId]?.projects || []).some(p =>
       (p.members || []).length > 0 || (p.applications || []).length > 0
     )
     console.log('[Onboarding] hasActivity on own projects:', hasActivity)
     if (hasActivity) return true
 
+    // Check 5: sent contact invites
     const sentInvite = Object.keys(allData).some(uid =>
       (allData[uid]?.directMessages || []).some(m =>
         m.type === 'invite' && m.fromName === currentUser.name
