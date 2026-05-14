@@ -4,7 +4,7 @@ import Footer from '../components/Footer'
 import {
   IconSearch, IconX, IconUsers, IconZoom,
   IconCheck, IconSend, IconArrowRight, IconInbox, IconGlobe, IconFileText,
-  IconCrown,
+  IconCrown, IconClock,
 } from '@tabler/icons-react'
 import ProfileDropdown from '../components/ProfileDropdown'
 
@@ -291,7 +291,7 @@ function MessageModal({ project, currentUser, onClose, onAddDirectMessage, onAdd
   )
 }
 
-function ProjectCard({ project, onApply, onMessage, borderColor, isOwnProject }) {
+function ProjectCard({ project, onApply, onMessage, borderColor, isOwnProject, alreadyApplied, alreadyMember }) {
   const compColor = project.compensation === 'Paid'
     ? { bg: 'rgba(34,197,94,0.12)', text: 'var(--status-success)' }
     : project.compensation === 'Rev Share'
@@ -349,6 +349,10 @@ function ProjectCard({ project, onApply, onMessage, borderColor, isOwnProject })
                 <IconCrown size={12} />
                 Your project
               </div>
+            ) : alreadyMember ? (
+              <div style={{ fontSize: '12px', color: 'var(--status-success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <IconCheck size={14} /> Team Member
+              </div>
             ) : (
               <div className="flex items-center gap-1.5">
                 <button
@@ -360,16 +364,22 @@ function ProjectCard({ project, onApply, onMessage, borderColor, isOwnProject })
                 >
                   Message
                 </button>
-                <button
-                  onClick={onApply}
-                  className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-white transition-colors"
-                  style={{ backgroundColor: PINK }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = PINK_DARK)}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = PINK)}
-                >
-                  Apply
-                  <IconArrowRight size={12} />
-                </button>
+                {alreadyApplied ? (
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '9999px', border: '1px solid var(--border-default)' }}>
+                    <IconClock size={14} /> Application Pending
+                  </div>
+                ) : (
+                  <button
+                    onClick={onApply}
+                    className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-white transition-colors"
+                    style={{ backgroundColor: PINK }}
+                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = PINK_DARK)}
+                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = PINK)}
+                  >
+                    Apply
+                    <IconArrowRight size={12} />
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -436,6 +446,29 @@ export default function BrowseProjects({
       }
       setApplyProject(project)
     })
+  }
+
+  function hasAlreadyApplied(project) {
+    if (!currentUser) return false
+    try {
+      const data = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const ownerProjects = data[project.ownerId]?.projects || []
+      const proj = ownerProjects.find(p => String(p.id) === String(project.originalId ?? project.id))
+      return (proj?.applications || []).some(a =>
+        a.applicantEmail === currentUser.email ||
+        a.applicantName === currentUser.name ||
+        String(a.applicantUserId) === String(currentUser.id)
+      )
+    } catch { return false }
+  }
+
+  function isAlreadyMember(project) {
+    if (!currentUser) return false
+    try {
+      const data = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const myShared = data[String(currentUser.id)]?.sharedProjects || []
+      return myShared.some(sp => String(sp.projectId) === String(project.originalId ?? project.id))
+    } catch { return false }
   }
 
   const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
@@ -647,6 +680,8 @@ export default function BrowseProjects({
                 project={p}
                 borderColor={CARD_BORDERS[i % 3]}
                 isOwnProject={String(currentUser?.id) === String(p.ownerId)}
+                alreadyApplied={hasAlreadyApplied(p)}
+                alreadyMember={isAlreadyMember(p)}
                 onApply={() => handleApply(p)}
                 onMessage={() => requireAuth(() => setMsgProject(p))}
               />

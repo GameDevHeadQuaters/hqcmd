@@ -51,28 +51,37 @@ function checkInvitedMember(currentUser) {
     const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
     const myId = String(currentUser.id)
 
-    const myProjects = allData[myId]?.projects || []
-    const hasTeamMembers = myProjects.some(p => (p.members || []).length > 0)
+    // Check 1: already a member of someone else's project
+    const isInSharedProject = (allData[myId]?.sharedProjects || []).length > 0
+    if (isInSharedProject) return true
 
-    const hasApplied = Object.keys(allData).some(userId =>
-      (allData[userId]?.projects || []).some(p =>
+    // Check 2: applied to any other owner's project
+    const hasApplied = Object.keys(allData).some(ownerId => {
+      if (ownerId === myId) return false
+      return (allData[ownerId]?.projects || []).some(p =>
         (p.applications || []).some(a =>
+          a.applicantEmail === currentUser.email ||
           a.applicantName === currentUser.name ||
-          String(a.applicantEmail) === String(currentUser.email)
+          String(a.applicantUserId) === myId
         )
       )
-    )
-
-    const isInSharedProject = (allData[myId]?.sharedProjects || []).length > 0
-
-    const sentInvite = Object.keys(allData).some(uid => {
-      return (allData[uid]?.directMessages || []).some(m =>
-        m.type === 'invite' &&
-        (m.fromName === currentUser.name || String(m.fromUserId) === String(currentUser.id))
-      )
     })
+    if (hasApplied) return true
 
-    return hasTeamMembers || hasApplied || isInSharedProject || sentInvite
+    // Check 3: owns a project that has members or received applications
+    const hasInvitedSomeone = (allData[myId]?.projects || []).some(p =>
+      (p.members || []).length > 0 || (p.applications || []).length > 0
+    )
+    if (hasInvitedSomeone) return true
+
+    // Check 4: sent a contact invite via direct messages
+    const sentInvite = Object.keys(allData).some(uid =>
+      (allData[uid]?.directMessages || []).some(m =>
+        m.type === 'invite' &&
+        (m.fromName === currentUser.name || String(m.fromUserId) === myId)
+      )
+    )
+    return sentInvite
   } catch { return false }
 }
 
@@ -135,7 +144,18 @@ export default function OnboardingChecklist({ currentUser, projects, application
   const [celebrating, setCelebrating] = useState(false)
 
   const storedSteps = onboarding?.steps ?? DEFAULT_STEPS
-  const steps = computeSteps(currentUser, projects, storedSteps)
+  const [steps, setSteps] = useState(() => computeSteps(currentUser, projects, storedSteps))
+
+  function checkAllSteps() {
+    setSteps(computeSteps(currentUser, projects, onboarding?.steps ?? DEFAULT_STEPS))
+  }
+
+  useEffect(() => {
+    checkAllSteps()
+    const interval = setInterval(checkAllSteps, 10000)
+    return () => clearInterval(interval)
+  }, [currentUser]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const completedCount = Object.values(steps).filter(Boolean).length
   const allDone = completedCount === 5
 
