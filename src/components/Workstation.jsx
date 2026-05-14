@@ -46,18 +46,20 @@ export default function Workstation({
   const searchParams = new URLSearchParams(location.search)
   const urlProjectId = searchParams.get('projectId')
   const urlOwnerUserId = searchParams.get('ownerUserId')
+
+  console.log('[Workstation] URL search:', location.search)
+  console.log('[Workstation] urlProjectId:', urlProjectId, 'urlOwnerUserId:', urlOwnerUserId)
+
   const isSharedProject = !!urlOwnerUserId && urlOwnerUserId !== String(currentUser?.id)
 
+  const effectiveProjectId = urlProjectId || String(activeProject?.id ?? '')
   const effectiveOwnerUserId = urlOwnerUserId || String(currentUser?.id)
   const ownerUserId = effectiveOwnerUserId
 
   // Sync URL params → App state (handles page refresh and direct URL access)
   useEffect(() => {
-    console.log('[Workstation] projectId:', urlProjectId, 'ownerUserId:', urlOwnerUserId)
-    if (urlProjectId && urlOwnerUserId) {
-      setActiveProjectId?.(urlProjectId)
-      setActiveOwnerUserId?.(urlOwnerUserId)
-    }
+    if (urlProjectId) setActiveProjectId?.(urlProjectId)
+    if (urlOwnerUserId) setActiveOwnerUserId?.(urlOwnerUserId)
   }, [location.search])
 
   const myRole = useMemo(() => {
@@ -75,24 +77,24 @@ export default function Workstation({
 
   // Seed calendarEvents from localStorage on first mount and keep in sync with TodoList writes
   useEffect(() => {
-    if (!activeProject?.id || !ownerUserId) return
+    if (!effectiveProjectId || !ownerUserId) return
     function syncCalEvents() {
       try {
         const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-        const proj = (allData[ownerUserId]?.projects || []).find(p => String(p.id) === String(activeProject.id))
+        const proj = (allData[ownerUserId]?.projects || []).find(p => String(p.id) === String(effectiveProjectId))
         if (proj?.calendarEvents) setCalendarEvents(proj.calendarEvents)
       } catch {}
     }
     syncCalEvents()
     window.addEventListener('storage', syncCalEvents)
     return () => window.removeEventListener('storage', syncCalEvents)
-  }, [activeProject?.id, ownerUserId])
+  }, [effectiveProjectId, ownerUserId])
 
   // Mirror calendarEvents to localStorage whenever they change
   function handleSetCalendarEvents(updaterOrValue) {
     setCalendarEvents(prev => {
       const next = typeof updaterOrValue === 'function' ? updaterOrValue(prev) : updaterOrValue
-      writeProjectField(activeProject?.id, ownerUserId, 'calendarEvents', next)
+      writeProjectField(effectiveProjectId, ownerUserId, 'calendarEvents', next)
       return next
     })
   }
@@ -150,7 +152,7 @@ export default function Workstation({
             onAddCalendarEvent={(ev) => handleSetCalendarEvents(prev => [...prev, ev])}
             onMilestonesChange={(milestones) => onUpdateProject?.({ milestones })}
             userRole={myRole}
-            projectId={activeProject?.id}
+            projectId={effectiveProjectId}
             ownerUserId={ownerUserId}
           />
           <TabPanel
@@ -160,7 +162,7 @@ export default function Workstation({
             setApplications={setApplications}
             agreements={agreements}
             setAgreements={setAgreements}
-            projectId={activeProject?.id}
+            projectId={effectiveProjectId}
             ownerUserId={ownerUserId}
             projectTitle={project.title}
             currentUser={currentUser}
@@ -176,10 +178,10 @@ export default function Workstation({
           <BudgetCard
             budget={activeProject?.budget}
             onUpdateBudget={(b) => onUpdateProject?.({ budget: b })}
-            projectId={activeProject?.id}
+            projectId={effectiveProjectId}
             userRole={myRole}
           />
-          <TeamMembers projectId={String(activeProject?.id ?? '')} ownerUserId={ownerUserId} currentUser={currentUser} agreements={agreements} userRole={myRole} />
+          <TeamMembers projectId={effectiveProjectId} ownerUserId={ownerUserId} currentUser={currentUser} agreements={agreements} userRole={myRole} />
         </div>
       </div>
 
@@ -188,7 +190,7 @@ export default function Workstation({
           project={project}
           currentUser={currentUser}
           onSave={(data) => {
-            const pid = activeProject?.id
+            const pid = effectiveProjectId
             if (data.coverImage && pid) {
               try { localStorage.setItem('hqcmd_img_' + pid, data.coverImage) }
               catch (e) { if (e.name === 'QuotaExceededError') console.warn('localStorage full — cover image not saved') }

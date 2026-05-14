@@ -131,9 +131,9 @@ export default function Sidebar({
 
   function selectProject(p) {
     setActiveProjectId(p.id)
-    setActiveOwnerUserId(null)
+    setActiveOwnerUserId(String(currentUser?.id))
     setProjectDropOpen(false)
-    navigate('/workstation')
+    navigate(`/workstation?projectId=${String(p.id)}&ownerUserId=${String(currentUser?.id)}`)
   }
 
   const budgetPath = activeProject ? `/budget/${activeProject.id}` : (projects[0] ? `/budget/${projects[0].id}` : '/projects')

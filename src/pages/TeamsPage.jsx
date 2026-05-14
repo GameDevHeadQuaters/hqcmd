@@ -602,11 +602,12 @@ export default function TeamsPage({
                     onClick={e => {
                       e.stopPropagation()
                       setActiveProjectId?.(project.id)
-                      setActiveOwnerUserId?.(project.isOwned ? null : project.ownerUserId)
                       if (project.isOwned) {
-                        navigate('/workstation')
+                        setActiveOwnerUserId?.(String(currentUser?.id))
+                        navigate(`/workstation?projectId=${String(project.id)}&ownerUserId=${String(currentUser?.id)}`)
                       } else {
-                        navigate(`/workstation?projectId=${project.id}&ownerUserId=${project.ownerUserId}`)
+                        setActiveOwnerUserId?.(project.ownerUserId)
+                        navigate(`/workstation?projectId=${String(project.id)}&ownerUserId=${project.ownerUserId}`)
                       }
                     }}
                     className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors flex-shrink-0"

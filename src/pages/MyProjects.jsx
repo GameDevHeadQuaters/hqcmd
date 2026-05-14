@@ -360,7 +360,7 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
                       key={p.id}
                       project={{ ...p, coverImage: getProjectImage(p.id) }}
                       topBorder={CARD_BORDERS[i % 3]}
-                      onOpen={() => { setActiveOwnerUserId?.(null); setActiveProjectId(p.id); navigate('/workstation') }}
+                      onOpen={() => { setActiveOwnerUserId?.(String(currentUser?.id)); setActiveProjectId(p.id); navigate(`/workstation?projectId=${String(p.id)}&ownerUserId=${String(currentUser?.id)}`) }}
                       onManageTeam={() => navigate(`/team/${p.id}`)}
                     />
                   ))}
