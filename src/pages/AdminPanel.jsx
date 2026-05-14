@@ -30,6 +30,93 @@ function genCode() {
   return Math.random().toString(36).slice(2, 10).toUpperCase()
 }
 
+function completelyDeleteUser(targetUserId, targetEmail) {
+  const USERDATA_KEY = 'hqcmd_userData_v4'
+  const USERS_KEY = 'hqcmd_users_v3'
+  const userId = String(targetUserId)
+
+  // 1. Remove from users array
+  const users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
+  localStorage.setItem(USERS_KEY, JSON.stringify(users.filter(u => String(u.id) !== userId)))
+
+  // 2. Capture their projects before deleting slot
+  const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+  const theirProjects = allData[userId]?.projects || []
+
+  // 3. Remove their project images
+  theirProjects.forEach(p => {
+    localStorage.removeItem('hqcmd_img_' + p.id)
+  })
+
+  // 4. Remove their userData slot
+  delete allData[userId]
+
+  // 5. Remove them from ALL other users' data
+  Object.keys(allData).forEach(uid => {
+    if (Array.isArray(allData[uid].contacts)) {
+      allData[uid].contacts = allData[uid].contacts.filter(c =>
+        String(c.userId) !== userId && c.email !== targetEmail
+      )
+    }
+    if (Array.isArray(allData[uid].sharedProjects)) {
+      allData[uid].sharedProjects = allData[uid].sharedProjects.filter(sp =>
+        String(sp.ownerUserId) !== userId
+      )
+    }
+    if (Array.isArray(allData[uid].projects)) {
+      allData[uid].projects = allData[uid].projects.map(p => ({
+        ...p,
+        members: (p.members || []).filter(m => String(m.userId || m.id) !== userId),
+        applications: (p.applications || []).filter(a =>
+          a.applicantEmail !== targetEmail && String(a.applicantUserId) !== userId
+        ),
+      }))
+    }
+    if (Array.isArray(allData[uid].directMessages)) {
+      allData[uid].directMessages = allData[uid].directMessages.filter(m =>
+        String(m.fromUserId) !== userId && m.fromName !== targetEmail
+      )
+    }
+    if (Array.isArray(allData[uid].notifications)) {
+      allData[uid].notifications = allData[uid].notifications.filter(n =>
+        !n.message?.includes(targetEmail)
+      )
+    }
+    if (Array.isArray(allData[uid].agreements)) {
+      allData[uid].agreements = allData[uid].agreements.filter(a =>
+        a.counterpartyEmail !== targetEmail && String(a.signerUserId) !== userId
+      )
+    }
+  })
+
+  // 6. Save cleaned data
+  localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+
+  // 7. Remove from beta requests
+  const betaRequests = JSON.parse(localStorage.getItem('hqcmd_beta_requests') || '[]')
+  localStorage.setItem('hqcmd_beta_requests', JSON.stringify(
+    betaRequests.filter(r => r.email !== targetEmail)
+  ))
+
+  // 8. Remove from suspended list
+  const suspended = JSON.parse(localStorage.getItem('hqcmd_suspended') || '[]')
+  localStorage.setItem('hqcmd_suspended', JSON.stringify(
+    suspended.filter(id => String(id) !== userId)
+  ))
+
+  // 9. Remove their invite code usage
+  const codes = JSON.parse(localStorage.getItem('hqcmd_invite_codes') || '[]')
+  localStorage.setItem('hqcmd_invite_codes', JSON.stringify(
+    codes.map(c => c.usedBy === targetEmail ? { ...c, used: false, usedBy: null, usedAt: null } : c)
+  ))
+
+  // 10. Update backup
+  const freshData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+  localStorage.setItem('hqcmd_userData_backup', JSON.stringify(freshData))
+
+  return true
+}
+
 function TabBtn({ id, label, active, count, onClick }) {
   return (
     <button
@@ -79,13 +166,13 @@ function UsersTab({ users, setUsers }) {
 
   function confirmDelete() {
     if (!deleteTarget || deleteInput !== 'DELETE') return
-    const uid = String(deleteTarget.id)
-    setUsers(prev => prev.filter(u => String(u.id) !== uid))
-    const allUD = readLS(UD_KEY, {})
-    delete allUD[uid]; writeLS(UD_KEY, allUD)
-    const next = suspendedIds.filter(id => id !== uid)
-    setSuspendedIds(next); writeLS(SUSP_KEY, next)
-    setDeleteTarget(null); setDeleteInput('')
+    completelyDeleteUser(deleteTarget.id, deleteTarget.email)
+    const freshUsers = readLS('hqcmd_users_v3', [])
+    setUsers(freshUsers)
+    const next = suspendedIds.filter(id => id !== String(deleteTarget.id))
+    setSuspendedIds(next)
+    setDeleteTarget(null)
+    setDeleteInput('')
   }
 
   function projectCount(uid) {
