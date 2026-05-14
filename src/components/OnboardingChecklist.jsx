@@ -16,13 +16,66 @@ const DEFAULT_STEPS = {
   firstMessage: false,
 }
 
-function computeSteps(currentUser, projects, applications, storedSteps) {
+function checkFirstMessage(currentUser) {
+  try {
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const myId = String(currentUser.id)
+
+    const sentDMs = (allData[myId]?.directMessages?.length ?? 0) > 0
+
+    const myProjects = allData[myId]?.projects || []
+    const sentProjectChat = myProjects.some(p =>
+      (p.chatMessages || []).some(m => String(m.senderId) === myId)
+    )
+
+    const sharedRefs = allData[myId]?.sharedProjects || []
+    const sentSharedChat = sharedRefs.some(ref => {
+      const ownerProjects = allData[String(ref.ownerUserId)]?.projects || []
+      const project = ownerProjects.find(p => String(p.id) === String(ref.projectId))
+      return (project?.chatMessages || []).some(m => String(m.senderId) === myId)
+    })
+
+    const sentInboxMsg = Object.keys(allData).some(userId => {
+      if (userId === myId) return false
+      return (allData[userId]?.directMessages || []).some(m =>
+        String(m.fromUserId) === myId || m.fromName === currentUser.name
+      )
+    })
+
+    return sentDMs || sentProjectChat || sentSharedChat || sentInboxMsg
+  } catch { return false }
+}
+
+function checkInvitedMember(currentUser) {
+  try {
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const myId = String(currentUser.id)
+
+    const myProjects = allData[myId]?.projects || []
+    const hasTeamMembers = myProjects.some(p => (p.members || []).length > 0)
+
+    const hasApplied = Object.keys(allData).some(userId =>
+      (allData[userId]?.projects || []).some(p =>
+        (p.applications || []).some(a =>
+          a.applicantName === currentUser.name ||
+          String(a.applicantEmail) === String(currentUser.email)
+        )
+      )
+    )
+
+    const isInSharedProject = (allData[myId]?.sharedProjects || []).length > 0
+
+    return hasTeamMembers || hasApplied || isInSharedProject
+  } catch { return false }
+}
+
+function computeSteps(currentUser, projects, storedSteps) {
   return {
     profileComplete: (currentUser?.bio?.length ?? 0) > 20 && (currentUser?.skills?.length ?? 0) > 0,
     projectCreated:  (projects?.length ?? 0) > 0,
     browsedProjects: storedSteps?.browsedProjects ?? false,
-    invitedMember:   (applications?.length ?? 0) > 0 || (projects ?? []).some(p => (p.members?.length ?? 0) > 0),
-    firstMessage:    (projects ?? []).some(p => (p.chatMessages?.length ?? 0) > 0),
+    invitedMember:   checkInvitedMember(currentUser),
+    firstMessage:    checkFirstMessage(currentUser),
   }
 }
 
@@ -75,7 +128,7 @@ export default function OnboardingChecklist({ currentUser, projects, application
   const [celebrating, setCelebrating] = useState(false)
 
   const storedSteps = onboarding?.steps ?? DEFAULT_STEPS
-  const steps = computeSteps(currentUser, projects, applications, storedSteps)
+  const steps = computeSteps(currentUser, projects, storedSteps)
   const completedCount = Object.values(steps).filter(Boolean).length
   const allDone = completedCount === 5
 
