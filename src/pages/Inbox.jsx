@@ -258,20 +258,21 @@ function NotifCard({ notif, onMarkRead, navigate }) {
   const Icon = notif.Icon ?? IconBell
 
   function handleClick() {
-    if (!notif.read) onMarkRead(notif.id)
+    onMarkRead(notif.id)
+    if (notif.link) { navigate(notif.link); return }
     const destinations = {
-      agreement:           '/agreements',
-      agreement_signed:    '/agreements',
-      access_granted:      '/projects',
-      application:         '/teams',
-      application_accepted:'/inbox',
-      message:             '/inbox',
-      project_invite:      '/browse',
-      achievement:         '/profile',
-      system:              '/admin',
+      application:          '/teams',
+      application_accepted: '/agreements',
+      agreement:            '/agreements',
+      agreement_signed:     '/teams',
+      access_granted:       '/projects',
+      project_invite:       '/browse',
+      achievement:          '/profile',
+      message:              '/inbox',
+      system:               '/admin',
+      contact:              '/inbox',
     }
-    const dest = notif.link || destinations[notif.type] || null
-    if (dest) navigate(dest)
+    navigate(destinations[notif.type] || '/inbox')
   }
 
   return (
@@ -392,12 +393,12 @@ export default function Inbox({
   const [tab, setTab] = useState('messages')
   const [profileDropOpen, setProfileDropOpen] = useState(false)
   const [newContactsCount, setNewContactsCount] = useState(() => {
-    const lastSeen = localStorage.getItem('hqcmd_contacts_seen_' + currentUser?.id)
+    const lastSeen = localStorage.getItem('hqcmd_contacts_seen_' + String(currentUser?.id))
     if (!lastSeen) return (contacts ?? []).length
     try {
       const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
       const myContacts = allData[String(currentUser?.id)]?.contacts || []
-      return myContacts.filter(c => new Date(c.addedAt) > new Date(lastSeen)).length
+      return myContacts.filter(c => c.addedAt && new Date(c.addedAt) > new Date(lastSeen)).length
     } catch { return 0 }
   })
 
@@ -414,8 +415,8 @@ export default function Inbox({
   function handleTabSwitch(newTab) {
     setTab(newTab)
     if (newTab === 'contacts') {
-      localStorage.setItem('hqcmd_contacts_seen_' + currentUser?.id, new Date().toISOString())
       setNewContactsCount(0)
+      localStorage.setItem('hqcmd_contacts_seen_' + String(currentUser?.id), new Date().toISOString())
     }
   }
 
@@ -444,15 +445,22 @@ export default function Inbox({
       const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
       const found = []
       Object.keys(allData).forEach(ownerId => {
+        if (ownerId === myId) return
         const ownerUser = allUsers.find(u => String(u.id) === ownerId)
         ;(allData[ownerId]?.projects || []).forEach(project => {
           ;(project.applications || []).forEach(app => {
             if (
-              String(app.applicantUserId) === myId ||
               app.applicantEmail === myEmail ||
-              app.applicantName === myName
+              app.applicantName === myName ||
+              String(app.applicantUserId) === myId
             ) {
-              found.push({ ...app, projectTitle: project.title, projectId: project.id, ownerId, ownerName: ownerUser?.name || 'Unknown' })
+              found.push({
+                ...app,
+                projectTitle: project.title,
+                projectId: String(project.id),
+                ownerUserId: ownerId,
+                ownerName: ownerUser?.name || 'Unknown',
+              })
             }
           })
         })
@@ -461,6 +469,13 @@ export default function Inbox({
       return found
     } catch { return [] }
   }
+
+  const [myApps, setMyApps] = useState(() => getMyApplications())
+  useEffect(() => {
+    setMyApps(getMyApplications())
+    const interval = setInterval(() => setMyApps(getMyApplications()), 5000)
+    return () => clearInterval(interval)
+  }, [currentUser]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const TABS = [
     { id: 'messages',      label: 'Messages',       count: unreadMsgs        },
@@ -587,9 +602,7 @@ export default function Inbox({
           </>
         )}
 
-        {tab === 'applications' && (() => {
-          const myApps = getMyApplications()
-          return myApps.length === 0 ? (
+        {tab === 'applications' && (myApps.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-center">
               <IconSend size={48} style={{ color: 'var(--brand-purple)' }} className="mb-4" />
               <p className="text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>No applications yet</p>
@@ -604,14 +617,13 @@ export default function Inbox({
                 <IconArrowRight size={14} /> Browse Projects
               </button>
             </div>
-          ) : (
+        ) : (
             <div className="space-y-3">
               {myApps.map((app, i) => (
                 <ApplicationCard key={app.id || i} app={app} navigate={navigate} />
               ))}
             </div>
-          )
-        })()}
+          ))}
 
         {tab === 'contacts' && (
           <ContactsTab

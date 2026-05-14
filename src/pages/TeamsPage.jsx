@@ -17,6 +17,19 @@ function readAllUD() {
   try { return JSON.parse(localStorage.getItem(UD_KEY)) ?? {} } catch { return {} }
 }
 
+function normaliseRole(role) {
+  const map = {
+    'co-leader':  'Co-leader',
+    'coleader':   'Co-leader',
+    'co leader':  'Co-leader',
+    'owner':      'Owner',
+    'member':     'Member',
+    'contributor':'Contributor',
+    'observer':   'Observer',
+  }
+  return map[role?.toLowerCase?.()] || role || 'Member'
+}
+
 function formatDate(iso) {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -299,7 +312,7 @@ export default function TeamsPage({
             text: `Your application for ${app.role} on "${project.title || app.projectTitle}" has been accepted! Check your agreements for next steps.`,
             time: 'Just now',
             read: false,
-            link: '/inbox',
+            link: '/agreements',
           },
           ...(allUD[apId].notifications || []),
         ]
@@ -392,8 +405,8 @@ export default function TeamsPage({
       ownerUserId: String(currentUser.id),
       ownerName: currentUser.name,
       projectTitle: project.title,
-      role: application.role || 'Member',
-      userRole: application.role || 'Member',
+      role: normaliseRole(application.role),
+      userRole: normaliseRole(application.role),
       joinedAt: new Date().toISOString(),
     })
 

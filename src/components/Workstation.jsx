@@ -9,6 +9,19 @@ import CalendarModal from './CalendarModal'
 import ScheduleMeetingModal from './ScheduleMeetingModal'
 import { writeProjectField } from '../utils/projectData'
 
+function normaliseRole(role) {
+  const map = {
+    'co-leader':  'Co-leader',
+    'coleader':   'Co-leader',
+    'co leader':  'Co-leader',
+    'owner':      'Owner',
+    'member':     'Member',
+    'contributor':'Contributor',
+    'observer':   'Observer',
+  }
+  return map[role?.toLowerCase?.()] || role || 'Member'
+}
+
 export default function Workstation({
   calendarEvents, setCalendarEvents,
   activeProject, onUpdateProject,
@@ -54,7 +67,7 @@ export default function Workstation({
       const refs = allData[String(currentUser?.id)]?.sharedProjects || []
       const projectIdToLookup = urlProjectId || activeProject?.id
       const ref = refs.find(sp => String(sp.projectId) === String(projectIdToLookup))
-      const role = ref?.role || ref?.userRole || userRole || 'Member'
+      const role = normaliseRole(ref?.role || ref?.userRole || userRole) || 'Member'
       console.log('[Workstation] myRole:', role, 'for project:', projectIdToLookup)
       return role
     } catch { return userRole || 'Member' }

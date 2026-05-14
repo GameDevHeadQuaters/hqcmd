@@ -158,6 +158,17 @@ export default function AgreementSendModal({
     }
     deliverAgreementToRecipient(String(counterparty.id), receivedAgreement)
 
+    // Verify delivery and retry once if it failed
+    try {
+      const verify = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const count = verify[String(counterparty.id)]?.agreements?.length || 0
+      console.log('[AgreementSend] Verified - recipient agreements:', count)
+      if (count === 0) {
+        console.warn('[AgreementSend] First write may have failed - retrying...')
+        deliverAgreementToRecipient(String(counterparty.id), receivedAgreement)
+      }
+    } catch {}
+
     const notifText = `${currentUser?.name ?? 'Someone'} has sent you an agreement to sign: "${createdAgreement.templateName}"`
     const dmObj = {
       id: Date.now(),

@@ -9,21 +9,27 @@ export const ROLES = {
 const R = ROLES
 
 export const PERMISSIONS = {
-  EDIT_PROJECT:     [R.CO_LEADER],
-  ADD_MILESTONES:   [R.CO_LEADER],
-  SCHEDULE_MEETING: [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
-  MANAGE_TEAM:      [],                                           // Owner only
-  INVITE_MEMBER:    [R.CO_LEADER],
-  MANAGE_BUDGET:    [R.CO_LEADER],
-  ADD_TODO:         [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
-  DELETE_TODO:      [R.CO_LEADER, R.MEMBER],
-  ADD_LINK:         [R.CO_LEADER, R.MEMBER],
-  DELETE_LINK:      [R.CO_LEADER, R.MEMBER],
-  TEAM_CHAT:        [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
-  VIEW_APPS:        [R.CO_LEADER],
-  VIEW_AGREEMENTS:  [R.CO_LEADER, R.MEMBER],
-  DELETE_PROJECT:   [],                                           // Owner only
-  REMOVE_MEMBER:    [R.CO_LEADER],
+  EDIT_PROJECT:         [R.CO_LEADER],
+  EDIT_PROJECT_PROFILE: [R.CO_LEADER],
+  ADD_MILESTONES:       [R.CO_LEADER],
+  MANAGE_MILESTONES:    [R.CO_LEADER],
+  SCHEDULE_MEETING:     [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
+  MANAGE_TEAM:          [],                                           // Owner only
+  INVITE_MEMBER:        [R.CO_LEADER],
+  MANAGE_BUDGET:        [R.CO_LEADER],
+  ADD_TODO:             [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
+  DELETE_TODO:          [R.CO_LEADER, R.MEMBER],
+  ADD_LINK:             [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
+  ADD_LINKS:            [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
+  DELETE_LINK:          [R.CO_LEADER, R.MEMBER],
+  TEAM_CHAT:            [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
+  ADD_CONTENT:          [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
+  EDIT_OWN_CONTENT:     [R.CO_LEADER, R.MEMBER, R.CONTRIBUTOR],
+  EDIT_ANY_CONTENT:     [R.CO_LEADER, R.MEMBER],
+  VIEW_APPS:            [R.CO_LEADER],
+  VIEW_AGREEMENTS:      [R.CO_LEADER, R.MEMBER],
+  DELETE_PROJECT:       [],                                           // Owner only
+  REMOVE_MEMBER:        [R.CO_LEADER],
 }
 
 // Returns true if userRole can perform permission. Owner always can.

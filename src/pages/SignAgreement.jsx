@@ -188,13 +188,13 @@ export default function SignAgreement({ userData, onCountersign, onNotifyOwner }
         const freshData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
         Object.keys(freshData).forEach(uid => {
           ;(freshData[uid]?.agreements || []).forEach((a, idx) => {
-            if (a.shareToken === token) {
+            if (String(a.shareToken) === String(token)) {
               freshData[uid].agreements[idx].status = 'fully_signed'
+              freshData[uid].agreements[idx].counterpartyName = signerName.trim()
+              freshData[uid].agreements[idx].counterpartyEmail = signerEmail.trim()
               if (a.isReceived) {
                 freshData[uid].agreements[idx].signedAt = new Date().toISOString()
               } else {
-                freshData[uid].agreements[idx].counterpartyName = signerName.trim()
-                freshData[uid].agreements[idx].counterpartyEmail = signerEmail.trim()
                 freshData[uid].agreements[idx].counterpartySignedAt = new Date().toISOString()
               }
             }

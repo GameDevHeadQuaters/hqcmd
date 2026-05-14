@@ -30,6 +30,10 @@ export default function TeamChat({ projectId, ownerUserId, currentUser, userRole
   }, [projectId, ownerUserId])
 
   useEffect(() => {
+    console.log('[TeamChat] userRole:', userRole, 'hasPermission:', hasPermission(userRole, 'TEAM_CHAT'))
+  }, [userRole])
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
