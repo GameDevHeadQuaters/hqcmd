@@ -357,8 +357,23 @@ export default function TeamsPage({
       u.name?.toLowerCase() === recipientName.toLowerCase()
     )
     if (counterparty) {
-      const notifText = `${currentUser?.name ?? 'Someone'} has resent you an agreement to sign: "${ag.templateName}"`
-      onAddNotificationForUser?.(counterparty.id, { type: 'agreement', text: notifText, link: '/inbox' })
+      // Write notification directly to localStorage — avoid React-state pathway that can overwrite recipient data
+      try {
+        const allUD = readAllUD()
+        const cpId = String(counterparty.id)
+        if (!allUD[cpId]) allUD[cpId] = {}
+        if (!Array.isArray(allUD[cpId].notifications)) allUD[cpId].notifications = []
+        allUD[cpId].notifications.unshift({
+          id: String(Date.now()) + '_rn',
+          iconType: 'agreement',
+          type: 'agreement',
+          text: `${currentUser?.name ?? 'Someone'} has resent you an agreement to sign: "${ag.templateName}"`,
+          time: 'Just now',
+          read: false,
+          link: '/agreements',
+        })
+        localStorage.setItem(UD_KEY, JSON.stringify(allUD))
+      } catch {}
     }
     const msg = counterparty ? `Agreement resent to ${recipientName}` : `Link copied — share with ${recipientName}`
     setResendFeedback(prev => ({ ...prev, [app.id]: msg }))

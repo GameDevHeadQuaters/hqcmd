@@ -28,34 +28,91 @@ function genToken() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
 }
 
-function deliverAgreementToRecipient(recipientUserId, agreement) {
+function deliverAgreementToRecipient(recipientEmail, agreementObj, senderName, projectTitle) {
+  const USERDATA_KEY = 'hqcmd_userData_v4'
   try {
-    const key = 'hqcmd_userData_v4'
-    const allData = JSON.parse(localStorage.getItem(key) || '{}')
-    const uid = String(recipientUserId)
-    if (!allData[uid]) {
-      allData[uid] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
+    const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+    const recipient = allUsers.find(u =>
+      u.email?.toLowerCase().trim() === recipientEmail?.toLowerCase().trim()
+    )
+    if (!recipient) {
+      console.error('[Deliver] Recipient not found:', recipientEmail)
+      return false
     }
-    if (!Array.isArray(allData[uid].agreements)) {
-      allData[uid].agreements = []
+    const recipientId = String(recipient.id)
+    console.log('[Deliver] Found recipient:', recipientId, recipient.name)
+
+    // Always read fresh — never use cached/stale data
+    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+
+    if (!allData[recipientId]) {
+      allData[recipientId] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
     }
-    allData[uid].agreements = [agreement, ...allData[uid].agreements]
-    allData[uid].notifications = [
-      {
-        id: Date.now(),
-        iconType: 'agreement',
-        type: 'agreement',
-        text: `📝 An agreement has been sent to you for "${agreement.projectTitle}". Review and sign it to join the team.`,
-        time: 'Just now',
-        read: false,
-        link: '/agreements',
-      },
-      ...(allData[uid].notifications || []),
-    ]
-    localStorage.setItem(key, JSON.stringify(allData))
+    ;['agreements', 'notifications', 'directMessages'].forEach(k => {
+      if (!Array.isArray(allData[recipientId][k])) allData[recipientId][k] = []
+    })
+
+    // Duplicate guard
+    const alreadyHas = allData[recipientId].agreements.some(a =>
+      a.shareToken === agreementObj.shareToken && a.isReceived
+    )
+    if (alreadyHas) {
+      console.log('[Deliver] Already delivered — skipping duplicate')
+      return true
+    }
+
+    // Write received agreement
+    allData[recipientId].agreements.push({
+      ...agreementObj,
+      id: String(Date.now()) + '_received',
+      isReceived: true,
+      status: 'awaiting_my_signature',
+      read: false,
+      receivedAt: new Date().toISOString(),
+      fromName: senderName,
+      projectTitle,
+    })
+
+    // Write notification
+    allData[recipientId].notifications.unshift({
+      id: String(Date.now()) + '_notif',
+      iconType: 'agreement',
+      type: 'agreement',
+      text: `📝 ${senderName} sent you an agreement to sign: "${agreementObj.templateName}"${projectTitle ? ` for "${projectTitle}"` : ''}.`,
+      time: 'Just now',
+      read: false,
+      timestamp: new Date().toISOString(),
+      link: '/agreements',
+    })
+
+    // Write inbox message
+    allData[recipientId].directMessages.unshift({
+      id: String(Date.now()) + '_msg',
+      type: 'agreement',
+      agreementId: agreementObj.id,
+      shareToken: agreementObj.shareToken,
+      fromName: senderName,
+      subject: `Agreement to sign: ${agreementObj.templateName}`,
+      message: `${senderName} has sent you an agreement to sign: "${agreementObj.templateName}". Click "Review & Sign" to view and sign it.`,
+      timestamp: new Date().toISOString(),
+      read: false,
+    })
+
+    // Single atomic save
+    localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+
+    // Immediate verification
+    const verify = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+    const count = verify[recipientId]?.agreements?.length || 0
+    console.log('[Deliver] Verified — recipient agreements:', count)
+    if (count === 0) {
+      console.error('[Deliver] VERIFICATION FAILED — agreement not saved!')
+      return false
+    }
+
     return true
   } catch (err) {
-    console.error('[deliverAgreementToRecipient] failed:', err)
+    console.error('[Deliver] Failed:', err)
     return false
   }
 }
@@ -132,6 +189,30 @@ export default function AgreementSendModal({
       shareToken: token,
       sentToInbox: false,
     }
+
+    // Step 1: Write agreement to owner's localStorage FIRST before any React state updates
+    try {
+      const USERDATA_KEY = 'hqcmd_userData_v4'
+      const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+      const myId = String(currentUser?.id)
+      if (!allData[myId]) allData[myId] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
+      if (!Array.isArray(allData[myId].agreements)) allData[myId].agreements = []
+      allData[myId].agreements = [agreement, ...allData[myId].agreements]
+      localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+      console.log('[Sign] Owner agreement saved to localStorage')
+    } catch (e) {
+      console.warn('[Sign] Failed to save owner agreement to localStorage:', e)
+    }
+
+    // Step 2: Auto-deliver to recipient if email is already known
+    if (cpEmail.trim()) {
+      console.log('[Sign] Auto-delivering to recipient:', cpEmail.trim())
+      const delivered = deliverAgreementToRecipient(cpEmail.trim(), agreement, signerName.trim(), projectTitle || null)
+      console.log('[Sign] Auto-delivery result:', delivered)
+      if (delivered) agreement.sentToInbox = true
+    }
+
+    // Step 3: Update React state
     setAgreements?.(prev => [agreement, ...(prev ?? [])])
     setCreated(agreement)
     onSave?.(agreement)
@@ -139,51 +220,18 @@ export default function AgreementSendModal({
   }
 
   function sendToInbox() {
-    console.log('[DELIVER] counterpartyEmail value:', cpEmail)
     if (!cpName.trim() || !cpEmail.trim()) { setSendStatus('field_error'); return }
 
-    const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
-    const counterparty = allUsers.find(u => u.email?.toLowerCase() === cpEmail.trim().toLowerCase())
-    if (!counterparty) { setSendStatus('no_user'); return }
+    console.log('[Send] Calling deliverAgreementToRecipient for:', cpEmail.trim())
+    const delivered = deliverAgreementToRecipient(
+      cpEmail.trim(),
+      { ...createdAgreement, counterpartyName: cpName.trim(), counterpartyEmail: cpEmail.trim() },
+      currentUser?.name ?? 'Someone',
+      projectTitle || null,
+    )
+    console.log('[Send] Delivery result:', delivered)
 
-    const receivedAgreement = {
-      ...createdAgreement,
-      id: String(createdAgreement.id) + '_recv_' + Date.now(),
-      counterpartyName: cpName.trim(),
-      counterpartyEmail: cpEmail.trim(),
-      receivedAt: new Date().toISOString(),
-      isReceived: true,
-      status: 'awaiting_my_signature',
-      read: false,
-    }
-    deliverAgreementToRecipient(String(counterparty.id), receivedAgreement)
-
-    // Verify delivery and retry once if it failed
-    try {
-      const verify = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-      const count = verify[String(counterparty.id)]?.agreements?.length || 0
-      console.log('[AgreementSend] Verified - recipient agreements:', count)
-      if (count === 0) {
-        console.warn('[AgreementSend] First write may have failed - retrying...')
-        deliverAgreementToRecipient(String(counterparty.id), receivedAgreement)
-      }
-    } catch {}
-
-    const notifText = `${currentUser?.name ?? 'Someone'} has sent you an agreement to sign: "${createdAgreement.templateName}"`
-    const dmObj = {
-      id: Date.now(),
-      type: 'agreement',
-      agreementId: createdAgreement.id,
-      shareToken: createdAgreement.shareToken,
-      fromName: currentUser?.name ?? 'HQCMD User',
-      fromEmail: currentUser?.email ?? '',
-      subject: `Agreement to sign: ${createdAgreement.templateName}`,
-      message: `${currentUser?.name ?? 'Someone'} has sent you an agreement to sign: "${createdAgreement.templateName}". Click "Review & Sign" to view and sign it.`,
-      timestamp: new Date().toISOString(),
-      read: false,
-    }
-    onAddNotificationForUser?.(counterparty.id, { type: 'agreement', text: notifText, link: '/agreements' })
-    onAddDirectMessageForUser?.(counterparty.id, dmObj)
+    if (!delivered) { setSendStatus('no_user'); return }
 
     const signLink = `${window.location.origin}/sign/${createdAgreement.shareToken}`
     const { subject, html } = agreementReceivedEmail(cpName.trim(), currentUser?.name ?? 'Someone', projectTitle, signLink)
@@ -376,7 +424,10 @@ export default function AgreementSendModal({
               <div className="flex items-center gap-2 rounded-lg px-4 py-3 mb-6" style={{ backgroundColor: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)' }}>
                 <IconCheck size={16} style={{ color: 'var(--status-success)', flexShrink: 0 }} />
                 <p className="text-xs font-medium" style={{ color: 'var(--status-success)' }}>
-                  Agreement signed. Send it to <strong>{recipientName || 'the counterparty'}</strong> for countersignature.
+                  {createdAgreement.sentToInbox
+                    ? <>Agreement signed and sent to <strong>{cpName || recipientName || 'the counterparty'}</strong>.</>
+                    : <>Agreement signed. Send it to <strong>{cpName || recipientName || 'the counterparty'}</strong> for countersignature.</>
+                  }
                 </p>
               </div>
 
@@ -403,16 +454,16 @@ export default function AgreementSendModal({
 
               <div className="flex gap-2 mb-4">
                 <button onClick={sendToInbox}
-                  disabled={sendStatus === 'sent'}
+                  disabled={sendStatus === 'sent' || createdAgreement?.sentToInbox}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-sm font-semibold text-white transition-colors"
                   style={{
-                    backgroundColor: sendStatus === 'sent' ? 'rgba(34,197,94,0.8)' : ACCENT,
-                    cursor: sendStatus === 'sent' ? 'default' : 'pointer',
+                    backgroundColor: (sendStatus === 'sent' || createdAgreement?.sentToInbox) ? 'rgba(34,197,94,0.8)' : ACCENT,
+                    cursor: (sendStatus === 'sent' || createdAgreement?.sentToInbox) ? 'default' : 'pointer',
                   }}
-                  onMouseEnter={e => { if (sendStatus !== 'sent') e.currentTarget.style.backgroundColor = ACCENT_DARK }}
-                  onMouseLeave={e => { if (sendStatus !== 'sent') e.currentTarget.style.backgroundColor = ACCENT }}>
-                  {sendStatus === 'sent' ? <IconCheck size={14} /> : <IconSend size={14} />}
-                  {sendStatus === 'sent' ? '✓ Sent to Inbox' : 'Send to Inbox'}
+                  onMouseEnter={e => { if (sendStatus !== 'sent' && !createdAgreement?.sentToInbox) e.currentTarget.style.backgroundColor = ACCENT_DARK }}
+                  onMouseLeave={e => { if (sendStatus !== 'sent' && !createdAgreement?.sentToInbox) e.currentTarget.style.backgroundColor = ACCENT }}>
+                  {(sendStatus === 'sent' || createdAgreement?.sentToInbox) ? <IconCheck size={14} /> : <IconSend size={14} />}
+                  {(sendStatus === 'sent' || createdAgreement?.sentToInbox) ? '✓ Sent to Inbox' : 'Send to Inbox'}
                 </button>
                 <button onClick={copyLink}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-sm font-semibold transition-colors"
@@ -424,7 +475,7 @@ export default function AgreementSendModal({
                 </button>
               </div>
 
-              {sendStatus === 'sent'        && <div className="flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg mb-2" style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--status-success)' }}><IconCheck size={13} /> Agreement sent to their HQCMD inbox.</div>}
+              {(sendStatus === 'sent' || createdAgreement?.sentToInbox) && <div className="flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg mb-2" style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--status-success)' }}><IconCheck size={13} /> Agreement sent to their HQCMD inbox.</div>}
               {sendStatus === 'copied'      && <div className="flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg mb-2" style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: 'var(--status-success)' }}><IconCheck size={13} /> Link copied — share it with {cpName || 'the counterparty'}.</div>}
               {sendStatus === 'no_user'     && <div className="flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg mb-2" style={{ backgroundColor: 'rgba(245,158,11,0.1)', color: 'var(--status-warning)', border: '1px solid rgba(245,158,11,0.3)' }}><IconAlertTriangle size={13} /> No HQCMD account found with that email. Use "Copy Link" to share a signing link instead.</div>}
               {sendStatus === 'field_error' && <div className="flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg mb-2" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--status-error)' }}><IconAlertTriangle size={13} /> Please enter both a name and email address.</div>}
