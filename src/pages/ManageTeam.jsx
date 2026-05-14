@@ -126,6 +126,9 @@ export default function ManageTeam({
   const [pendingPositions,   setPendingPositions]   = useState({})
   const [positionFeedback,   setPositionFeedback]   = useState({})
   const [pipelineTab,        setPipelineTab]        = useState('applied')
+  const [grantedIds,         setGrantedIds]         = useState([])
+  const [actionedIds,        setActionedIds]        = useState([])
+  const [grantError,         setGrantError]         = useState({})
 
   function goBack() {
     if (project) setActiveProjectId?.(project.id)
@@ -156,12 +159,14 @@ export default function ManageTeam({
   }
 
   function acceptApp(app) {
+    setActionedIds(prev => [...prev, app.id])
     updateApp({ ...app, status: 'accepted_pending_agreement', read: true })
     onAddNotification?.({ type: 'application', text: `You accepted ${app.applicantName} for ${app.role}. Send them an agreement to continue.`, link: `/team/${projectId}` })
     setPipelineTab('accepted')
   }
 
   function declineApp(app) {
+    setActionedIds(prev => [...prev, app.id])
     updateApp({ ...app, status: 'declined', read: true })
     const applicantUser = (users ?? []).find(u =>
       (app.applicantId && String(u.id) === String(app.applicantId)) ||
@@ -189,17 +194,11 @@ export default function ManageTeam({
   function grantAccess(app) {
     if (getAgreementStatus(app) !== 'signed') return
 
-    console.log('[GRANT] Application object:', JSON.stringify(app))
-    console.log('[GRANT] Starting grant access for:', app.applicantName, app.applicantEmail)
-
     const USERDATA_KEY = 'hqcmd_userData_v4'
     const USERS_KEY = 'hqcmd_users_v3'
 
     const allUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
     const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
-
-    console.log('[GRANT] Looking for applicant email:', app.applicantEmail)
-    console.log('[GRANT] Available users:', allUsers.map(u => u.email))
 
     const applicant = allUsers.find(u =>
       (app.applicantEmail && u.email?.toLowerCase().trim() === app.applicantEmail.toLowerCase().trim()) ||
@@ -207,13 +206,11 @@ export default function ManageTeam({
     )
 
     if (!applicant) {
-      console.error('[GRANT] Applicant not found!')
-      alert('Could not find this user\'s account. Make sure they have registered on HQCMD.')
+      setGrantError(prev => ({ ...prev, [app.id]: 'User account not found. Make sure they have registered.' }))
       return
     }
 
     const applicantId = String(applicant.id)
-    console.log('[GRANT] Found applicant:', applicantId, applicant.name)
 
     if (!allData[applicantId]) {
       allData[applicantId] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
@@ -225,12 +222,13 @@ export default function ManageTeam({
       String(sp.projectId) === String(project.id)
     )
     if (alreadyHasAccess) {
-      console.log('[GRANT] Already has access — skipping duplicate')
-      alert(`${applicant.name} already has access to this project.`)
+      setGrantedIds(prev => [...prev, app.id])
+      updateApp({ ...app, status: 'access_granted', read: true })
+      setPipelineTab('active')
       return
     }
 
-    const sharedRef = {
+    allData[applicantId].sharedProjects.push({
       id: String(Date.now()),
       projectId: String(project.id),
       ownerUserId: String(currentUser.id),
@@ -239,9 +237,7 @@ export default function ManageTeam({
       role: app.role || 'Member',
       userRole: app.role || 'Member',
       joinedAt: new Date().toISOString(),
-    }
-    allData[applicantId].sharedProjects.push(sharedRef)
-    console.log('[GRANT] sharedProjects after push:', allData[applicantId].sharedProjects.length)
+    })
 
     allData[applicantId].notifications.push({
       id: String(Date.now()) + '_notif',
@@ -256,18 +252,13 @@ export default function ManageTeam({
 
     try {
       localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
-      console.log('[GRANT] Saved successfully')
-
-      const verify = JSON.parse(localStorage.getItem(USERDATA_KEY))
-      console.log('[GRANT] Verification - sharedProjects:', verify[applicantId]?.sharedProjects)
 
       if (applicant.email) {
         const { subject, html } = accessGrantedEmail(applicant.name, project.title, currentUser.name)
         sendEmail({ to: applicant.email, subject, html })
       }
 
-      alert(`✓ Access granted! ${applicant.name} will see "${project.title}" in their My Projects.`)
-
+      setGrantedIds(prev => [...prev, app.id])
       onAcceptApplication?.(app)
       updateApp({ ...app, status: 'access_granted', read: true })
       onAddNotification?.({
@@ -277,9 +268,8 @@ export default function ManageTeam({
       })
       onRefreshUserData?.()
       setPipelineTab('active')
-    } catch (e) {
-      console.error('[GRANT] Save failed:', e)
-      alert('Failed to save — please try again.')
+    } catch {
+      setGrantError(prev => ({ ...prev, [app.id]: 'Failed to save — please try again.' }))
     }
   }
 
@@ -596,7 +586,9 @@ export default function ManageTeam({
               </div>
             ) : (
               <div className="space-y-3">
-                {appliedApps.map(app => (
+                {appliedApps.map(app => {
+                  const isActioned = actionedIds.includes(app.id)
+                  return (
                   <div key={app.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <div className="flex items-center gap-3 min-w-0">
@@ -612,18 +604,22 @@ export default function ManageTeam({
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <button onClick={() => acceptApp(app)}
+                        <button
+                          disabled={isActioned}
+                          onClick={isActioned ? undefined : () => acceptApp(app)}
                           className="px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-colors"
-                          style={{ backgroundColor: '#16a34a' }}
-                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#15803d')}
-                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#16a34a')}>
+                          style={{ backgroundColor: '#16a34a', opacity: isActioned ? 0.5 : 1, cursor: isActioned ? 'default' : 'pointer' }}
+                          onMouseEnter={e => { if (!isActioned) e.currentTarget.style.backgroundColor = '#15803d' }}
+                          onMouseLeave={e => { if (!isActioned) e.currentTarget.style.backgroundColor = '#16a34a' }}>
                           Accept
                         </button>
-                        <button onClick={() => declineApp(app)}
+                        <button
+                          disabled={isActioned}
+                          onClick={isActioned ? undefined : () => declineApp(app)}
                           className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-                          style={{ borderColor: '#ed2793', color: '#ed2793' }}
-                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)')}
-                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+                          style={{ borderColor: '#ed2793', color: '#ed2793', opacity: isActioned ? 0.5 : 1, cursor: isActioned ? 'default' : 'pointer' }}
+                          onMouseEnter={e => { if (!isActioned) e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)' }}
+                          onMouseLeave={e => { if (!isActioned) e.currentTarget.style.backgroundColor = '' }}>
                           Decline
                         </button>
                       </div>
@@ -632,7 +628,8 @@ export default function ManageTeam({
                       <p className="text-sm leading-relaxed pl-12" style={{ color: 'var(--text-secondary)' }}>{app.message}</p>
                     )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )
           )}
@@ -695,6 +692,7 @@ export default function ManageTeam({
                 {agreementApps.map(app => {
                   const agStatus = getAgreementStatus(app)
                   const canGrant = agStatus === 'signed'
+                  const isGranted = app.status === 'access_granted' || grantedIds.includes(app.id)
                   const recipEmail = getRecipientEmail(app.applicantName, app.applicantId)
                   return (
                     <div key={app.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
@@ -720,6 +718,9 @@ export default function ManageTeam({
                           {resendFeedback[app.id] && (
                             <p className="text-xs font-medium mb-2" style={{ color: 'var(--status-success)' }}>{resendFeedback[app.id]}</p>
                           )}
+                          {grantError[app.id] && (
+                            <p className="text-xs font-medium mb-2" style={{ color: 'var(--status-error)' }}>{grantError[app.id]}</p>
+                          )}
                           <div className="flex items-center gap-2 flex-wrap">
                             {agStatus === 'sent' && (
                               <button
@@ -733,18 +734,25 @@ export default function ManageTeam({
                                 Resend Agreement
                               </button>
                             )}
-                            <button
-                              onClick={canGrant ? () => grantAccess(app) : undefined}
-                              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white transition-colors"
-                              style={{ backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)', cursor: canGrant ? 'pointer' : 'not-allowed' }}
-                              onMouseEnter={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#15803d' }}
-                              onMouseLeave={e => { if (canGrant) e.currentTarget.style.backgroundColor = canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)' }}
-                            >
-                              <IconUserCheck size={12} />
-                              Grant Access
-                            </button>
+                            {isGranted ? (
+                              <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white" style={{ backgroundColor: 'rgba(22,163,74,0.5)' }}>
+                                <IconCircleCheck size={12} />
+                                ✓ Access Granted
+                              </span>
+                            ) : (
+                              <button
+                                onClick={canGrant ? () => grantAccess(app) : undefined}
+                                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white transition-colors"
+                                style={{ backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)', cursor: canGrant ? 'pointer' : 'not-allowed' }}
+                                onMouseEnter={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#15803d' }}
+                                onMouseLeave={e => { if (canGrant) e.currentTarget.style.backgroundColor = canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)' }}
+                              >
+                                <IconUserCheck size={12} />
+                                Grant Access
+                              </button>
+                            )}
                           </div>
-                          {!canGrant && (
+                          {!canGrant && !isGranted && (
                             <p className="text-[10px] mt-1" style={{ color: 'var(--text-tertiary)' }}>Requires a fully signed agreement.</p>
                           )}
                         </div>

@@ -123,6 +123,9 @@ export default function TeamsPage({
   const [positionFeedback, setPositionFeedback] = useState({})
   const [pipelineTabs, setPipelineTabs] = useState({}) // projectId → stage tab
   const [resendFeedback, setResendFeedback] = useState({})
+  const [grantedIds, setGrantedIds] = useState([])
+  const [actionedIds, setActionedIds] = useState([])
+  const [grantError, setGrantError] = useState({})
 
   // ── Build combined owned + shared project list ────────────────────────────
   const ownEntries = (projects ?? []).map(p => ({
@@ -271,12 +274,14 @@ export default function TeamsPage({
   }
 
   function acceptApp(app, project) {
+    setActionedIds(prev => [...prev, app.id])
     updateApp({ ...app, status: 'accepted_pending_agreement', read: true })
     onAddNotification?.({ type: 'application', text: `You accepted ${app.applicantName} for ${app.role}.`, link: `/team/${project.id}` })
     setPipelineTab(project.id, 'accepted')
   }
 
   function declineApp(app) {
+    setActionedIds(prev => [...prev, app.id])
     updateApp({ ...app, status: 'declined', read: true })
     const applicantUser = (users ?? []).find(u =>
       (app.applicantId && String(u.id) === String(app.applicantId)) ||
@@ -319,99 +324,7 @@ export default function TeamsPage({
     setTimeout(() => setResendFeedback(prev => { const n = { ...prev }; delete n[app.id]; return n }), 4000)
   }
 
-  function grantAccess(app, project) {
-    if (getAgreementStatus(app) !== 'signed') return
-
-    console.log('[GRANT] Application object:', JSON.stringify(app))
-    const USERDATA_KEY = 'hqcmd_userData_v4'
-    const USERS_KEY = 'hqcmd_users_v3'
-    const allUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
-    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
-    console.log('[GRANT] Looking for applicant email:', app.applicantEmail)
-    console.log('[GRANT] Available users:', allUsers.map(u => u.email))
-
-    const applicant = allUsers.find(u =>
-      (app.applicantEmail && u.email?.toLowerCase().trim() === app.applicantEmail.toLowerCase().trim()) ||
-      (app.applicantName && u.name?.toLowerCase().trim() === app.applicantName.toLowerCase().trim())
-    )
-    if (!applicant) {
-      console.error('[GRANT] Applicant not found!')
-      alert('Could not find this user\'s account. Make sure they have registered on HQCMD.')
-      return
-    }
-
-    const applicantId = String(applicant.id)
-    console.log('[GRANT] Found applicant:', applicantId, applicant.name)
-
-    if (!allData[applicantId]) {
-      allData[applicantId] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
-    }
-    if (!Array.isArray(allData[applicantId].sharedProjects)) allData[applicantId].sharedProjects = []
-    if (!Array.isArray(allData[applicantId].notifications)) allData[applicantId].notifications = []
-
-    const alreadyHasAccess = allData[applicantId].sharedProjects.some(sp =>
-      String(sp.projectId) === String(project.id)
-    )
-    if (alreadyHasAccess) {
-      console.log('[GRANT] Already has access — skipping duplicate')
-      alert(`${applicant.name} already has access to this project.`)
-      return
-    }
-
-    const sharedRef = {
-      id: String(Date.now()),
-      projectId: String(project.id),
-      ownerUserId: String(currentUser.id),
-      ownerName: currentUser.name,
-      projectTitle: project.title,
-      role: app.role || 'Member',
-      userRole: app.role || 'Member',
-      joinedAt: new Date().toISOString(),
-    }
-    allData[applicantId].sharedProjects.push(sharedRef)
-    console.log('[GRANT] sharedProjects after push:', allData[applicantId].sharedProjects.length)
-
-    allData[applicantId].notifications.push({
-      id: String(Date.now()) + '_notif',
-      type: 'access_granted',
-      iconType: 'application',
-      text: `You've been granted access to "${project.title}" as ${app.role || 'Member'}. Check My Projects!`,
-      time: 'Just now',
-      read: false,
-      timestamp: new Date().toISOString(),
-      link: '/projects',
-    })
-
-    try {
-      localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
-      console.log('[GRANT] Saved successfully')
-      const verify = JSON.parse(localStorage.getItem(USERDATA_KEY))
-      console.log('[GRANT] Verification - sharedProjects:', verify[applicantId]?.sharedProjects)
-
-      if (applicant.email) {
-        const { subject, html } = accessGrantedEmail(applicant.name, project.title, currentUser.name)
-        sendEmail({ to: applicant.email, subject, html })
-      }
-
-      alert(`✓ Access granted! ${applicant.name} will see "${project.title}" in their My Projects.`)
-      onAcceptApplication?.(app)
-      updateApp({ ...app, status: 'access_granted', read: true })
-      onAddNotification?.({
-        type: 'application',
-        text: `${app.applicantName} has been granted access to ${project?.title ?? 'your project'} as ${app.role}.`,
-        link: '/workstation',
-      })
-      setPipelineTab(project.id, 'active')
-    } catch (e) {
-      console.error('[GRANT] Save failed:', e)
-      alert('Failed to save — please try again.')
-    }
-  }
-
   function handleGrantAccess(application, project) {
-    console.log('[GRANT] Application:', JSON.stringify(application))
-    console.log('[GRANT] Project:', project.id, project.title)
-
     const USERDATA_KEY = 'hqcmd_userData_v4'
     const USERS_KEY = 'hqcmd_users_v3'
 
@@ -424,10 +337,8 @@ export default function TeamsPage({
       (application.applicantName && u.name?.toLowerCase().trim() === application.applicantName.toLowerCase().trim())
     )
 
-    console.log('[GRANT] Applicant found:', applicant?.name, applicant?.id)
-
     if (!applicant) {
-      alert('Could not find this user\'s account. Make sure they have registered on HQCMD.')
+      setGrantError(prev => ({ ...prev, [application.id]: 'User account not found. Make sure they have registered.' }))
       return
     }
 
@@ -437,7 +348,9 @@ export default function TeamsPage({
       String(sp.projectId) === String(project.id)
     )
     if (alreadyHasAccess) {
-      alert(`${applicant.name} already has access to this project.`)
+      setGrantedIds(prev => [...prev, application.id])
+      updateApp({ ...application, status: 'access_granted', read: true })
+      setPipelineTab(project.id, 'active')
       return
     }
 
@@ -488,8 +401,6 @@ export default function TeamsPage({
     }
 
     localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
-    const verify = JSON.parse(localStorage.getItem(USERDATA_KEY))
-    console.log('[GRANT] Verification:', verify[applicantId]?.sharedProjects?.length, 'shared projects')
 
     if (applicant.email) {
       const { subject, html } = accessGrantedEmail(applicant.name, project.title, currentUser.name)
@@ -498,7 +409,8 @@ export default function TeamsPage({
 
     window.dispatchEvent(new Event('storage'))
 
-    onAcceptApplication?.(app)
+    setGrantedIds(prev => [...prev, application.id])
+    onAcceptApplication?.(application)
     updateApp({ ...application, status: 'access_granted', read: true })
     onAddNotification?.({
       type: 'application',
@@ -506,8 +418,6 @@ export default function TeamsPage({
       link: '/workstation',
     })
     setPipelineTab(project.id, 'active')
-
-    alert(`✓ Access granted! ${applicant.name} will see "${project.title}" in their My Projects.`)
   }
 
   const fi = e => (e.target.style.borderColor = ACCENT)
@@ -840,7 +750,9 @@ export default function TeamsPage({
                             </div>
                           ) : (
                             <div className="space-y-3">
-                              {pipeline.applied.map(app => (
+                              {pipeline.applied.map(app => {
+                                const isActioned = actionedIds.includes(app.id)
+                                return (
                                 <div key={app.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
                                   <div className="flex items-start justify-between gap-3 mb-2">
                                     <div className="flex items-center gap-3 min-w-0">
@@ -856,18 +768,22 @@ export default function TeamsPage({
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2 flex-shrink-0">
-                                      <button onClick={e => { e.stopPropagation(); acceptApp(app, project) }}
+                                      <button
+                                        disabled={isActioned}
+                                        onClick={isActioned ? undefined : e => { e.stopPropagation(); acceptApp(app, project) }}
                                         className="px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-colors"
-                                        style={{ backgroundColor: '#16a34a' }}
-                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#15803d')}
-                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#16a34a')}>
+                                        style={{ backgroundColor: '#16a34a', opacity: isActioned ? 0.5 : 1, cursor: isActioned ? 'default' : 'pointer' }}
+                                        onMouseEnter={e => { if (!isActioned) e.currentTarget.style.backgroundColor = '#15803d' }}
+                                        onMouseLeave={e => { if (!isActioned) e.currentTarget.style.backgroundColor = '#16a34a' }}>
                                         Accept
                                       </button>
-                                      <button onClick={e => { e.stopPropagation(); declineApp(app) }}
+                                      <button
+                                        disabled={isActioned}
+                                        onClick={isActioned ? undefined : e => { e.stopPropagation(); declineApp(app) }}
                                         className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-                                        style={{ borderColor: '#ed2793', color: '#ed2793' }}
-                                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)')}
-                                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}>
+                                        style={{ borderColor: '#ed2793', color: '#ed2793', opacity: isActioned ? 0.5 : 1, cursor: isActioned ? 'default' : 'pointer' }}
+                                        onMouseEnter={e => { if (!isActioned) e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)' }}
+                                        onMouseLeave={e => { if (!isActioned) e.currentTarget.style.backgroundColor = '' }}>
                                         Decline
                                       </button>
                                     </div>
@@ -876,7 +792,8 @@ export default function TeamsPage({
                                     <p className="text-sm leading-relaxed pl-12" style={{ color: 'var(--text-secondary)' }}>{app.message}</p>
                                   )}
                                 </div>
-                              ))}
+                                )
+                              })}
                             </div>
                           )
                         )}
@@ -935,6 +852,7 @@ export default function TeamsPage({
                               {pipeline.agreement.map(app => {
                                 const agStatus = getAgreementStatus(app)
                                 const canGrant = agStatus === 'signed'
+                                const isGranted = app.status === 'access_granted' || grantedIds.includes(app.id)
                                 return (
                                   <div key={app.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
                                     <div className="flex items-start gap-3">
@@ -959,6 +877,9 @@ export default function TeamsPage({
                                         {resendFeedback[app.id] && (
                                           <p className="text-xs font-medium mb-2" style={{ color: 'var(--status-success)' }}>{resendFeedback[app.id]}</p>
                                         )}
+                                        {grantError[app.id] && (
+                                          <p className="text-xs font-medium mb-2" style={{ color: 'var(--status-error)' }}>{grantError[app.id]}</p>
+                                        )}
                                         <div className="flex items-center gap-2 flex-wrap">
                                           {agStatus === 'sent' && (
                                             <button
@@ -971,17 +892,24 @@ export default function TeamsPage({
                                               Resend Agreement
                                             </button>
                                           )}
-                                          <button
-                                            onClick={canGrant ? e => { e.stopPropagation(); handleGrantAccess(app, project) } : undefined}
-                                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white transition-colors"
-                                            style={{ backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)', cursor: canGrant ? 'pointer' : 'not-allowed' }}
-                                            onMouseEnter={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#15803d' }}
-                                            onMouseLeave={e => { if (canGrant) e.currentTarget.style.backgroundColor = canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)' }}>
-                                            <IconUserCheck size={12} />
-                                            Grant Access
-                                          </button>
+                                          {isGranted ? (
+                                            <span className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white" style={{ backgroundColor: 'rgba(22,163,74,0.5)' }}>
+                                              <IconCircleCheck size={12} />
+                                              ✓ Access Granted
+                                            </span>
+                                          ) : (
+                                            <button
+                                              onClick={canGrant ? e => { e.stopPropagation(); handleGrantAccess(app, project) } : undefined}
+                                              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white transition-colors"
+                                              style={{ backgroundColor: canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)', cursor: canGrant ? 'pointer' : 'not-allowed' }}
+                                              onMouseEnter={e => { if (canGrant) e.currentTarget.style.backgroundColor = '#15803d' }}
+                                              onMouseLeave={e => { if (canGrant) e.currentTarget.style.backgroundColor = canGrant ? '#16a34a' : 'rgba(22,163,74,0.35)' }}>
+                                              <IconUserCheck size={12} />
+                                              Grant Access
+                                            </button>
+                                          )}
                                         </div>
-                                        {!canGrant && (
+                                        {!canGrant && !isGranted && (
                                           <p className="text-[10px] mt-1" style={{ color: 'var(--text-tertiary)' }}>Requires a fully signed agreement.</p>
                                         )}
                                       </div>
