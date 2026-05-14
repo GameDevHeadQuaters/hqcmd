@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { IconArrowLeft, IconPencil, IconCheck, IconX, IconPlus, IconFolderOff, IconShieldCheck, IconChevronDown, IconChevronUp } from '@tabler/icons-react'
 import { calculateProgress } from '../utils/progress'
 import { PRESET_SKILLS, PRESET_ROLES } from '../utils/skillsList'
+import TagInput from '../components/TagInput'
 import { ACHIEVEMENTS, ACHIEVEMENT_PATHS } from '../utils/achievements'
 import { checkAndAwardAchievements } from '../utils/checkAchievements'
 const ACCENT = '#534AB7'
@@ -319,51 +320,11 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
               </div>
               <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
                 <h2 className="font-semibold text-sm mb-3" style={{ color: 'var(--text-primary)' }}>Skills</h2>
-                <div className="flex flex-wrap gap-2">
-                  {editSkills.map(skill => (
-                    <span key={skill} className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full"
-                      style={{ border: '1px solid var(--border-default)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-elevated)' }}>
-                      {skill}
-                      <button onClick={() => removeSkill(skill)} className="leading-none ml-0.5 transition-colors"
-                        style={{ color: 'var(--text-tertiary)' }}
-                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--status-error)')}
-                        onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}>
-                        <IconX size={11} />
-                      </button>
-                    </span>
-                  ))}
-                  {editSkills.length === 0 && (
-                    <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No skills added yet.</p>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-1.5 mt-2 mb-1">
-                  {PRESET_SKILLS.filter(s => !editSkills.includes(s)).slice(0, 12).map(skill => (
-                    <button key={skill} type="button"
-                      onClick={() => setEditSkills(prev => [...prev, skill])}
-                      className="text-xs px-2.5 py-1 rounded-full border transition-all"
-                      style={{ borderColor: 'var(--border-default)', color: 'var(--text-tertiary)', backgroundColor: 'transparent' }}
-                      onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-tertiary)' }}>
-                      + {skill}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-2 mt-3">
-                  <input
-                    className="flex-1 text-xs rounded-lg px-2.5 py-1.5 outline-none transition-colors"
-                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                    placeholder="Custom skill…"
-                    value={newSkill}
-                    onChange={e => setNewSkill(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && addSkill()}
-                    onFocus={fa} onBlur={fb}
-                  />
-                  <button onClick={addSkill}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium text-white transition-opacity hover:opacity-80"
-                    style={{ backgroundColor: ACCENT }}>
-                    <IconPlus size={12} /> Add
-                  </button>
-                </div>
+                <TagInput
+                  tags={editSkills}
+                  onChange={setEditSkills}
+                  placeholder="Add skills (e.g. Unity, Pixel Art...)"
+                />
               </div>
             </>
           )}
@@ -489,66 +450,24 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
         {/* Skills */}
         <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
           <h2 className="font-semibold text-sm mb-3" style={{ color: 'var(--text-primary)' }}>Skills</h2>
-          <div className="flex flex-wrap gap-2">
-            {(isEditing ? editSkills : (displayMember.skills || [])).map(skill => (
-              <span
-                key={skill}
-                className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full"
-                style={{ border: '1px solid var(--border-default)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-elevated)' }}
-              >
-                {skill}
-                {isEditing && (
-                  <button
-                    onClick={() => removeSkill(skill)}
-                    className="leading-none ml-0.5 transition-colors"
-                    style={{ color: 'var(--text-tertiary)' }}
-                    onMouseEnter={e => (e.currentTarget.style.color = 'var(--status-error)')}
-                    onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}
-                  >
-                    <IconX size={11} />
-                  </button>
-                )}
-              </span>
-            ))}
-            {!isEditing && (displayMember.skills || []).length === 0 && (
-              <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No skills listed yet.</p>
-            )}
-          </div>
-
-          {isEditing && (
-            <>
-              <div className="flex flex-wrap gap-1.5 mt-2 mb-1">
-                {PRESET_SKILLS.filter(s => !editSkills.includes(s)).slice(0, 12).map(skill => (
-                  <button key={skill} type="button"
-                    onClick={() => setEditSkills(prev => [...prev, skill])}
-                    className="text-xs px-2.5 py-1 rounded-full border transition-all"
-                    style={{ borderColor: 'var(--border-default)', color: 'var(--text-tertiary)', backgroundColor: 'transparent' }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-tertiary)' }}>
-                    + {skill}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2 mt-3">
-                <input
-                  className="flex-1 text-xs rounded-lg px-2.5 py-1.5 outline-none transition-colors"
-                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
-                  placeholder="Custom skill…"
-                  value={newSkill}
-                  onChange={e => setNewSkill(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addSkill()}
-                  onFocus={fa} onBlur={fb}
-                />
-                <button
-                  onClick={addSkill}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium text-white transition-opacity hover:opacity-80"
-                  style={{ backgroundColor: ACCENT }}
-                >
-                  <IconPlus size={12} />
-                  Add
-                </button>
-              </div>
-            </>
+          {isEditing ? (
+            <TagInput
+              tags={editSkills}
+              onChange={setEditSkills}
+              placeholder="Add skills (e.g. Unity, Pixel Art...)"
+            />
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {(displayMember.skills || []).map(skill => (
+                <span key={skill} className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full"
+                  style={{ border: '1px solid var(--border-default)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-elevated)' }}>
+                  {skill}
+                </span>
+              ))}
+              {(displayMember.skills || []).length === 0 && (
+                <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No skills listed yet.</p>
+              )}
+            </div>
           )}
         </div>
 

@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { IconX, IconUpload, IconToggleLeft, IconToggleRight } from '@tabler/icons-react'
 import { PRESET_ROLES } from '../utils/skillsList'
+import TagInput from './TagInput'
 
 const ACCENT = '#534AB7'
 
@@ -248,37 +249,12 @@ export default function ProjectProfile({ project, onSave, onClose }) {
 
           <div>
             <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Roles Needed</label>
-            <div className="flex flex-wrap gap-2 mb-2">
-              {PRESET_ROLES.map(r => <Pill key={r} label={r} active={form.roles.includes(r)} onClick={() => toggleArr('roles', r)} />)}
-            </div>
-            {customRoles.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-2">
-                {customRoles.map(r => (
-                  <span key={r} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium" style={{ backgroundColor: 'rgba(83,74,183,0.15)', color: ACCENT }}>
-                    {r}
-                    <button onClick={() => setForm(f => ({ ...f, roles: f.roles.filter(x => x !== r) }))} className="hover:opacity-60 leading-none">×</button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <div className="flex gap-2 mt-1">
-              <input
-                className="flex-1 text-xs rounded-lg px-2.5 py-1.5 outline-none transition-colors"
-                style={inputStyle}
-                placeholder="Add custom role…"
-                value={form.customRole}
-                onChange={e => set('customRole', e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && addCustomRole()}
-                onFocus={fa} onBlur={fb}
-              />
-              <button
-                onClick={addCustomRole}
-                className="px-3 py-1.5 rounded-full text-xs font-medium text-white transition-opacity hover:opacity-80"
-                style={{ backgroundColor: ACCENT }}
-              >
-                Add
-              </button>
-            </div>
+            <TagInput
+              tags={form.roles}
+              onChange={roles => setForm(f => ({ ...f, roles }))}
+              suggestions={PRESET_ROLES}
+              placeholder="Add roles needed (e.g. Programmer, Artist...)"
+            />
           </div>
 
           <div className="flex items-center justify-between py-1 pb-2">

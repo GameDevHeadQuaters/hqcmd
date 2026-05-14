@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { IconCheck, IconAlertTriangle, IconBrandGoogle } from '@tabler/icons-react'
 import { PRESET_SKILLS } from '../utils/skillsList'
+import TagInput from '../components/TagInput'
 
 const ACCENT = '#534AB7'
 const BETA_REQUESTS_KEY = 'hqcmd_beta_requests'
@@ -366,25 +367,11 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
                   <div>
                     <p className="text-sm font-medium mb-0.5" style={{ color: 'var(--text-primary)' }}>What are your skills?</p>
                     <p className="text-xs mb-3" style={{ color: 'var(--text-tertiary)' }}>Select any that apply — you can update these later.</p>
-                    <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
-                      {PRESET_SKILLS.map(skill => (
-                        <button
-                          key={skill}
-                          type="button"
-                          onClick={() => setSelectedSkills(prev =>
-                            prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]
-                          )}
-                          className="text-xs font-medium px-2.5 py-1 rounded-full border transition-all"
-                          style={
-                            selectedSkills.includes(skill)
-                              ? { backgroundColor: ACCENT, color: 'white', borderColor: ACCENT }
-                              : { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)', borderColor: 'var(--border-default)' }
-                          }
-                        >
-                          {skill}
-                        </button>
-                      ))}
-                    </div>
+                    <TagInput
+                      tags={selectedSkills}
+                      onChange={setSelectedSkills}
+                      placeholder="Add your skills..."
+                    />
                   </div>
                   <div className="flex gap-2 pt-1">
                     <button
