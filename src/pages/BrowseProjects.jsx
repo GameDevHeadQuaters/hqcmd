@@ -423,18 +423,21 @@ export default function BrowseProjects({
     })
   }
 
+  const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+  const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+
   const allProjects = []
-  Object.entries(userData).forEach(([uid, data]) => {
-    const ownerId = uid
-    const ownerUser = users.find(u => String(u.id) === String(ownerId))
-    if (!ownerUser) return // skip orphaned userData entries with no matching user account
-    const ownerName = String(ownerId) === String(currentUser?.id) ? 'You' : ownerUser.name
-    ;(data.projects ?? [])
-      .filter(p => p.visibility === 'Public')
+  Object.keys(allData).forEach(userId => {
+    const owner = allUsers.find(u => String(u.id) === String(userId))
+    const ownerName = String(userId) === String(currentUser?.id)
+      ? 'You'
+      : owner?.name || (userId === 'superadmin' ? 'HQCMD Admin' : 'Unknown')
+    ;(allData[userId]?.projects || [])
+      .filter(p => p.visibility === 'public' || p.visibility === 'Public')
       .forEach(p => {
         allProjects.push({
           ...p,
-          ownerId,
+          ownerId: userId,
           originalId: p.id,
           owner: ownerName,
           coverImage: getProjectImage(p.id),

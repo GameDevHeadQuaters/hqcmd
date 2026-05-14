@@ -32,9 +32,10 @@ const FEATURES = [
   },
 ]
 
-function getPublicProjects(userData, getProjectImage) {
+function getPublicProjects() {
+  const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
   const all = []
-  for (const data of Object.values(userData ?? {})) {
+  for (const data of Object.values(allData)) {
     for (const p of (data.projects ?? [])) {
       if (
         p.visibility?.toLowerCase() === 'public' &&
@@ -118,7 +119,7 @@ export default function Landing({ userData, currentUser, getProjectImage, betaMo
   const navigate = useNavigate()
   const { theme } = useTheme()
   const isDark = theme === 'dark'
-  const publicProjects = getPublicProjects(userData, getProjectImage)
+  const publicProjects = getPublicProjects()
 
   function handleProjectClick() {
     navigate(currentUser ? '/browse' : '/login')
