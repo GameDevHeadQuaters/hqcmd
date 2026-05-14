@@ -425,6 +425,7 @@ export default function BrowseProjects({
   const [msgProject,   setMsgProject]   = useState(null)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
   const [applyAlert, setApplyAlert] = useState(null) // { type: 'incomplete' | 'skill_mismatch' }
+  const [appliedProjectIds, setAppliedProjectIds] = useState(new Set())
 
   function requireAuth(cb) {
     if (!currentUser) { navigate('/login', { state: { from: 'browse', message: 'Sign in to apply or message project owners.' } }); return }
@@ -449,6 +450,7 @@ export default function BrowseProjects({
   }
 
   function hasAlreadyApplied(project) {
+    if (appliedProjectIds.has(String(project.id))) return true
     if (!currentUser) return false
     try {
       const data = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
@@ -731,6 +733,8 @@ export default function BrowseProjects({
           onAddApplication={(app) => {
             onAddApplicationToOwner(applyProject.ownerId, app)
             if (currentUser) onAddContactToOwner?.(applyProject.ownerId, currentUser, 'applied', applyProject.title)
+            setAppliedProjectIds(prev => new Set([...prev, String(applyProject.originalId ?? applyProject.id)]))
+            window.dispatchEvent(new CustomEvent('hqcmd_application_sent'))
           }}
           onAddNotification={(n) => onAddNotificationToOwner(applyProject.ownerId, n)}
         />

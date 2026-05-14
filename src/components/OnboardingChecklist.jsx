@@ -51,36 +51,40 @@ function checkInvitedMember(currentUser) {
     const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
     const myId = String(currentUser.id)
 
-    // Check 1: already a member of someone else's project
     const isInSharedProject = (allData[myId]?.sharedProjects || []).length > 0
+    console.log('[Onboarding] isInSharedProject:', isInSharedProject)
     if (isInSharedProject) return true
 
-    // Check 2: applied to any other owner's project
-    const hasApplied = Object.keys(allData).some(ownerId => {
-      if (ownerId === myId) return false
-      return (allData[ownerId]?.projects || []).some(p =>
-        (p.applications || []).some(a =>
-          a.applicantEmail === currentUser.email ||
-          a.applicantName === currentUser.name ||
-          String(a.applicantUserId) === myId
-        )
-      )
+    let hasApplied = false
+    Object.keys(allData).forEach(ownerId => {
+      if (ownerId === myId) return
+      ;(allData[ownerId]?.projects || []).forEach(p => {
+        ;(p.applications || []).forEach(a => {
+          if (
+            a.applicantEmail === currentUser.email ||
+            a.applicantName === currentUser.name ||
+            String(a.applicantUserId) === myId
+          ) {
+            console.log('[Onboarding] Found application in project:', p.title)
+            hasApplied = true
+          }
+        })
+      })
     })
     if (hasApplied) return true
 
-    // Check 3: owns a project that has members or received applications
-    const hasInvitedSomeone = (allData[myId]?.projects || []).some(p =>
+    const hasActivity = (allData[myId]?.projects || []).some(p =>
       (p.members || []).length > 0 || (p.applications || []).length > 0
     )
-    if (hasInvitedSomeone) return true
+    console.log('[Onboarding] hasActivity on own projects:', hasActivity)
+    if (hasActivity) return true
 
-    // Check 4: sent a contact invite via direct messages
     const sentInvite = Object.keys(allData).some(uid =>
       (allData[uid]?.directMessages || []).some(m =>
-        m.type === 'invite' &&
-        (m.fromName === currentUser.name || String(m.fromUserId) === myId)
+        m.type === 'invite' && m.fromName === currentUser.name
       )
     )
+    console.log('[Onboarding] sentInvite:', sentInvite)
     return sentInvite
   } catch { return false }
 }
@@ -154,6 +158,15 @@ export default function OnboardingChecklist({ currentUser, projects, application
     checkAllSteps()
     const interval = setInterval(checkAllSteps, 10000)
     return () => clearInterval(interval)
+  }, [currentUser]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const handleApplicationSent = () => {
+      console.log('[Onboarding] Application sent event received — re-checking steps')
+      checkAllSteps()
+    }
+    window.addEventListener('hqcmd_application_sent', handleApplicationSent)
+    return () => window.removeEventListener('hqcmd_application_sent', handleApplicationSent)
   }, [currentUser]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const completedCount = Object.values(steps).filter(Boolean).length
