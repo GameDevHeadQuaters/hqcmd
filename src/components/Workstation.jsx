@@ -186,6 +186,7 @@ export default function Workstation({
       {profileOpen && (
         <ProjectProfile
           project={project}
+          currentUser={currentUser}
           onSave={(data) => {
             const pid = activeProject?.id
             if (data.coverImage && pid) {
@@ -215,6 +216,7 @@ export default function Workstation({
               location:       data.location,
               ndaRequired:    data.ndaRequired,
               gameJam:        data.gameJam,
+              permanent:      data.permanent,
               endDate:        data.endDate || null,
               createdEndDate: newCreatedEndDate,
             }))
@@ -230,6 +232,7 @@ export default function Workstation({
               location:       data.location,
               ndaRequired:    data.ndaRequired,
               gameJam:        data.gameJam,
+              permanent:      data.permanent,
               milestones:     project.milestones,
               endDate:        data.endDate || null,
               createdEndDate: newCreatedEndDate,

@@ -54,7 +54,10 @@ function ProjectCard({ project, onOpen, onManageTeam, topBorder }) {
 
       <div className="p-5">
         <div className="flex items-start justify-between gap-2 mb-1">
-          <h3 className="font-semibold text-sm leading-tight" style={{ color: 'var(--text-primary)' }}>{project.title}</h3>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h3 className="font-semibold text-sm leading-tight truncate" style={{ color: 'var(--text-primary)' }}>{project.title}</h3>
+            {project.permanent && <span title="Permanent project — survives site resets" style={{ fontSize: '13px', flexShrink: 0 }}>🔒</span>}
+          </div>
           <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 flex items-center gap-1" style={{ backgroundColor: sc.bg, color: sc.text }}>
             {isOvertime && <IconAlertTriangle size={10} />}
             {status}

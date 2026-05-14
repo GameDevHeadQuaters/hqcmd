@@ -671,6 +671,33 @@ function SystemDebugTab() {
   const [showResetModal, setShowResetModal] = useState(false)
   const [resetConfirmText, setResetConfirmText] = useState('')
   const [debugError, setDebugError] = useState(null)
+  const [permSaveFeedback, setPermSaveFeedback] = useState('')
+
+  function getAdminProjects() {
+    const allData = readLS(UD_KEY, {})
+    return allData['superadmin']?.projects || []
+  }
+
+  function togglePermanent(projectId) {
+    const allData = readLS(UD_KEY, {})
+    if (!allData['superadmin']) return
+    allData['superadmin'].projects = (allData['superadmin'].projects || []).map(p =>
+      String(p.id) === String(projectId) ? { ...p, permanent: !p.permanent } : p
+    )
+    writeLS(UD_KEY, allData)
+  }
+
+  function savePermanentProjects() {
+    const allData = readLS(UD_KEY, {})
+    const adminProjects = allData['superadmin']?.projects || []
+    const permanent = adminProjects.filter(p => p.permanent === true)
+    localStorage.setItem('hqcmd_permanent_projects', JSON.stringify(permanent))
+    localStorage.setItem('hqcmd_permanent_projects_images', JSON.stringify(
+      permanent.map(p => ({ id: p.id, image: localStorage.getItem('hqcmd_img_' + p.id) || null }))
+    ))
+    setPermSaveFeedback(`✓ ${permanent.length} project${permanent.length !== 1 ? 's' : ''} saved as permanent`)
+    setTimeout(() => setPermSaveFeedback(''), 3000)
+  }
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
   useEffect(() => { runReport() }, [])
@@ -896,18 +923,56 @@ function SystemDebugTab() {
   }
 
   function handleSiteReset() {
-    const keysToKeep = ['hqcmd_admin_profile', 'hqcmd_theme', 'hqcmd_sidebar_collapsed']
+    // Preserve before wipe
+    const permanentProjects = localStorage.getItem('hqcmd_permanent_projects')
+    const permanentImages   = localStorage.getItem('hqcmd_permanent_projects_images')
+    const adminProfile      = localStorage.getItem('hqcmd_admin_profile')
+    const theme             = localStorage.getItem('hqcmd_theme')
+    const sidebarState      = localStorage.getItem('hqcmd_sidebar_collapsed')
+
+    // Wipe all keys
     const allKeys = []
     for (let i = 0; i < localStorage.length; i++) allKeys.push(localStorage.key(i))
-    allKeys.forEach(key => {
-      if (!keysToKeep.includes(key)) localStorage.removeItem(key)
-    })
-    // Second pass to catch any image keys added after initial scan
-    const remainingKeys = []
-    for (let i = 0; i < localStorage.length; i++) remainingKeys.push(localStorage.key(i))
-    remainingKeys.forEach(key => {
-      if (key.startsWith('hqcmd_img_')) localStorage.removeItem(key)
-    })
+    allKeys.forEach(key => localStorage.removeItem(key))
+    // Second pass for any image keys missed above
+    const remaining = []
+    for (let i = 0; i < localStorage.length; i++) remaining.push(localStorage.key(i))
+    remaining.forEach(key => { if (key.startsWith('hqcmd_img_')) localStorage.removeItem(key) })
+
+    // Restore UI prefs and admin profile
+    if (theme)        localStorage.setItem('hqcmd_theme', theme)
+    if (sidebarState) localStorage.setItem('hqcmd_sidebar_collapsed', sidebarState)
+    if (adminProfile) localStorage.setItem('hqcmd_admin_profile', adminProfile)
+
+    // Restore permanent projects into superadmin userData slot
+    if (permanentProjects) {
+      try {
+        const projects = JSON.parse(permanentProjects)
+        const userData = {
+          superadmin: {
+            projects,
+            applications: [], directMessages: [], notifications: [],
+            agreements: [], contacts: [], sharedProjects: [],
+            onboarding: {
+              completed: true,
+              steps: { profileComplete: true, projectCreated: true, browsedProjects: true, invitedMember: true, firstMessage: true },
+            },
+          },
+        }
+        localStorage.setItem(UD_KEY, JSON.stringify(userData))
+        if (permanentImages) {
+          JSON.parse(permanentImages).forEach(({ id, image }) => {
+            if (image) localStorage.setItem('hqcmd_img_' + id, image)
+          })
+        }
+        localStorage.setItem('hqcmd_permanent_projects', permanentProjects)
+        localStorage.setItem('hqcmd_permanent_projects_images', permanentImages || '[]')
+        console.log('[Reset] Restored', projects.length, 'permanent project(s)')
+      } catch (e) {
+        console.warn('[Reset] Failed to restore permanent projects', e)
+      }
+    }
+
     window.location.href = '/'
   }
 
@@ -1282,6 +1347,53 @@ function SystemDebugTab() {
             )}
           </div>
         </section>
+
+        {/* Permanent Projects */}
+        {(() => {
+          const adminProjects = getAdminProjects()
+          return (
+            <div style={{ marginTop: '32px', border: '1px solid rgba(83,74,183,0.3)', borderRadius: '12px', padding: '20px', background: 'rgba(83,74,183,0.05)' }}>
+              <h3 style={{ color: '#534AB7', fontSize: '14px', fontWeight: '600', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                🔒 Permanent Projects
+              </h3>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '16px' }}>
+                Permanent projects survive site resets. Toggle a project permanent, then click Save.
+              </p>
+              {adminProjects.length === 0 ? (
+                <p style={{ color: 'var(--text-tertiary)', fontSize: '12px', fontStyle: 'italic' }}>No projects found for the superadmin account.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                  {adminProjects.map(p => (
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {p.permanent && '🔒'} {p.title || 'Untitled'}
+                      </span>
+                      <button
+                        onClick={() => { togglePermanent(p.id); runReport() }}
+                        style={{
+                          padding: '4px 12px', borderRadius: '99px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: '500',
+                          background: p.permanent ? '#534AB7' : 'var(--bg-hover)',
+                          color: p.permanent ? 'white' : 'var(--text-secondary)',
+                        }}
+                      >
+                        {p.permanent ? '🔒 Permanent' : 'Set Permanent'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                  onClick={savePermanentProjects}
+                  style={{ padding: '8px 20px', borderRadius: '9999px', border: 'none', background: '#534AB7', color: 'white', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  Save Permanent Projects
+                </button>
+                {permSaveFeedback && <span style={{ fontSize: '12px', color: '#534AB7', fontWeight: '500' }}>{permSaveFeedback}</span>}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Danger Zone */}
         <div style={{

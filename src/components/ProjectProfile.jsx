@@ -48,7 +48,7 @@ function compressImage(base64, maxWidth = 800, quality = 0.7) {
   })
 }
 
-export default function ProjectProfile({ project, onSave, onClose }) {
+export default function ProjectProfile({ project, onSave, onClose, currentUser }) {
   const fileRef = useRef(null)
 
   const [form, setForm] = useState({
@@ -67,6 +67,7 @@ export default function ProjectProfile({ project, onSave, onClose }) {
     customRole:   '',
     gameJam:      project.gameJam      || false,
     coverImage:   project.coverImage   || null,
+    permanent:    project.permanent    || false,
   })
 
   function set(key, val) { setForm(f => ({ ...f, [key]: val })) }
@@ -109,6 +110,7 @@ export default function ProjectProfile({ project, onSave, onClose }) {
       ndaRequired:  form.ndaRequired,
       gameJam:      form.gameJam,
       coverImage:   form.coverImage,
+      permanent:    form.permanent,
     })
     onClose()
   }
@@ -264,6 +266,27 @@ export default function ProjectProfile({ project, onSave, onClose }) {
             </div>
             <Toggle on={form.gameJam} onToggle={() => set('gameJam', !form.gameJam)} />
           </div>
+
+          {currentUser?.isAdmin && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', background: 'var(--bg-elevated)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
+              <span style={{ fontSize: '20px' }}>🔒</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-primary)', margin: 0 }}>Permanent Project</p>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>Survives site resets. Save as permanent in Admin Panel.</p>
+              </div>
+              <button
+                onClick={() => set('permanent', !form.permanent)}
+                style={{
+                  padding: '4px 12px', borderRadius: '99px', border: 'none', cursor: 'pointer',
+                  background: form.permanent ? '#534AB7' : 'var(--bg-hover)',
+                  color: form.permanent ? 'white' : 'var(--text-secondary)',
+                  fontSize: '12px', fontWeight: '500',
+                }}
+              >
+                {form.permanent ? '🔒 Permanent' : 'Set Permanent'}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="px-6 py-4 flex gap-3 flex-shrink-0" style={{ borderTop: '1px solid var(--border-subtle)' }}>
