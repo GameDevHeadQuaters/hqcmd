@@ -869,9 +869,14 @@ export default function TeamsPage({
                         <div className="flex items-center gap-2 mb-4">
                           <IconBriefcase size={16} style={{ color: ACCENT }} />
                           <h4 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Application Pipeline</h4>
-                          <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-tertiary)' }}>
-                            {pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + activeApplications.length}
-                          </span>
+                          {(() => {
+                            const total = pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + activeApplications.length
+                            return total > 0 ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '18px', height: '18px', borderRadius: '99px', fontSize: '10px', fontWeight: '700', color: '#fff', background: '#ed2793', boxShadow: '0 0 8px rgba(237,39,147,0.8), 0 0 16px rgba(237,39,147,0.4)', padding: '0 5px' }}>
+                                {total}
+                              </span>
+                            ) : null
+                          })()}
                           <button
                             onClick={e => { e.stopPropagation(); navigate(`/team/${project.id}`) }}
                             className="ml-auto flex items-center gap-1 text-xs font-medium"
@@ -898,12 +903,13 @@ export default function TeamsPage({
                                 backgroundColor: pipelineTab === stage.id ? ACCENT : 'var(--bg-surface)',
                                 color: pipelineTab === stage.id ? 'white' : 'var(--text-tertiary)',
                                 borderRight: idx < arr.length - 1 ? '1px solid var(--border-default)' : 'none',
+                                borderBottom: pipelineTab === stage.id ? '2px solid #ed2793' : 'none',
+                                boxShadow: (pipelineTab === stage.id && stage.count > 0) ? '0 2px 12px rgba(237,39,147,0.4)' : 'none',
                               }}>
                               <stage.icon size={14} />
                               <span>{stage.label}</span>
                               {stage.count > 0 && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full leading-none"
-                                  style={{ backgroundColor: pipelineTab === stage.id ? 'rgba(255,255,255,0.25)' : 'rgba(83,74,183,0.15)', color: pipelineTab === stage.id ? 'white' : ACCENT }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '18px', height: '18px', borderRadius: '99px', fontSize: '10px', fontWeight: '700', color: '#fff', background: '#ed2793', boxShadow: '0 0 8px rgba(237,39,147,0.8), 0 0 16px rgba(237,39,147,0.4)', padding: '0 5px' }}>
                                   {stage.count}
                                 </span>
                               )}
