@@ -340,6 +340,7 @@ export default function Workstation({
             budget={activeProject?.budget}
             onUpdateBudget={(b) => onUpdateProject?.({ budget: b })}
             projectId={effectiveProjectId}
+            ownerUserId={ownerUserId}
             userRole={myRole}
           />
           <TeamMembers projectId={effectiveProjectId} ownerUserId={ownerUserId} currentUser={currentUser} agreements={agreements} userRole={myRole} />

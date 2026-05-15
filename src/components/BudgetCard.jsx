@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconCurrencyDollar, IconPlus, IconChevronRight } from '@tabler/icons-react'
 import { BUDGET_CATEGORIES, CURRENCIES, migrateBudget } from '../utils/budgetCategories'
@@ -6,21 +6,42 @@ import { hasPermission } from '../utils/permissions'
 
 const ACCENT = '#534AB7'
 
-export default function BudgetCard({ budget: rawBudget, onUpdateBudget, projectId, userRole = 'Owner' }) {
+export default function BudgetCard({ budget: rawBudget, onUpdateBudget, projectId, ownerUserId, userRole = 'Owner' }) {
   const navigate = useNavigate()
   const budget = migrateBudget(rawBudget)
-  const { currency = 'USD', total = 0, transactions = [] } = budget
+  const { currency = 'USD', transactions = [] } = budget
   const sym = CURRENCIES[currency]?.symbol ?? '$'
 
   const [showAdd, setShowAdd] = useState(false)
   const [addType, setAddType] = useState('expense')
   const [addForm, setAddForm] = useState({ desc: '', amount: '', category: 'other' })
 
-  const totalIn  = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-  const totalOut = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
-  const net      = totalIn - totalOut
-  const pct      = total > 0 ? Math.min((totalOut / total) * 100, 100) : 0
-  const barColor = pct > 80 ? 'var(--status-error)' : pct > 60 ? 'var(--status-warning)' : ACCENT
+  const [budgetIn,  setBudgetIn]  = useState(0)
+  const [budgetOut, setBudgetOut] = useState(0)
+  const [budgetNet, setBudgetNet] = useState(0)
+
+  useEffect(() => {
+    function loadBudget() {
+      try {
+        const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+        const proj = allData[String(ownerUserId)]?.projects?.find(p => String(p.id) === String(projectId))
+        const txns = proj?.budget?.transactions || []
+        const income   = txns.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount || 0), 0)
+        const expenses = txns.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount || 0), 0)
+        setBudgetIn(income)
+        setBudgetOut(expenses)
+        setBudgetNet(income - expenses)
+      } catch {}
+    }
+    loadBudget()
+    const interval = setInterval(loadBudget, 5000)
+    window.addEventListener('storage', loadBudget)
+    return () => { clearInterval(interval); window.removeEventListener('storage', loadBudget) }
+  }, [projectId, ownerUserId])
+
+  const totalIn  = budgetIn
+  const totalOut = budgetOut
+  const net      = budgetNet
 
   function addTransaction() {
     const amt = parseFloat(addForm.amount)
@@ -92,24 +113,6 @@ export default function BudgetCard({ budget: rawBudget, onUpdateBudget, projectI
           </div>
         ))}
       </div>
-
-      {/* Progress bar (only when total is set — set it on the full Budget page) */}
-      {total > 0 && (
-        <div className="mb-3">
-          <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-elevated)' }}>
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${pct}%`, backgroundColor: barColor }}
-            />
-          </div>
-          <div className="flex justify-between text-[10px] mt-1">
-            <span style={{ color: 'var(--text-tertiary)' }}>
-              {sym}{Math.max(0, total - totalOut).toLocaleString()} left
-            </span>
-            <span style={{ color: barColor }}>{pct.toFixed(0)}% of {sym}{total.toLocaleString()}</span>
-          </div>
-        </div>
-      )}
 
       <div style={{ height: '1px', backgroundColor: 'var(--border-subtle)', marginBottom: '10px' }} />
 

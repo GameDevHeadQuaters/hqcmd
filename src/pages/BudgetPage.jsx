@@ -12,14 +12,12 @@ export default function BudgetPage({ currentUser, projects, onUpdateProject, set
 
   const project = projects.find(p => String(p.id) === projectId)
   const budget = migrateBudget(project?.budget)
-  const { currency = 'USD', total = 0, transactions = [] } = budget
+  const { currency = 'USD', transactions = [] } = budget
   const sym = CURRENCIES[currency]?.symbol ?? '$'
 
   const [typeFilter, setTypeFilter] = useState('all')
   const [search,     setSearch]     = useState('')
   const [slideOpen,  setSlideOpen]  = useState(false)
-  const [editTotal,  setEditTotal]  = useState(false)
-  const [totalInput, setTotalInput] = useState(String(total || ''))
   const [form,       setForm]       = useState({
     type: 'expense',
     desc: '',
@@ -28,11 +26,9 @@ export default function BudgetPage({ currentUser, projects, onUpdateProject, set
     date: new Date().toISOString().slice(0, 10),
   })
 
-  const totalIn  = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-  const totalOut = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+  const totalIn  = transactions.filter(t => t.type === 'income').reduce((s, t) => s + Number(t.amount || 0), 0)
+  const totalOut = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + Number(t.amount || 0), 0)
   const net      = totalIn - totalOut
-  const pct      = total > 0 ? Math.min((totalOut / total) * 100, 100) : 0
-  const barColor = pct > 80 ? 'var(--status-error)' : pct > 60 ? 'var(--status-warning)' : ACCENT
 
   const withBalance = useMemo(() => {
     const sorted = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date))
@@ -65,13 +61,6 @@ export default function BudgetPage({ currentUser, projects, onUpdateProject, set
   function updateBudget(newBudget) {
     if (!project) return
     onUpdateProject(project.id, { budget: newBudget })
-  }
-
-  function saveTotal() {
-    const val = parseFloat(totalInput)
-    if (!val || val <= 0) return
-    updateBudget({ ...budget, total: val })
-    setEditTotal(false)
   }
 
   function addTransaction() {
@@ -341,9 +330,9 @@ export default function BudgetPage({ currentUser, projects, onUpdateProject, set
             <h3 className="font-semibold text-sm mb-3" style={{ color: 'var(--text-primary)' }}>Summary</h3>
             <div className="space-y-2.5">
               {[
-                { label: 'Total Income',   value: totalIn,  color: 'var(--status-success)' },
-                { label: 'Total Expenses', value: totalOut, color: 'var(--status-error)' },
-                { label: 'Net Balance',    value: net,      color: net >= 0 ? 'var(--status-success)' : 'var(--status-error)' },
+                { label: 'In',  value: totalIn,  color: 'var(--status-success)' },
+                { label: 'Out', value: totalOut, color: 'var(--status-error)' },
+                { label: 'Net', value: net,      color: net >= 0 ? 'var(--status-success)' : 'var(--status-error)' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="flex items-center justify-between">
                   <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{label}</span>
@@ -353,72 +342,6 @@ export default function BudgetPage({ currentUser, projects, onUpdateProject, set
                 </div>
               ))}
             </div>
-
-            {/* Budget total */}
-            <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-              {editTotal ? (
-                <div className="flex gap-2">
-                  <div
-                    className="flex-1 flex items-center rounded-lg overflow-hidden"
-                    style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)' }}
-                    onFocusCapture={e => (e.currentTarget.style.borderColor = ACCENT)}
-                    onBlurCapture={e => (e.currentTarget.style.borderColor = 'var(--border-default)')}
-                  >
-                    <span className="px-2 text-xs select-none" style={{ color: 'var(--text-tertiary)' }}>{sym}</span>
-                    <input
-                      type="number" min="0" autoFocus
-                      className="flex-1 text-xs py-1.5 pr-2 outline-none"
-                      style={{ backgroundColor: 'transparent', color: 'var(--text-primary)' }}
-                      value={totalInput}
-                      onChange={e => setTotalInput(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && saveTotal()}
-                    />
-                  </div>
-                  <button
-                    onClick={saveTotal}
-                    className="px-2.5 rounded-full text-xs font-medium text-white hover:opacity-80 transition-opacity"
-                    style={{ backgroundColor: ACCENT }}
-                  >
-                    Set
-                  </button>
-                  <button
-                    onClick={() => setEditTotal(false)}
-                    className="px-2 rounded-lg text-xs transition-colors"
-                    style={{ color: 'var(--text-tertiary)' }}
-                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Budget Total</span>
-                  <button
-                    onClick={() => { setTotalInput(String(total || '')); setEditTotal(true) }}
-                    className="text-xs font-medium transition-opacity hover:opacity-70"
-                    style={{ color: total > 0 ? 'var(--text-primary)' : ACCENT }}
-                  >
-                    {total > 0 ? `${sym}${total.toLocaleString()}` : '+ Set'}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Progress */}
-            {total > 0 && (
-              <div className="mt-2">
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-elevated)' }}>
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${pct}%`, backgroundColor: barColor }}
-                  />
-                </div>
-                <p className="text-[10px] mt-1 text-right" style={{ color: barColor }}>
-                  {pct.toFixed(0)}% of budget used
-                </p>
-              </div>
-            )}
           </div>
 
           {/* Category breakdown */}
