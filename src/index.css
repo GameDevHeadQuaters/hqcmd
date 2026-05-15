@@ -182,3 +182,6 @@ body {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
 }
+
+/* ── GDD rich text editor placeholder ───────────────────────────────────── */
+[contenteditable][data-placeholder]:empty:before { content: attr(data-placeholder); color: var(--text-tertiary); pointer-events: none; font-style: italic; }
