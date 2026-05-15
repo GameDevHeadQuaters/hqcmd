@@ -42,7 +42,7 @@ export const PERMISSIONS = {
 }
 
 export function normaliseRole(role) {
-  if (!role) return 'Observer'
+  if (!role || role === 'No Role') return role || 'No Role'
   const map = {
     'co-leader':   'Co-leader',
     'coleader':    'Co-leader',
@@ -58,7 +58,8 @@ export function normaliseRole(role) {
 export function hasPermission(userRole, permission) {
   const normalised = normaliseRole(userRole)
   if (!userRole || normalised === 'Owner') return true
-  return (PERMISSIONS[permission] || []).includes(normalised)
+  const effectiveRole = normalised === 'No Role' ? 'Observer' : normalised
+  return (PERMISSIONS[permission] || []).includes(effectiveRole)
 }
 
 // Co-leader can manage Members/Contributors/Observers only.

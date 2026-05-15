@@ -7,6 +7,7 @@ import { hasPermission, canRemove } from '../utils/permissions'
 const ACCENT = '#534AB7'
 
 function normaliseRole(role) {
+  if (!role || role === 'No Role') return role || 'No Role'
   const map = {
     'co-leader':  'Co-leader',
     'coleader':   'Co-leader',
@@ -305,6 +306,7 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
           ) : members.map(member => {
             const isSelf = String(member.userId) === String(currentUser?.id)
             const isOwnerMember = member.isOwner || member.role === 'Owner'
+            const isNoRole = member.role === 'No Role' || (!member.role && !isOwnerMember)
             const canEdit = isProjectOwner && !isSelf && !isOwnerMember
             const isEditing = editingRoles[member.userId] !== undefined
 
@@ -317,22 +319,23 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
                   <p style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', margin: '0 0 2px' }}>
                     {member.name}{isSelf ? ' (you)' : ''}
                   </p>
-                  {canEdit ? (
+                  {(canEdit || isNoRole) && isProjectOwner ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <select
-                        value={editingRoles[member.userId] ?? member.role}
+                        value={editingRoles[member.userId] ?? (isNoRole ? '' : member.role)}
                         onChange={e => setEditingRoles(prev => ({ ...prev, [member.userId]: e.target.value }))}
-                        style={{ fontSize: '11px', padding: '2px 4px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+                        style={{ fontSize: '11px', padding: '2px 4px', borderRadius: '4px', border: `1px solid ${isNoRole ? '#ed2793' : 'var(--border-default)'}`, background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
                       >
+                        {isNoRole && <option value="" disabled>Select a role...</option>}
                         <option value="Co-leader">Co-leader</option>
                         <option value="Member">Member</option>
                         <option value="Contributor">Contributor</option>
                         <option value="Observer">Observer</option>
                       </select>
-                      {isEditing && (
+                      {(isEditing && editingRoles[member.userId]) && (
                         <button
                           onClick={() => saveRole(member, editingRoles[member.userId])}
-                          style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', border: 'none', background: 'var(--brand-accent)', color: 'white', cursor: 'pointer' }}
+                          style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', border: 'none', background: isNoRole ? '#ed2793' : 'var(--brand-accent)', color: 'white', cursor: 'pointer' }}
                         >
                           Save
                         </button>
@@ -341,6 +344,10 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
                         <span style={{ fontSize: '10px', color: '#22c55e' }}>✓ Saved</span>
                       )}
                     </div>
+                  ) : isNoRole ? (
+                    <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '99px', background: 'rgba(237,39,147,0.15)', color: '#ed2793', border: '1px solid #ed2793', fontWeight: '600', animation: 'pulse 2s infinite' }}>
+                      Set Role ↓
+                    </span>
                   ) : (
                     <span style={{ fontSize: '10px', padding: '1px 7px', borderRadius: '99px', background: isOwnerMember ? 'var(--brand-pink-glow)' : 'var(--brand-accent-glow)', color: isOwnerMember ? 'var(--brand-pink)' : 'var(--brand-accent)', border: `1px solid ${isOwnerMember ? 'var(--brand-pink)' : 'var(--brand-accent)'}` }}>
                       {member.role}

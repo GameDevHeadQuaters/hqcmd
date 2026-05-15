@@ -16,6 +16,7 @@ const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
 
 function normaliseRole(role) {
+  if (!role || role === 'No Role') return role || 'No Role'
   const map = {
     'co-leader': 'Co-leader', 'coleader': 'Co-leader', 'co leader': 'Co-leader',
     'owner': 'Owner', 'member': 'Member', 'contributor': 'Contributor', 'observer': 'Observer',
@@ -246,8 +247,8 @@ export default function ManageTeam({
       ownerUserId: String(currentUser.id),
       ownerName: currentUser.name,
       projectTitle: project.title,
-      role: normaliseRole(app.role) || 'Member',
-      userRole: normaliseRole(app.role) || 'Member',
+      role: app.role && app.role !== '' ? normaliseRole(app.role) : 'No Role',
+      userRole: app.role && app.role !== '' ? normaliseRole(app.role) : 'No Role',
       joinedAt: new Date().toISOString(),
     }
     allData[applicantId].sharedProjects.push(ref)
@@ -265,8 +266,8 @@ export default function ManageTeam({
           id: applicantId,
           userId: applicantId,
           name: applicant.name,
-          role: normaliseRole(app.role) || 'Member',
-          position: normaliseRole(app.role) || 'Member',
+          role: app.role && app.role !== '' ? normaliseRole(app.role) : 'No Role',
+          position: app.role && app.role !== '' ? normaliseRole(app.role) : 'No Role',
           initials: applicant.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
           joinedAt: new Date().toISOString(),
         })

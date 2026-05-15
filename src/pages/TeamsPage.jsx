@@ -20,6 +20,7 @@ function readAllUD() {
 }
 
 function normaliseRole(role) {
+  if (!role || role === 'No Role') return role || 'No Role'
   const map = {
     'co-leader':  'Co-leader',
     'coleader':   'Co-leader',
@@ -434,8 +435,8 @@ export default function TeamsPage({
       ownerUserId: String(currentUser.id),
       ownerName: currentUser.name,
       projectTitle: project.title,
-      role: normaliseRole(application.role) || 'Member',
-      userRole: normaliseRole(application.role) || 'Member',
+      role: application.role && application.role !== '' ? normaliseRole(application.role) : 'No Role',
+      userRole: application.role && application.role !== '' ? normaliseRole(application.role) : 'No Role',
       joinedAt: new Date().toISOString(),
     }
     allData[applicantId].sharedProjects.push(ref)
@@ -449,12 +450,13 @@ export default function TeamsPage({
       }
       const alreadyMember = allData[String(currentUser.id)].projects[projectIdx].members.some(m => String(m.userId || m.id) === applicantId)
       if (!alreadyMember) {
+        const initialRole = application.role && application.role !== '' ? normaliseRole(application.role) : 'No Role'
         allData[String(currentUser.id)].projects[projectIdx].members.push({
           id: applicantId,
           userId: applicantId,
           name: applicant.name,
-          role: normaliseRole(application.role) || 'Member',
-          position: normaliseRole(application.role) || 'Member',
+          role: initialRole,
+          position: initialRole,
           initials: applicant.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
           joinedAt: new Date().toISOString(),
         })
@@ -691,18 +693,19 @@ export default function TeamsPage({
                                       const isProjectOwner = project.isOwned === true
                                       const myRoleOnProject = isProjectOwner ? 'Owner' : (project.userRole || 'Observer')
                                       const memberRole = m.position ?? m.role ?? 'Member'
+                                      const isNoRole = memberRole === 'No Role'
                                       const isSelf = String(m.userId || m.id) === String(currentUser?.id)
                                       const canManage = !isSelf && (isProjectOwner || canManageMember(myRoleOnProject, memberRole))
                                       if (isSelf) {
-                                        return <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>{memberRole} (you)</span>
+                                        return <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>{isNoRole ? 'No Role' : memberRole} (you)</span>
                                       }
                                       if (canManage) {
                                         return (
                                           <div className="flex items-center gap-2">
                                             <select
                                               className="text-xs rounded-lg px-2.5 py-1.5 outline-none appearance-none cursor-pointer"
-                                              style={{ border: '1px solid var(--border-default)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
-                                              value={pendingPos ?? m.position ?? 'Member'}
+                                              style={{ border: `1px solid ${isNoRole ? '#ed2793' : 'var(--border-default)'}`, backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                                              value={pendingPos ?? (isNoRole ? '' : (m.position ?? 'Member'))}
                                               onChange={e => {
                                                 const val = e.target.value
                                                 if (val === (m.position ?? 'Member')) {
@@ -713,6 +716,7 @@ export default function TeamsPage({
                                               }}
                                               onFocus={fi} onBlur={fb}
                                             >
+                                              {isNoRole && <option value="" disabled>Select a role...</option>}
                                               {isProjectOwner && <option value="Owner">Owner</option>}
                                               {isProjectOwner && <option value="Co-leader">Co-leader</option>}
                                               <option value="Member">Member</option>
@@ -724,11 +728,18 @@ export default function TeamsPage({
                                             ) : pendingPos ? (
                                               <button onClick={() => savePosition(project, m)}
                                                 className="text-xs font-medium px-2.5 py-1 rounded-full text-white transition-opacity hover:opacity-80"
-                                                style={{ backgroundColor: ACCENT }}>
+                                                style={{ backgroundColor: isNoRole ? '#ed2793' : ACCENT }}>
                                                 Save Role
                                               </button>
                                             ) : null}
                                           </div>
+                                        )
+                                      }
+                                      if (isNoRole) {
+                                        return (
+                                          <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '99px', background: 'rgba(237,39,147,0.15)', color: '#ed2793', border: '1px solid #ed2793', fontWeight: '600', animation: 'pulse 2s infinite' }}>
+                                            Set Role ↓
+                                          </span>
                                         )
                                       }
                                       return (
@@ -1056,9 +1067,15 @@ export default function TeamsPage({
                                       <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
                                           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{member.name}</p>
-                                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--brand-accent-glow)', color: ACCENT }}>
-                                            {member.role || member.position || 'Member'}
-                                          </span>
+                                          {(member.role === 'No Role' || (!member.role && !member.position)) ? (
+                                            <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '99px', background: 'rgba(237,39,147,0.15)', color: '#ed2793', border: '1px solid #ed2793', fontWeight: '600', animation: 'pulse 2s infinite' }}>
+                                              Set Role ↓
+                                            </span>
+                                          ) : (
+                                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--brand-accent-glow)', color: ACCENT }}>
+                                              {member.role || member.position || 'Member'}
+                                            </span>
+                                          )}
                                         </div>
                                         <div className="flex items-center gap-3 mt-0.5">
                                           {member.joinedAt && (

@@ -176,3 +176,9 @@ body {
   border: 1px solid rgba(0,0,0,0.08);
   box-shadow: 0 25px 60px rgba(0,0,0,0.15);
 }
+
+/* ── No Role pulse animation ─────────────────────────────────────────────── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
