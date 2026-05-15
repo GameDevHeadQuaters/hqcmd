@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { IconBrandGoogle, IconBrandGithub, IconInfoCircle } from '@tabler/icons-react'
+import { supabase } from '../lib/supabase'
 
 const ACCENT = '#534AB7'
 
@@ -43,6 +44,14 @@ export default function Login({ onLogin, currentUser }) {
     navigate(fromBrowse ? '/browse' : '/workstation')
   }
 
+  async function handleGoogleLogin() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    })
+    if (error) console.error('[Google Auth] Error:', error)
+  }
+
   function focusAccent(e) { e.target.style.borderColor = ACCENT }
   function blurReset(e)   { e.target.style.borderColor = '' }
 
@@ -72,7 +81,7 @@ export default function Login({ onLogin, currentUser }) {
           {/* OAuth buttons */}
           <div className="grid grid-cols-2 gap-3 mb-5">
             <button
-              onClick={() => { window.location.href = '/api/auth/google' }}
+              onClick={handleGoogleLogin}
               className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors"
               style={{ border: '1px solid var(--border-default)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-elevated)' }}
             >

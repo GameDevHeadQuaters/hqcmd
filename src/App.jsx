@@ -30,6 +30,7 @@ import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Contact from './pages/Contact'
 import GoogleAuthSuccess from './pages/GoogleAuthSuccess'
+import AuthCallback from './pages/AuthCallback'
 import Roadmap from './pages/Roadmap'
 import DebugPanel from './components/DebugPanel'
 import QuickStartTour from './components/QuickStartTour'
@@ -1324,6 +1325,8 @@ export default function App() {
             setUserData={setUserData}
           />
         } />
+
+        <Route path="/auth/callback" element={<AuthCallback />} />
 
         <Route path="/teams" element={
           currentUser ? (

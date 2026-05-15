@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { IconCheck, IconAlertTriangle, IconBrandGoogle } from '@tabler/icons-react'
 import { PRESET_SKILLS } from '../utils/skillsList'
 import TagInput from '../components/TagInput'
+import { supabase } from '../lib/supabase'
 
 const ACCENT = '#534AB7'
 const BETA_REQUESTS_KEY = 'hqcmd_beta_requests'
@@ -52,6 +53,17 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
   // Optional skills step shown after form validation passes
   const [skillsStep,     setSkillsStep]     = useState(false)
   const [selectedSkills, setSelectedSkills] = useState([])
+
+  async function handleGoogleOAuth() {
+    if (betaMode && inviteVerified && inviteCode) {
+      sessionStorage.setItem('hqcmd_pending_invite_code', inviteCode.trim().toUpperCase())
+    }
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    })
+    if (error) console.error('[Google Auth] Error:', error)
+  }
 
   function setField(field, value) {
     setForm(f => ({ ...f, [field]: value }))
@@ -229,7 +241,7 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
           {!requestSent && !isGoogleFlow && !isGoogleRequest && (
             <>
               <button
-                onClick={() => { window.location.href = '/api/auth/google' }}
+                onClick={handleGoogleOAuth}
                 className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors mb-4"
                 style={{ border: '1px solid var(--border-default)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-elevated)' }}
               >
