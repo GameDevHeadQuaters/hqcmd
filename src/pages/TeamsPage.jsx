@@ -143,12 +143,14 @@ export default function TeamsPage({
   const [actionedIds, setActionedIds] = useState([])
   const [grantError, setGrantError] = useState({})
   const [highlightedMember, setHighlightedMember] = useState({})
+  const [editingRoles, setEditingRoles] = useState({})
 
   // ── Build combined owned + shared project list ────────────────────────────
   const ownEntries = (projects ?? []).map(p => ({
     ...p,
     userRole: 'Owner',
     isOwned: true,
+    _ownerUserId: String(currentUser?.id),
   }))
 
   const allUD = readAllUD()
@@ -169,6 +171,7 @@ export default function TeamsPage({
           ownerName: ownerUser.name,
           userRole: memberEntry.position ?? 'Member',
           isOwned: false,
+          _ownerUserId: uid,
         })
       }
     })
@@ -228,6 +231,42 @@ export default function TeamsPage({
     }, 2000)
   }
 
+  function saveRole(projectId, ownerUserId, member, newRole) {
+    const USERDATA_KEY = 'hqcmd_userData_v4'
+    const effectiveOwnerId = String(ownerUserId || currentUser?.id)
+    try {
+      const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+      const projectIdx = allData[effectiveOwnerId]?.projects?.findIndex(p => String(p.id) === String(projectId))
+      if (projectIdx !== undefined && projectIdx !== -1) {
+        const memberIdx = allData[effectiveOwnerId].projects[projectIdx].members?.findIndex(
+          m => String(m.userId || m.id) === String(member.userId || member.id)
+        )
+        if (memberIdx !== undefined && memberIdx !== -1) {
+          allData[effectiveOwnerId].projects[projectIdx].members[memberIdx].role = newRole
+          allData[effectiveOwnerId].projects[projectIdx].members[memberIdx].position = newRole
+        }
+      }
+      const memberId = String(member.userId || member.id)
+      if (allData[memberId]?.sharedProjects) {
+        const spIdx = allData[memberId].sharedProjects.findIndex(sp => String(sp.projectId) === String(projectId))
+        if (spIdx !== -1) {
+          allData[memberId].sharedProjects[spIdx].role = newRole
+          allData[memberId].sharedProjects[spIdx].userRole = newRole
+        }
+      }
+      localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+      window.dispatchEvent(new Event('storage'))
+      console.log('[TeamsPage] saveRole:', member.name, '->', newRole)
+    } catch (e) {
+      console.error('[TeamsPage] saveRole failed:', e)
+    }
+    const memberId = String(member.userId || member.id)
+    setEditingRoles(prev => { const n = { ...prev }; delete n[memberId]; return n })
+    const key = posKey(projectId, member.id)
+    setPositionFeedback(prev => ({ ...prev, [key]: `Role updated to ${newRole}` }))
+    setTimeout(() => setPositionFeedback(prev => { const n = { ...prev }; delete n[key]; return n }), 2000)
+  }
+
   function removeMember(project, member) {
     onUpdateProject(project.id, {
       members: (project.members ?? []).filter(m => m.id !== member.id),
@@ -260,20 +299,28 @@ export default function TeamsPage({
   }
 
   function getProjectMembers(project) {
-    const projectMembers = project.members ?? []
+    // Build from project.members, cross-checking sharedProjects for the most current role
+    const projectMembers = (project.members ?? []).map(m => {
+      const uid = String(m.userId || m.id)
+      const sharedRef = allUD[uid]?.sharedProjects?.find(sp => String(sp.projectId) === String(project.id))
+      const actualRole = sharedRef?.role || m.role || 'No Role'
+      return { ...m, userId: uid, role: actualRole, position: actualRole }
+    })
+    const memberIds = new Set(projectMembers.map(m => String(m.userId)))
     const sharedMembers = []
     Object.keys(allUD).forEach(userId => {
-      const shared = allUD[userId]?.sharedProjects || []
-      const ref = shared.find(sp => String(sp.projectId) === String(project.id))
+      if (memberIds.has(userId)) return
+      const refs = allUD[userId]?.sharedProjects || []
+      const ref = refs.find(sp => String(sp.projectId) === String(project.id))
       if (ref) {
         const user = (users ?? []).find(u => String(u.id) === userId)
-        if (user && !projectMembers.some(m => String(m.userId || m.id) === userId)) {
+        if (user) {
           sharedMembers.push({
             id: userId,
             userId: userId,
             name: user.name,
-            role: ref.role || 'Member',
-            position: ref.role || 'Member',
+            role: ref.role || 'No Role',
+            position: ref.role || 'No Role',
             initials: user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
             joinedAt: ref.joinedAt,
           })
@@ -429,14 +476,15 @@ export default function TeamsPage({
     const arrays = ['projects', 'applications', 'directMessages', 'notifications', 'agreements', 'contacts', 'sharedProjects']
     arrays.forEach(k => { if (!Array.isArray(allData[applicantId][k])) allData[applicantId][k] = [] })
 
+    const grantedRole = (application.role && application.role.trim() !== '') ? application.role : 'No Role'
     const ref = {
       id: String(Date.now()),
       projectId: String(project.id),
       ownerUserId: String(currentUser.id),
       ownerName: currentUser.name,
       projectTitle: project.title,
-      role: application.role && application.role !== '' ? normaliseRole(application.role) : 'No Role',
-      userRole: application.role && application.role !== '' ? normaliseRole(application.role) : 'No Role',
+      role: grantedRole,
+      userRole: grantedRole,
       joinedAt: new Date().toISOString(),
     }
     allData[applicantId].sharedProjects.push(ref)
@@ -450,13 +498,12 @@ export default function TeamsPage({
       }
       const alreadyMember = allData[String(currentUser.id)].projects[projectIdx].members.some(m => String(m.userId || m.id) === applicantId)
       if (!alreadyMember) {
-        const initialRole = application.role && application.role !== '' ? normaliseRole(application.role) : 'No Role'
         allData[String(currentUser.id)].projects[projectIdx].members.push({
           id: applicantId,
           userId: applicantId,
           name: applicant.name,
-          role: initialRole,
-          position: initialRole,
+          role: grantedRole,
+          position: grantedRole,
           initials: applicant.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
           joinedAt: new Date().toISOString(),
         })
@@ -692,32 +739,26 @@ export default function TeamsPage({
                                     {(() => {
                                       const isProjectOwner = project.isOwned === true
                                       const myRoleOnProject = isProjectOwner ? 'Owner' : (project.userRole || 'Observer')
-                                      const memberRole = m.position ?? m.role ?? 'Member'
+                                      const memberRole = m.role ?? m.position ?? 'No Role'
                                       const isNoRole = memberRole === 'No Role'
                                       const isSelf = String(m.userId || m.id) === String(currentUser?.id)
                                       const canManage = !isSelf && (isProjectOwner || canManageMember(myRoleOnProject, memberRole))
+                                      const memberId = String(m.userId || m.id)
+                                      const feedback = positionFeedback[posKey(project.id, m.id)]
                                       if (isSelf) {
-                                        return <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>{isNoRole ? 'No Role' : memberRole} (you)</span>
+                                        return <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>{memberRole} (you)</span>
                                       }
                                       if (canManage) {
                                         return (
                                           <div className="flex items-center gap-2">
                                             <select
-                                              className="text-xs rounded-lg px-2.5 py-1.5 outline-none appearance-none cursor-pointer"
-                                              style={{ border: `1px solid ${isNoRole ? '#ed2793' : 'var(--border-default)'}`, backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
-                                              value={pendingPos ?? (isNoRole ? '' : (m.position ?? 'Member'))}
-                                              onChange={e => {
-                                                const val = e.target.value
-                                                if (val === (m.position ?? 'Member')) {
-                                                  setPendingPositions(prev => { const n = { ...prev }; delete n[pk]; return n })
-                                                } else {
-                                                  setPendingPositions(prev => ({ ...prev, [pk]: val }))
-                                                }
-                                              }}
+                                              className="text-xs rounded-lg px-2 py-1 outline-none appearance-none cursor-pointer"
+                                              style={{ border: `1px solid ${isNoRole ? '#ed2793' : 'var(--border-default)'}`, backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+                                              value={editingRoles[memberId] ?? (memberRole || 'No Role')}
+                                              onChange={e => setEditingRoles(prev => ({ ...prev, [memberId]: e.target.value }))}
                                               onFocus={fi} onBlur={fb}
                                             >
-                                              {isNoRole && <option value="" disabled>Select a role...</option>}
-                                              {isProjectOwner && <option value="Owner">Owner</option>}
+                                              <option value="No Role" disabled>Select a role...</option>
                                               {isProjectOwner && <option value="Co-leader">Co-leader</option>}
                                               <option value="Member">Member</option>
                                               <option value="Contributor">Contributor</option>
@@ -725,10 +766,12 @@ export default function TeamsPage({
                                             </select>
                                             {feedback ? (
                                               <span className="text-xs" style={{ color: 'var(--status-success)' }}>{feedback}</span>
-                                            ) : pendingPos ? (
-                                              <button onClick={() => savePosition(project, m)}
+                                            ) : (editingRoles[memberId] && editingRoles[memberId] !== memberRole) ? (
+                                              <button
+                                                onClick={() => saveRole(project.id, project._ownerUserId, m, editingRoles[memberId])}
                                                 className="text-xs font-medium px-2.5 py-1 rounded-full text-white transition-opacity hover:opacity-80"
-                                                style={{ backgroundColor: isNoRole ? '#ed2793' : ACCENT }}>
+                                                style={{ backgroundColor: isNoRole ? '#ed2793' : ACCENT }}
+                                              >
                                                 Save Role
                                               </button>
                                             ) : null}
@@ -743,7 +786,7 @@ export default function TeamsPage({
                                         )
                                       }
                                       return (
-                                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+                                        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '99px', background: 'var(--brand-accent-glow)', color: 'var(--brand-accent)', border: '1px solid var(--brand-accent)' }}>
                                           {memberRole}
                                         </span>
                                       )
