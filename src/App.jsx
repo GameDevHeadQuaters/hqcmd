@@ -904,30 +904,51 @@ export default function App() {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
-  async function handleSignup({ name, email, password, skills = [] }) {
-    const trimmedName = name.trim()
+  async function handleSignup(userData) {
+    const { name, email, password, skills = [] } = userData
+    const trimmedName = (name || '').trim()
     const initials = trimmedName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-    const normalEmail = email.trim().toLowerCase()
+    const normalEmail = (email || '').trim().toLowerCase()
 
     console.log('[Signup] Starting signup for:', normalEmail)
     console.log('[Signup] Supabase URL:', import.meta.env.VITE_SUPABASE_URL)
     console.log('[Signup] Has anon key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY)
+    console.log('[Signup] userData received:', {
+      email: normalEmail,
+      hasPassword: !!password,
+      passwordLength: password?.length,
+      name: trimmedName,
+    })
 
-    let data = null
-    let error = null
+    let supabaseUserId = null
     try {
-      const result = await supabaseSignUp(normalEmail, password, { name: trimmedName })
-      console.log('[Signup] Supabase result:', result)
-      data = result.data
-      error = result.error
+      const { data, error } = await supabase.auth.signUp({
+        email: normalEmail,
+        password: password,
+        options: { data: { name: trimmedName, initials } },
+      })
+      console.log('[Signup] Supabase response:', data, error)
+      if (error) throw error
+      if (data?.user) {
+        supabaseUserId = data.user.id
+        const { error: profileError } = await supabase.from('users').insert({
+          id: data.user.id,
+          email: normalEmail,
+          name: trimmedName,
+          role: '',
+          skills: skills || [],
+          initials,
+          avatar_color: hashColor(trimmedName),
+        })
+        if (profileError) console.error('[Signup] Profile insert error:', profileError)
+        else console.log('[Signup] Profile created in Supabase!')
+      }
     } catch (e) {
-      console.error('[Signup] Supabase error:', e.message, e)
-      error = e
+      console.error('[Signup] Supabase signup failed, using localStorage:', e.message)
     }
-    if (error) console.warn('[Auth] Supabase signup failed, using localStorage:', error.message)
 
     const newUser = {
-      id: data?.user?.id ?? Date.now(),
+      id: supabaseUserId ?? Date.now(),
       name: trimmedName,
       email: normalEmail,
       password,
@@ -937,7 +958,7 @@ export default function App() {
       initials,
       avatarColor: hashColor(trimmedName),
       projects: [],
-      ...(data?.user ? { supabaseId: data.user.id } : {}),
+      ...(supabaseUserId ? { supabaseId: supabaseUserId } : {}),
     }
     setUsers(prev => [...prev, newUser])
     setCurrentUser(newUser)
