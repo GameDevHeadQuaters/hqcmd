@@ -213,13 +213,18 @@ export default function TeamsPage({
     const key = posKey(project.id, member.id)
     const position = pendingPositions[key]
     if (!position) return
+    console.log('[SaveRole] Before save - members count:', getProjectMembers(project).length, '| project.members (React state):', project.members?.length ?? 0, '| sharedProjects in LS:', Object.keys(readAllUD()).filter(uid => readAllUD()[uid]?.sharedProjects?.some(sp => String(sp.projectId) === String(project.id))).length)
     onUpdateProject(project.id, {
       members: (project.members ?? []).map(m => m.id === member.id ? { ...m, position } : m),
     })
+    console.log('[SaveRole] After save - members count:', getProjectMembers(project).length, '| project.members passed to updateProject:', (project.members ?? []).length)
     const msg = `Role updated to ${position}`
     setPositionFeedback(prev => ({ ...prev, [key]: msg }))
     setPendingPositions(prev => { const n = { ...prev }; delete n[key]; return n })
-    setTimeout(() => setPositionFeedback(prev => { const n = { ...prev }; delete n[key]; return n }), 2000)
+    setTimeout(() => {
+      console.log('[SaveRole] 1 second later - members count:', getProjectMembers(project).length, '| LS sharedProjects for project:', Object.keys(readAllUD()).filter(uid => readAllUD()[uid]?.sharedProjects?.some(sp => String(sp.projectId) === String(project.id))).length)
+      setPositionFeedback(prev => { const n = { ...prev }; delete n[key]; return n })
+    }, 2000)
   }
 
   function removeMember(project, member) {

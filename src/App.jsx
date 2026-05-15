@@ -286,11 +286,11 @@ export default function App() {
       const raw = localStorage.getItem(STORAGE_KEYS.userData)
       if (!raw) return {}
       const data = JSON.parse(raw)
-      // Strip agreements from React state — they live only in localStorage.
-      // App.jsx must never hold or persist agreement data through React state.
+      // Strip agreements and sharedProjects from React state — they live only in localStorage.
+      // App.jsx must never hold or persist these through React state.
       const stripped = {}
       Object.keys(data).forEach(uid => {
-        stripped[uid] = { ...data[uid], agreements: [] }
+        stripped[uid] = { ...data[uid], agreements: [], sharedProjects: [] }
       })
       return deserializeUserData(stripped)
     } catch { return {} }
@@ -329,8 +329,8 @@ export default function App() {
     safeSet(STORAGE_KEYS.users, JSON.stringify(users))
   }, [users])
 
-  // Nuclear persist — save userData state but ALWAYS restore agreements from localStorage.
-  // App.jsx React state must never overwrite agreement data under any circumstances.
+  // Nuclear persist — save userData state but ALWAYS restore agreements and sharedProjects from localStorage.
+  // App.jsx React state must never overwrite these fields — they are localStorage-authoritative.
   useEffect(() => {
     try {
       const key = STORAGE_KEYS.userData
@@ -343,20 +343,25 @@ export default function App() {
       // Start with the serialized React state as the base to save
       const toSave = { ...serialized }
 
-      // For EVERY user in localStorage: hard-override agreements with the LS copy.
-      // React state agreements are always [] (stripped on load) so this is purely defensive.
+      // For EVERY user in localStorage: hard-override agreements and sharedProjects with the LS copy.
+      // React state for both is always [] (stripped on load) so this is purely defensive.
       Object.keys(currentData).forEach(uid => {
         if (!toSave[uid]) {
           toSave[uid] = currentData[uid]
         } else {
-          toSave[uid] = { ...toSave[uid], agreements: currentData[uid].agreements || [] }
+          toSave[uid] = {
+            ...toSave[uid],
+            agreements:     currentData[uid].agreements     || toSave[uid].agreements     || [],
+            sharedProjects: currentData[uid].sharedProjects || toSave[uid].sharedProjects || [],
+          }
         }
       })
 
-      // Ensure users only in toSave (new signups) have an empty agreements array
+      // Ensure users only in toSave (new signups) have empty arrays for both fields
       Object.keys(toSave).forEach(uid => {
-        if (!currentData[uid] && !toSave[uid].agreements) {
-          toSave[uid].agreements = []
+        if (!currentData[uid]) {
+          if (!toSave[uid].agreements)     toSave[uid].agreements     = []
+          if (!toSave[uid].sharedProjects) toSave[uid].sharedProjects = []
         }
       })
 
