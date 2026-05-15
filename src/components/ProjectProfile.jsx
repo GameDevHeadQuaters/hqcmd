@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { IconX, IconUpload, IconToggleLeft, IconToggleRight } from '@tabler/icons-react'
+import { IconX, IconUpload, IconToggleLeft, IconToggleRight, IconArchive } from '@tabler/icons-react'
 import { PRESET_ROLES } from '../utils/skillsList'
 import TagInput from './TagInput'
 
@@ -73,6 +73,11 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
     permanent:    project.permanent    || false,
   })
 
+  const [showClosureModal, setShowClosureModal] = useState(false)
+  const [closureStatus,   setClosureStatus]   = useState('')
+  const [closureMessage,  setClosureMessage]  = useState('')
+  const [closureLink,     setClosureLink]     = useState('')
+
   function set(key, val) { setForm(f => ({ ...f, [key]: val })) }
 
   function toggleArr(key, val) {
@@ -116,6 +121,69 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
       permanent:    form.permanent,
       milestones:   form.milestones,
     })
+    onClose()
+  }
+
+  function handleCloseProject() {
+    const USERDATA_KEY = 'hqcmd_userData_v4'
+    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+    const myId = String(currentUser?.id)
+    const projectIdx = (allData[myId]?.projects ?? []).findIndex(p => String(p.id) === String(project.id))
+    if (projectIdx === -1) return
+
+    allData[myId].projects[projectIdx].status = closureStatus
+    allData[myId].projects[projectIdx].closed = true
+    allData[myId].projects[projectIdx].closedAt = new Date().toISOString()
+    allData[myId].projects[projectIdx].closureMessage = closureMessage
+    allData[myId].projects[projectIdx].closureLink = closureLink
+    allData[myId].projects[projectIdx].visibility = 'Private'
+
+    const members = allData[myId].projects[projectIdx].members || []
+    members.forEach(member => {
+      const memberId = String(member.userId || member.id)
+      if (!allData[memberId]) return
+      if (!Array.isArray(allData[memberId].notifications)) allData[memberId].notifications = []
+      allData[memberId].notifications.push({
+        id: String(Date.now()) + '_closure_' + memberId,
+        iconType: 'message',
+        type: 'project_closed',
+        text: `"${project.title}" has been ${closureStatus.toLowerCase()} by the owner.${closureMessage ? ' ' + closureMessage.slice(0, 60) : ''}`,
+        read: false,
+        time: 'Just now',
+        timestamp: new Date().toISOString(),
+        link: '/projects',
+      })
+    })
+
+    Object.keys(allData).forEach(uid => {
+      if (uid === myId) return
+      const hasRef = (allData[uid]?.sharedProjects || []).some(sp => String(sp.projectId) === String(project.id))
+      if (hasRef && !members.some(m => String(m.userId || m.id) === uid)) {
+        if (!Array.isArray(allData[uid].notifications)) allData[uid].notifications = []
+        allData[uid].notifications.push({
+          id: String(Date.now()) + '_closure_' + uid,
+          iconType: 'message',
+          type: 'project_closed',
+          text: `"${project.title}" has been ${closureStatus.toLowerCase()}.${closureMessage ? ' ' + closureMessage.slice(0, 60) : ''}`,
+          read: false,
+          time: 'Just now',
+          timestamp: new Date().toISOString(),
+          link: '/projects',
+        })
+      }
+    })
+
+    localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+    window.dispatchEvent(new Event('storage'))
+
+    setShowClosureModal(false)
+
+    if (closureStatus === 'Complete') {
+      setTimeout(() => {
+        alert(`🎉 "${project.title}" is marked Complete! Your team will be prompted to leave reviews.`)
+      }, 500)
+    }
+
     onClose()
   }
 
@@ -310,8 +378,76 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
           >
             Cancel
           </button>
+          {!project.closed && !currentUser?.isAdmin && (
+            <button
+              onClick={() => setShowClosureModal(true)}
+              className="px-4 py-2.5 rounded-full text-sm transition-colors flex items-center gap-1.5"
+              style={{ color: '#ed2793', border: '1px solid rgba(237,39,147,0.4)' }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.08)')}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '')}
+            >
+              <IconArchive size={14} /> Close
+            </button>
+          )}
         </div>
       </div>
+
+      {showClosureModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: '16px', border: '1px solid var(--border-default)', padding: '28px', maxWidth: '440px', width: '90%' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <IconArchive size={18} style={{ color: '#ed2793' }} /> Close Project
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '16px' }}>
+              Closing this project will archive it and notify all team members. The project will remain visible to your team but no new applications will be accepted.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Mark as</label>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                  {['Complete', 'On Hold', 'Cancelled'].map(s => (
+                    <button key={s} onClick={() => setClosureStatus(s)}
+                      style={{ padding: '6px 14px', borderRadius: '99px', border: '1px solid var(--border-default)', cursor: 'pointer', fontSize: '12px', background: closureStatus === s ? 'var(--brand-accent)' : 'transparent', color: closureStatus === s ? 'white' : 'var(--text-secondary)' }}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Final message to team (optional)</label>
+                <textarea
+                  value={closureMessage}
+                  onChange={e => setClosureMessage(e.target.value)}
+                  placeholder="Thank your team, share what you learned, or explain next steps..."
+                  rows={3}
+                  style={{ width: '100%', marginTop: '6px', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', resize: 'vertical', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Final project link (optional — for game jam submission etc.)</label>
+                <input
+                  value={closureLink}
+                  onChange={e => setClosureLink(e.target.value)}
+                  placeholder="https://itch.io/your-game"
+                  style={{ width: '100%', marginTop: '6px', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => setShowClosureModal(false)} style={{ flex: 1, padding: '10px', borderRadius: '9999px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                Cancel
+              </button>
+              <button onClick={handleCloseProject} disabled={!closureStatus} style={{ flex: 1, padding: '10px', borderRadius: '9999px', border: 'none', background: closureStatus ? '#ed2793' : 'var(--bg-elevated)', color: closureStatus ? 'white' : 'var(--text-tertiary)', cursor: closureStatus ? 'pointer' : 'default', fontSize: '13px', fontWeight: '500' }}>
+                Close Project
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -48,13 +48,14 @@ function ProjectCard({ project, onOpen, onManageTeam, topBorder }) {
   const status = getProjectStatus(project)
   const sc = statusColors[status] || statusColors['In Progress']
   const isOvertime = status === 'Overtime'
+  const isClosed = !!project.closed
 
   return (
     <div
       className="hq-card rounded-lg overflow-hidden transition-all"
-      style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}
+      style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)', opacity: isClosed ? 0.75 : 1 }}
     >
-      <div style={{ height: '2px', backgroundColor: topBorder }} />
+      <div style={{ height: '2px', backgroundColor: isClosed ? '#805da8' : topBorder }} />
       <div
         className="h-28 flex items-center justify-center text-4xl"
         style={
@@ -71,6 +72,7 @@ function ProjectCard({ project, onOpen, onManageTeam, topBorder }) {
           <div className="flex items-center gap-1.5 min-w-0">
             <h3 className="font-semibold text-sm leading-tight truncate" style={{ color: 'var(--text-primary)' }}>{project.title}</h3>
             {project.permanent && <span title="Permanent project — survives site resets" style={{ fontSize: '13px', flexShrink: 0 }}>🔒</span>}
+            {isClosed && <span style={{ fontSize: '10px', fontWeight: '700', padding: '2px 7px', borderRadius: '99px', background: 'rgba(128,93,168,0.15)', color: '#805da8', flexShrink: 0 }}>📦 Archived</span>}
           </div>
           <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 flex items-center gap-1" style={{ backgroundColor: sc.bg, color: sc.text }}>
             {isOvertime && <IconAlertTriangle size={10} />}
@@ -81,6 +83,14 @@ function ProjectCard({ project, onOpen, onManageTeam, topBorder }) {
         <ProjectBadges project={project} style={{ marginBottom: '6px' }} />
 
         <p className="text-sm leading-relaxed mb-3 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{project.description}</p>
+        {isClosed && project.closureLink && (
+          <a href={project.closureLink} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-medium mb-3 transition-opacity hover:opacity-70"
+            style={{ color: '#534AB7' }}
+          >
+            🔗 View Final Build
+          </a>
+        )}
 
         <div className="mb-4">
           <div className="flex justify-between text-xs mb-1">

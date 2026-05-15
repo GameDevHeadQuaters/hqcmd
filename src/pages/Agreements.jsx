@@ -209,6 +209,13 @@ export default function Agreements({
           />
         </div>
 
+        {/* Expiring agreements warning */}
+        {myAgreements.filter(a => a.endDate && new Date(a.endDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && a.status === 'fully_signed').map(a => (
+          <div key={a.id + '_expiry'} style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(245,158,11,0.1)', border: '1px solid #f59e0b', fontSize: '12px', color: '#f59e0b', marginBottom: '8px' }}>
+            ⏰ <strong>{a.templateName}</strong> expires {new Date(a.endDate).toLocaleDateString('en-GB')}
+          </div>
+        ))}
+
         {/* Agreements to Sign */}
         {agreementsToSign.length > 0 && (
           <div className="mb-6 rounded-lg p-5" style={{ backgroundColor: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>

@@ -389,6 +389,15 @@ export default function App() {
                   links:          currentProject.links          || stateProject.links          || [],
                   calendarEvents: currentProject.calendarEvents || stateProject.calendarEvents || [],
                   milestones:     currentProject.milestones     || stateProject.milestones     || [],
+                  // Preserve closure metadata — written directly to localStorage by handleCloseProject
+                  ...(currentProject.closed ? {
+                    status:         currentProject.status,
+                    closed:         currentProject.closed,
+                    closedAt:       currentProject.closedAt,
+                    closureMessage: currentProject.closureMessage,
+                    closureLink:    currentProject.closureLink,
+                    visibility:     currentProject.visibility || stateProject.visibility,
+                  } : {}),
                 }
               })
               // Add any projects in localStorage not yet in React state
@@ -613,6 +622,59 @@ export default function App() {
       return { ...prev, [uid]: { ...d, projects: next } }
     })
   }
+
+  // ── Agreement renewal notifications ──────────────────────────────────────
+
+  function addNotificationToUser(userId, notification) {
+    try {
+      const allData = JSON.parse(localStorage.getItem(STORAGE_KEYS.userData) || '{}')
+      if (!allData[userId]) return
+      if (!Array.isArray(allData[userId].notifications)) allData[userId].notifications = []
+      allData[userId].notifications.push({ id: String(Date.now()), read: false, time: 'Just now', iconType: 'agreement', ...notification })
+      localStorage.setItem(STORAGE_KEYS.userData, JSON.stringify(allData))
+    } catch {}
+  }
+
+  function checkAgreementRenewals() {
+    if (!currentUser) return
+    const allData = JSON.parse(localStorage.getItem(STORAGE_KEYS.userData) || '{}')
+    const myId = String(currentUser.id)
+    const myAgreements = allData[myId]?.agreements || []
+    const now = new Date()
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+    const sevenDaysFromNow  = new Date(now.getTime() +  7 * 24 * 60 * 60 * 1000)
+
+    myAgreements.forEach(agreement => {
+      if (agreement.status !== 'fully_signed') return
+      if (!agreement.endDate) return
+      const endDate = new Date(agreement.endDate)
+      const notifKey = `hqcmd_renewal_notified_${agreement.id}`
+
+      if (endDate < now) {
+        if (!localStorage.getItem(notifKey + '_expired')) {
+          addNotificationToUser(myId, { type: 'agreement_expired', text: `⚠ Agreement expired: "${agreement.templateName}" for ${agreement.projectTitle}`, link: '/agreements' })
+          localStorage.setItem(notifKey + '_expired', 'true')
+        }
+      } else if (endDate < sevenDaysFromNow) {
+        if (!localStorage.getItem(notifKey + '_7d')) {
+          addNotificationToUser(myId, { type: 'agreement_expiring', text: `⏰ Agreement expiring in 7 days: "${agreement.templateName}" for ${agreement.projectTitle}`, link: '/agreements' })
+          localStorage.setItem(notifKey + '_7d', 'true')
+        }
+      } else if (endDate < thirtyDaysFromNow) {
+        if (!localStorage.getItem(notifKey + '_30d')) {
+          addNotificationToUser(myId, { type: 'agreement_expiring', text: `📅 Agreement expiring in 30 days: "${agreement.templateName}" for ${agreement.projectTitle}`, link: '/agreements' })
+          localStorage.setItem(notifKey + '_30d', 'true')
+        }
+      }
+    })
+  }
+
+  useEffect(() => {
+    if (!currentUser) return
+    checkAgreementRenewals()
+    const interval = setInterval(checkAgreementRenewals, 24 * 60 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Force re-read from localStorage (call after cross-user writes) ─────────
 
@@ -1226,7 +1288,7 @@ function AppLayout({ children, topNavProps, sidebarProps }) {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
       <Sidebar
         {...sidebarProps}
         collapsed={collapsed}
@@ -1237,11 +1299,11 @@ function AppLayout({ children, topNavProps, sidebarProps }) {
         transition: 'margin-left 0.2s ease',
         flex: 1,
         minWidth: 0,
-        minHeight: '100vh',
+        overflowY: 'auto',
         display: 'flex',
         flexDirection: 'column',
       }}>
-        <div style={{ flex: 1 }}>{children}</div>
+        <main style={{ flex: 1 }}>{children}</main>
         <Footer />
       </div>
     </div>

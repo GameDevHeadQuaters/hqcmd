@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { IconArrowLeft, IconPlus, IconX, IconSearch, IconDownload } from '@tabler/icons-react'
+import { IconArrowLeft, IconPlus, IconX, IconSearch, IconDownload, IconFileInvoice } from '@tabler/icons-react'
 import { BUDGET_CATEGORIES, CURRENCIES, migrateBudget, getCategoryMeta } from '../utils/budgetCategories'
+import { generateInvoice } from '../utils/generateInvoice'
 
 const ACCENT = '#534AB7'
 
@@ -152,14 +153,23 @@ export default function BudgetPage({ currentUser, projects, onUpdateProject, set
         </div>
         <div className="flex items-center gap-2">
           {transactions.length > 0 && (
-            <button
-              onClick={exportCSV}
-              title="Export CSV"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-opacity hover:opacity-70"
-              style={{ border: '1px solid var(--border-default)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-surface)' }}
-            >
-              <IconDownload size={14} /> Export
-            </button>
+            <>
+              <button
+                onClick={exportCSV}
+                title="Export CSV"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-opacity hover:opacity-70"
+                style={{ border: '1px solid var(--border-default)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-surface)' }}
+              >
+                <IconDownload size={14} /> Export
+              </button>
+              <button
+                onClick={() => generateInvoice(project, transactions, currency, currentUser)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-opacity hover:opacity-80"
+                style={{ border: 'none', backgroundColor: 'var(--brand-accent)', color: 'white', cursor: 'pointer' }}
+              >
+                <IconFileInvoice size={14} /> Generate Invoice
+              </button>
+            </>
           )}
           <button
             onClick={() => setSlideOpen(true)}
