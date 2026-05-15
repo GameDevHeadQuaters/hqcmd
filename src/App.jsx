@@ -717,12 +717,15 @@ export default function App() {
       setAuthLoading(false)
     })
     sub = onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user && !localStorage.getItem(STORAGE_KEYS.currentUser)) {
+      console.log('[App] Auth state change:', event, session?.user?.id)
+      if (session?.user) {
         const profile = await loadUserProfile(session.user)
         if (profile) {
           setCurrentUser(profile)
           setUserData(prev => prev[String(profile.id)] ? prev : { ...prev, [String(profile.id)]: emptyUserData() })
         }
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUser(null)
       }
       setAuthLoading(false)
     })
