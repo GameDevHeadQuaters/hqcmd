@@ -909,7 +909,21 @@ export default function App() {
     const initials = trimmedName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
     const normalEmail = email.trim().toLowerCase()
 
-    const { data, error } = await supabaseSignUp(normalEmail, password, { name: trimmedName })
+    console.log('[Signup] Starting signup for:', normalEmail)
+    console.log('[Signup] Supabase URL:', import.meta.env.VITE_SUPABASE_URL)
+    console.log('[Signup] Has anon key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY)
+
+    let data = null
+    let error = null
+    try {
+      const result = await supabaseSignUp(normalEmail, password, { name: trimmedName })
+      console.log('[Signup] Supabase result:', result)
+      data = result.data
+      error = result.error
+    } catch (e) {
+      console.error('[Signup] Supabase error:', e.message, e)
+      error = e
+    }
     if (error) console.warn('[Auth] Supabase signup failed, using localStorage:', error.message)
 
     const newUser = {
