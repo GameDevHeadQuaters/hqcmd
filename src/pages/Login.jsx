@@ -18,6 +18,7 @@ export default function Login({ onLogin, currentUser }) {
   const fromBrowse = location.state?.from === 'browse'
   const [form, setForm] = useState({ email: '', password: '' })
   const [errors, setErrors] = useState({ email: '', password: '' })
+  const [googleError, setGoogleError] = useState('')
 
   function setField(field, value) {
     setForm(f => ({ ...f, [field]: value }))
@@ -45,11 +46,20 @@ export default function Login({ onLogin, currentUser }) {
   }
 
   async function handleGoogleLogin() {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    })
-    if (error) console.error('[Google Auth] Error:', error)
+    setGoogleError('')
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: { access_type: 'offline', prompt: 'consent' },
+        },
+      })
+      if (error) throw error
+    } catch (e) {
+      console.error('[Google OAuth] Error:', e)
+      setGoogleError('Google sign in failed. Please try again.')
+    }
   }
 
   function focusAccent(e) { e.target.style.borderColor = ACCENT }
@@ -96,6 +106,9 @@ export default function Login({ onLogin, currentUser }) {
               GitHub
             </button>
           </div>
+          {googleError && (
+            <p className="text-xs text-red-500 font-medium text-center -mt-2 mb-3">{googleError}</p>
+          )}
 
           <div className="flex items-center gap-3 mb-5">
             <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-default)' }} />

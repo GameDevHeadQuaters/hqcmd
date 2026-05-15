@@ -53,16 +53,26 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
   // Optional skills step shown after form validation passes
   const [skillsStep,     setSkillsStep]     = useState(false)
   const [selectedSkills, setSelectedSkills] = useState([])
+  const [googleError,    setGoogleError]    = useState('')
 
   async function handleGoogleOAuth() {
+    setGoogleError('')
     if (betaMode && inviteVerified && inviteCode) {
       sessionStorage.setItem('hqcmd_pending_invite_code', inviteCode.trim().toUpperCase())
     }
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
-    })
-    if (error) console.error('[Google Auth] Error:', error)
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: { access_type: 'offline', prompt: 'consent' },
+        },
+      })
+      if (error) throw error
+    } catch (e) {
+      console.error('[Google OAuth] Error:', e)
+      setGoogleError('Google sign in failed. Please try again.')
+    }
   }
 
   function setField(field, value) {
@@ -242,12 +252,15 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
             <>
               <button
                 onClick={handleGoogleOAuth}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors mb-4"
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium transition-colors mb-2"
                 style={{ border: '1px solid var(--border-default)', color: 'var(--text-primary)', backgroundColor: 'var(--bg-elevated)' }}
               >
                 <IconBrandGoogle size={16} />
                 Continue with Google
               </button>
+              {googleError && (
+                <p className="text-xs text-red-500 font-medium text-center mb-2">{googleError}</p>
+              )}
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex-1 h-px" style={{ backgroundColor: 'var(--border-default)' }} />
                 <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>or</span>
