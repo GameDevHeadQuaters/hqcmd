@@ -282,6 +282,11 @@ export default function Portfolio({ currentUser }) {
                     {verifTier.label}
                   </span>
                 )}
+                {profileUser.profileLinksVerified && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '99px', background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid #22c55e' }}>
+                    🔗 Connected
+                  </span>
+                )}
               </div>
               {profileUser.role && (
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '3px 0 0' }}>{profileUser.role}</p>
@@ -302,6 +307,32 @@ export default function Portfolio({ currentUser }) {
 
           {profileUser.bio && (
             <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.65', marginBottom: '16px', maxWidth: '580px' }}>{profileUser.bio}</p>
+          )}
+
+          {/* Social links */}
+          {profileUser.socialLinks && Object.values(profileUser.socialLinks).some(v => v) && (
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+              {[
+                { key: 'github', icon: '🐙', label: 'GitHub' },
+                { key: 'itchIo', icon: '🎮', label: 'itch.io' },
+                { key: 'portfolio', icon: '🌐', label: 'Portfolio' },
+                { key: 'linkedin', icon: '💼', label: 'LinkedIn' },
+                { key: 'twitter', icon: '🐦', label: 'Twitter/X' },
+                { key: 'youtube', icon: '▶️', label: 'YouTube' },
+                { key: 'steam', icon: '🎯', label: 'Steam' },
+              ].filter(({ key }) => profileUser.socialLinks[key]).map(({ key, icon, label }) => (
+                <a
+                  key={key}
+                  href={profileUser.socialLinks[key]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={label}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '99px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.8)', fontSize: '12px', textDecoration: 'none' }}
+                >
+                  {icon} {label}
+                </a>
+              ))}
+            </div>
           )}
 
           {/* Skills chips in hero */}
@@ -456,6 +487,38 @@ export default function Portfolio({ currentUser }) {
             </div>
           </div>
         )}
+
+        {/* Reviews */}
+        {(() => {
+          const reviews = (profileData?.reviews || []).filter(r => r.status !== 'removed_by_admin')
+          return (
+            <div style={{ marginBottom: '32px' }}>
+              <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '14px' }}>Reviews</h2>
+              {reviews.length === 0 ? (
+                <p style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>No reviews yet — complete projects to earn reviews.</p>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                  {reviews.map(r => (
+                    <div key={r.id} style={{ padding: '16px', borderRadius: '10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)' }}>
+                      <p style={{ fontSize: '13px', color: 'var(--text-primary)', lineHeight: '1.6', fontStyle: 'italic', marginBottom: '12px' }}>"{r.text}"</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(83,74,183,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: ACCENT, flexShrink: 0 }}>
+                          {(r.fromInitials || (r.fromName || '??').slice(0, 2)).toUpperCase()}
+                        </div>
+                        <div>
+                          <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>{r.fromName}</p>
+                          <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: 0 }}>
+                            {r.projectTitle} · {new Date(r.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Testimonials */}
         <div>

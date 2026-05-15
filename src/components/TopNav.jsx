@@ -188,6 +188,12 @@ export default function TopNav({
               Browse Projects
             </button>
             <button
+              onClick={() => navigate('/roadmap')}
+              className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors px-3 py-2 rounded-lg hover:bg-gray-100"
+            >
+              Roadmap
+            </button>
+            <button
               onClick={() => navigate('/login')}
               className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors px-3 py-2 rounded-lg hover:bg-gray-100"
             >

@@ -27,6 +27,7 @@ import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Contact from './pages/Contact'
 import GoogleAuthSuccess from './pages/GoogleAuthSuccess'
+import Roadmap from './pages/Roadmap'
 import DebugPanel from './components/DebugPanel'
 import QuickStartTour from './components/QuickStartTour'
 import { debugLog } from './utils/debugLogger'
@@ -1090,6 +1091,7 @@ export default function App() {
           ) : <Navigate to="/login" replace />
         } />
         <Route path="/portfolio/:userId" element={<Portfolio currentUser={currentUser} />} />
+        <Route path="/roadmap" element={<Roadmap currentUser={currentUser} />} />
       </Routes>
       {currentUser && !currentUser.isAdmin && localStorage.getItem('hqcmd_tour_' + currentUser.id) !== 'done' && (
         <QuickStartTour key={tourTick} currentUser={currentUser} onComplete={() => setTourTick(t => t + 1)} />
@@ -1136,7 +1138,7 @@ function AppLayout({ children, topNavProps, sidebarProps }) {
   const { pathname } = useLocation()
   const { currentUser } = sidebarProps
 
-  const isPublic = !currentUser || ['/', '/login', '/signup', '/terms', '/privacy', '/contact'].includes(pathname) || pathname.startsWith('/sign/') || pathname.startsWith('/portfolio/')
+  const isPublic = !currentUser || ['/', '/login', '/signup', '/terms', '/privacy', '/contact', '/roadmap'].includes(pathname) || pathname.startsWith('/sign/') || pathname.startsWith('/portfolio/')
   const showSidebar = !isPublic
 
   const [collapsed, setCollapsed] = useState(() => {
@@ -1150,7 +1152,7 @@ function AppLayout({ children, topNavProps, sidebarProps }) {
     try { localStorage.setItem('hqcmd_sidebar_collapsed', String(val)) } catch {}
   }
 
-  if (pathname === '/') {
+  if (pathname === '/' || pathname === '/roadmap') {
     return (
       <>
         <TopNav {...topNavProps} />

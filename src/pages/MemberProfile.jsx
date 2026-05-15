@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { IconArrowLeft, IconPencil, IconCheck, IconX, IconPlus, IconFolderOff, IconShieldCheck, IconChevronDown, IconChevronUp } from '@tabler/icons-react'
+import { IconArrowLeft, IconPencil, IconCheck, IconX, IconPlus, IconFolderOff, IconShieldCheck, IconChevronDown, IconChevronUp, IconLink } from '@tabler/icons-react'
 import { calculateProgress } from '../utils/progress'
 import { PRESET_SKILLS, PRESET_ROLES } from '../utils/skillsList'
 import TagInput from '../components/TagInput'
@@ -66,6 +66,9 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
   const [verifyLinks, setVerifyLinks] = useState('')
   const [verifyNotes, setVerifyNotes] = useState('')
   const [verifyFeedback, setVerifyFeedback] = useState('')
+  const [editSocialLinks, setEditSocialLinks] = useState({})
+  const [confirmLinksOwnership, setConfirmLinksOwnership] = useState(false)
+  const [profileReviews, setProfileReviews] = useState([])
 
   useEffect(() => {
     if (!isOwnProfile || !currentUser) return
@@ -74,6 +77,16 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
     setProfileData(freshUser)
     setMember(freshUser)
   }, [currentUser]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    try {
+      const uid = String(userId || currentUser?.id)
+      if (!uid) return
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const reviews = (allData[uid]?.reviews || []).filter(r => r.status !== 'removed_by_admin')
+      setProfileReviews(reviews)
+    } catch {}
+  }, [userId, currentUser?.id])
 
   const displayProjects = isOwnProfile
     ? (projects ?? [])
@@ -90,6 +103,8 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
     setEditRole(freshUser.role || '')
     setEditSkills(freshUser.skills || [])
     setNewSkill('')
+    setEditSocialLinks(freshUser.socialLinks || {})
+    setConfirmLinksOwnership(false)
     setIsEditing(true)
   }
 
@@ -100,9 +115,14 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
     setEditRole('')
     setEditSkills([])
     setNewSkill('')
+    setEditSocialLinks({})
+    setConfirmLinksOwnership(false)
   }
 
   function saveProfile() {
+    const filledLinks = Object.values(editSocialLinks || {}).filter(v => v?.trim()).length
+    const earnedConnectedBadge = filledLinks >= 2 && confirmLinksOwnership
+
     // Admin path: preserve existing behavior
     if (currentUser?.isAdmin || currentUser?.id === 'superadmin') {
       const updates = {
@@ -110,6 +130,8 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
         bio: editBio?.trim() || '',
         role: editRole?.trim() || '',
         skills: editSkills || [],
+        socialLinks: editSocialLinks || {},
+        profileLinksVerified: earnedConnectedBadge ? true : (currentUser.profileLinksVerified || false),
         initials: (editName?.trim() || currentUser.name)
           .split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2)
       }
@@ -140,6 +162,8 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
       bio: editBio?.trim() || '',
       role: editRole?.trim() || '',
       skills: editSkills || [],
+      socialLinks: editSocialLinks || {},
+      profileLinksVerified: earnedConnectedBadge ? true : (currentUser.profileLinksVerified || false),
       initials: (editName?.trim() || currentUser.name)
         .split(' ')
         .map(w => w[0])
@@ -355,6 +379,11 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                 <div className="flex items-center flex-wrap gap-1">
                   <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{displayMember.name}</h1>
                   <VerificationBadge verification={displayMember.verification} />
+                  {displayMember.profileLinksVerified && (
+                    <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '99px', background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid #22c55e', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <IconLink size={10} /> Connected
+                    </span>
+                  )}
                 </div>
                 {!isEditing && (
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -477,6 +506,52 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
             </div>
           )}
         </div>
+
+        {/* Connected Profiles — edit mode only */}
+        {isEditing && (
+          <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+            <h2 className="font-semibold text-sm mb-3" style={{ color: 'var(--text-primary)' }}>Connected Profiles</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {[
+                { key: 'github', label: 'GitHub', placeholder: 'https://github.com/username', icon: '🐙' },
+                { key: 'itchIo', label: 'itch.io', placeholder: 'https://username.itch.io', icon: '🎮' },
+                { key: 'portfolio', label: 'Portfolio', placeholder: 'https://yourportfolio.com', icon: '🌐' },
+                { key: 'linkedin', label: 'LinkedIn', placeholder: 'https://linkedin.com/in/username', icon: '💼' },
+                { key: 'twitter', label: 'Twitter/X', placeholder: 'https://twitter.com/username', icon: '🐦' },
+                { key: 'youtube', label: 'YouTube', placeholder: 'https://youtube.com/@channel', icon: '▶️' },
+                { key: 'steam', label: 'Steam', placeholder: 'https://store.steampowered.com/app/...', icon: '🎯' },
+              ].map(({ key, label, placeholder, icon }) => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '16px', width: '24px' }}>{icon}</span>
+                  <input
+                    value={editSocialLinks?.[key] || ''}
+                    onChange={e => setEditSocialLinks(prev => ({ ...prev, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    style={{ flex: 1, fontSize: '12px', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', outline: 'none' }}
+                    onFocus={fa} onBlur={fb}
+                  />
+                </div>
+              ))}
+
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '10px', borderRadius: '8px', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', marginTop: '4px' }}>
+                <input
+                  type="checkbox"
+                  id="confirm-links"
+                  checked={confirmLinksOwnership}
+                  onChange={e => setConfirmLinksOwnership(e.target.checked)}
+                  style={{ marginTop: '2px', flexShrink: 0 }}
+                />
+                <label htmlFor="confirm-links" style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5', cursor: 'pointer' }}>
+                  I confirm that all links above belong to me and accurately represent my work and identity.
+                </label>
+              </div>
+
+              {Object.values(editSocialLinks || {}).filter(v => v?.trim()).length >= 2 && confirmLinksOwnership && (
+                <p className="text-xs" style={{ color: '#22c55e' }}>✓ Connected Profiles badge will be awarded on save.</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Achievements */}
         {(() => {
@@ -719,6 +794,31 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                   </button>
                 )
               })}
+            </div>
+          )}
+        </div>
+
+        {/* Reviews */}
+        <div className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+          <h2 className="font-semibold text-sm mb-3" style={{ color: 'var(--text-primary)' }}>Reviews</h2>
+          {profileReviews.length === 0 ? (
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No reviews yet — complete projects to earn reviews.</p>
+          ) : (
+            <div className="space-y-3">
+              {profileReviews.map(r => (
+                <div key={r.id} className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                  <p className="text-xs leading-relaxed mb-2" style={{ color: 'var(--text-primary)', fontStyle: 'italic' }}>"{r.text}"</p>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full flex items-center justify-center text-white flex-shrink-0" style={{ backgroundColor: ACCENT, fontSize: '9px', fontWeight: 700 }}>
+                      {(r.fromInitials || (r.fromName || '??').slice(0, 2)).toUpperCase()}
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>{r.fromName}</p>
+                      <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', margin: 0 }}>{r.projectTitle} · {new Date(r.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

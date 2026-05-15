@@ -10,6 +10,7 @@ export default function Footer() {
         </div>
         <nav className="flex items-center gap-6 text-xs flex-wrap justify-center">
           <Link to="/browse" className="transition-opacity hover:opacity-70" style={{ color: 'var(--text-secondary)' }}>Browse Projects</Link>
+          <Link to="/roadmap" className="transition-opacity hover:opacity-70" style={{ color: 'var(--text-secondary)' }}>Roadmap</Link>
           <Link to="/contact" className="transition-opacity hover:opacity-70" style={{ color: 'var(--text-secondary)' }}>Contact Us</Link>
           <Link to="/terms"   className="transition-opacity hover:opacity-70" style={{ color: 'var(--text-secondary)' }}>Terms of Service</Link>
           <Link to="/privacy" className="transition-opacity hover:opacity-70" style={{ color: 'var(--text-secondary)' }}>Privacy Policy</Link>

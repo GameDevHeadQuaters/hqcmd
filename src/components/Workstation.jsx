@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import ProjectHeader from './ProjectHeader'
 import TabPanel from './TabPanel'
@@ -131,6 +131,140 @@ export default function Workstation({
   const [profileOpen,         setProfileOpen]         = useState(false)
   const [calendarOpen,        setCalendarOpen]        = useState(false)
   const [scheduleMeetingOpen, setScheduleMeetingOpen] = useState(false)
+  const [showReviewModal,     setShowReviewModal]     = useState(false)
+  const [reviewTexts,         setReviewTexts]         = useState({})
+  const [reviewsEnabled,      setReviewsEnabled]      = useState(() => {
+    try {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const oid = urlOwnerUserId || ''
+      const pid = urlProjectId || ''
+      if (!oid || !pid) return false
+      const proj = (allData[oid]?.projects || []).find(p => String(p.id) === String(pid))
+      return proj?.reviewsEnabled === true
+    } catch { return false }
+  })
+
+  const prevStatusRef = useRef(null)
+
+  useEffect(() => {
+    const prev = prevStatusRef.current
+    prevStatusRef.current = project.status
+    if (project.status !== 'Complete' || prev === 'Complete' || prev === null) return
+
+    try {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const proj = (allData[ownerUserId]?.projects || []).find(p => String(p.id) === String(effectiveProjectId))
+      if (proj?.reviewsEnabled) { setReviewsEnabled(true); return }
+
+      if (allData[ownerUserId]) {
+        allData[ownerUserId].projects = (allData[ownerUserId].projects || []).map(p =>
+          String(p.id) === String(effectiveProjectId) ? { ...p, reviewsEnabled: true } : p
+        )
+        localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allData))
+      }
+      setReviewsEnabled(true)
+
+      const projectTitle = proj?.title || project.title || 'Your project'
+      const members = proj?.members || []
+
+      members.forEach(m => {
+        const mId = String(m.userId || m.id)
+        if (mId === String(currentUser?.id)) return
+        onAddNotificationForUser?.(mId, {
+          id: String(Date.now() + Math.random()),
+          iconType: 'message',
+          text: `📝 ${projectTitle} is complete! Leave a review for your collaborators.`,
+          time: 'Just now',
+          read: false,
+          link: `/workstation?projectId=${effectiveProjectId}&ownerUserId=${ownerUserId}`,
+        })
+      })
+
+      if (ownerUserId !== String(currentUser?.id)) {
+        onAddNotificationForUser?.(ownerUserId, {
+          id: String(Date.now() + Math.random()),
+          iconType: 'message',
+          text: `📝 ${projectTitle} is complete! Your team members can now leave reviews.`,
+          time: 'Just now',
+          read: false,
+          link: `/workstation?projectId=${effectiveProjectId}&ownerUserId=${ownerUserId}`,
+        })
+      } else {
+        onAddNotification?.({
+          type: 'message',
+          text: `📝 ${projectTitle} is complete! Your team members can now leave reviews.`,
+          link: `/workstation?projectId=${effectiveProjectId}&ownerUserId=${ownerUserId}`,
+        })
+      }
+    } catch(e) { console.error('[Review trigger]', e) }
+  }, [project.status])
+
+  function getProjectMembers() {
+    try {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+      const proj = (allData[ownerUserId]?.projects || []).find(p => String(p.id) === String(effectiveProjectId))
+      const members = proj?.members || []
+      return members
+        .filter(m => String(m.userId || m.id) !== String(currentUser?.id))
+        .map(m => {
+          const uid = String(m.userId || m.id)
+          const userObj = allUsers.find(u => String(u.id) === uid)
+          return {
+            userId: uid,
+            name: m.name || userObj?.name || 'Unknown',
+            initials: m.initials || userObj?.initials || '??',
+            role: m.role || userObj?.role || '',
+          }
+        })
+    } catch { return [] }
+  }
+
+  function writeReviewToUser(recipientUserId, review) {
+    try {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const uid = String(recipientUserId)
+      if (!allData[uid]) allData[uid] = {}
+      if (!Array.isArray(allData[uid].reviews)) allData[uid].reviews = []
+      allData[uid].reviews.push(review)
+      localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allData))
+    } catch(e) { console.error('[Review] Write failed:', e) }
+  }
+
+  function submitReviews() {
+    const members = getProjectMembers()
+    const projectTitle = project.title || 'Unnamed Project'
+    const direction = ownerUserId === String(currentUser?.id) ? 'owner_to_collaborator' : 'collaborator_to_owner'
+
+    members.forEach(m => {
+      const text = reviewTexts[m.userId]?.trim()
+      if (!text) return
+      const review = {
+        id: String(Date.now() + Math.random()),
+        fromUserId: String(currentUser?.id),
+        fromName: currentUser?.name || 'Unknown',
+        fromInitials: currentUser?.initials || '??',
+        projectId: effectiveProjectId,
+        projectTitle,
+        text: text.slice(0, 300),
+        direction,
+        createdAt: new Date().toISOString(),
+        status: 'visible',
+      }
+      writeReviewToUser(m.userId, review)
+      onAddNotificationForUser?.(m.userId, {
+        id: String(Date.now() + Math.random()),
+        iconType: 'message',
+        text: `⭐ ${currentUser?.name} left you a review for ${projectTitle}!`,
+        time: 'Just now',
+        read: false,
+        link: `/profile/${m.userId}`,
+      })
+    })
+
+    setShowReviewModal(false)
+    setReviewTexts({})
+  }
 
   return (
     <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
@@ -142,6 +276,24 @@ export default function Workstation({
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             <span className="font-medium">View-only access</span>
             <span style={{ color: 'rgba(83,74,183,0.7)' }}>— You are an Observer on this project. Content is read-only.</span>
+          </div>
+        </div>
+      )}
+
+      {/* Project Complete — leave reviews banner */}
+      {project.status === 'Complete' && reviewsEnabled && (
+        <div className="max-w-7xl mx-auto px-6 pt-4">
+          <div style={{ padding: '12px 16px', borderRadius: '10px', background: 'rgba(83,74,183,0.1)', border: '1px solid var(--brand-accent)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>🎉 Project Complete!</p>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Leave reviews for your collaborators to help build the community.</p>
+            </div>
+            <button
+              onClick={() => setShowReviewModal(true)}
+              style={{ padding: '8px 16px', borderRadius: '9999px', border: 'none', background: '#534AB7', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 500, flexShrink: 0 }}
+            >
+              Leave Reviews
+            </button>
           </div>
         </div>
       )}
@@ -268,6 +420,68 @@ export default function Workstation({
           }}
         />
       )}
+
+      {/* Review Modal */}
+      {showReviewModal && (() => {
+        const members = getProjectMembers()
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} onClick={() => setShowReviewModal(false)} />
+            <div style={{ position: 'relative', borderRadius: '14px', boxShadow: '0 8px 40px rgba(0,0,0,0.5)', width: '100%', maxWidth: '480px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', overflow: 'hidden', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 }}>
+                <div>
+                  <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Leave Reviews</h3>
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '3px 0 0' }}>Share your experience working with your team.</p>
+                </div>
+                <button onClick={() => setShowReviewModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '4px', fontSize: '18px', lineHeight: 1 }}>✕</button>
+              </div>
+              <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+                {members.length === 0 ? (
+                  <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', textAlign: 'center', padding: '24px 0' }}>No other team members to review.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {members.map(m => (
+                      <div key={m.userId}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: '#534AB7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: 'white', flexShrink: 0 }}>
+                            {(m.initials || m.name.slice(0, 2)).toUpperCase()}
+                          </div>
+                          <div>
+                            <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>{m.name}</p>
+                            {m.role && <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: 0 }}>{m.role}</p>}
+                          </div>
+                        </div>
+                        <textarea
+                          rows={3}
+                          value={reviewTexts[m.userId] || ''}
+                          onChange={e => setReviewTexts(prev => ({ ...prev, [m.userId]: e.target.value.slice(0, 300) }))}
+                          placeholder={`Write a review for ${m.name}…`}
+                          style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', resize: 'none', outline: 'none', boxSizing: 'border-box' }}
+                        />
+                        <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', textAlign: 'right', marginTop: '2px' }}>{(reviewTexts[m.userId] || '').length}/300</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {members.length > 0 && (
+                <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border-default)', display: 'flex', gap: '8px', flexShrink: 0 }}>
+                  <button
+                    onClick={submitReviews}
+                    disabled={!Object.values(reviewTexts).some(t => t?.trim())}
+                    style={{ flex: 1, padding: '10px', borderRadius: '9999px', border: 'none', background: Object.values(reviewTexts).some(t => t?.trim()) ? '#534AB7' : 'var(--bg-elevated)', color: Object.values(reviewTexts).some(t => t?.trim()) ? 'white' : 'var(--text-tertiary)', fontSize: '13px', fontWeight: 600, cursor: Object.values(reviewTexts).some(t => t?.trim()) ? 'pointer' : 'not-allowed' }}
+                  >
+                    Submit Reviews
+                  </button>
+                  <button onClick={() => setShowReviewModal(false)} style={{ padding: '10px 20px', borderRadius: '9999px', border: '1px solid var(--border-default)', background: 'none', color: 'var(--text-secondary)', fontSize: '13px', cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

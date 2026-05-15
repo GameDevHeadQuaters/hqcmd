@@ -4,6 +4,7 @@ import {
   IconShield, IconUsers, IconMailCheck, IconKey, IconLayoutGrid,
   IconSearch, IconTrash, IconCheck, IconX, IconRefresh, IconCopy, IconPlus,
   IconEye, IconEyeOff, IconHeartbeat, IconBug, IconAlertTriangle, IconShieldCheck,
+  IconStar, IconMap,
 } from '@tabler/icons-react'
 import { runIntegrityCheck, migrateUserIds, REQUIRED_ARRAYS } from '../utils/dataIntegrity'
 import { isDebugMode, setDebugMode, debugLog } from '../utils/debugLogger'
@@ -1811,6 +1812,273 @@ function VerificationTab() {
   )
 }
 
+// ── Reviews Tab ──────────────────────────────────────────────────────────────
+
+function ReviewsTab() {
+  const [reviews, setReviews] = useState([])
+  const [search, setSearch] = useState('')
+  const [feedback, setFeedback] = useState('')
+
+  function loadReviews() {
+    try {
+      const allData = readLS(UD_KEY, {})
+      const all = []
+      Object.keys(allData).forEach(uid => {
+        const userReviews = allData[uid]?.reviews || []
+        userReviews.forEach(r => { all.push({ ...r, recipientId: uid }) })
+      })
+      all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      setReviews(all)
+    } catch {}
+  }
+
+  useEffect(() => { loadReviews() }, [])
+
+  function flash(msg) {
+    setFeedback(msg)
+    setTimeout(() => setFeedback(''), 2000)
+  }
+
+  function removeReview(recipientId, reviewId) {
+    try {
+      const allData = readLS(UD_KEY, {})
+      if (allData[recipientId]?.reviews) {
+        allData[recipientId].reviews = allData[recipientId].reviews.map(r =>
+          r.id === reviewId ? { ...r, status: 'removed_by_admin' } : r
+        )
+        writeLS(UD_KEY, allData)
+        loadReviews()
+        flash('Review removed')
+      }
+    } catch {}
+  }
+
+  function restoreReview(recipientId, reviewId) {
+    try {
+      const allData = readLS(UD_KEY, {})
+      if (allData[recipientId]?.reviews) {
+        allData[recipientId].reviews = allData[recipientId].reviews.map(r =>
+          r.id === reviewId ? { ...r, status: 'visible' } : r
+        )
+        writeLS(UD_KEY, allData)
+        loadReviews()
+        flash('Review restored')
+      }
+    } catch {}
+  }
+
+  const filtered = search
+    ? reviews.filter(r =>
+        r.fromName?.toLowerCase().includes(search.toLowerCase()) ||
+        r.projectTitle?.toLowerCase().includes(search.toLowerCase()) ||
+        r.recipientId?.toLowerCase().includes(search.toLowerCase())
+      )
+    : reviews
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <IconSearch size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+          <input
+            value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search by user name or project…"
+            style={{ width: '100%', padding: '8px 12px 8px 32px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {feedback && <span style={{ fontSize: '12px', color: 'var(--status-success)' }}>{feedback}</span>}
+          <button onClick={loadReviews} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 500, padding: '7px 14px', borderRadius: '99px', border: 'none', background: ACCENT, color: 'white', cursor: 'pointer' }}>
+            <IconRefresh size={12} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-tertiary)' }}>
+          <IconStar size={36} style={{ margin: '0 auto 12px', opacity: 0.3, display: 'block' }} />
+          <p style={{ fontSize: '14px' }}>No reviews found.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {filtered.map(r => (
+            <div key={r.id + r.recipientId} style={{ padding: '14px 16px', borderRadius: '10px', background: 'var(--bg-surface)', border: `1px solid ${r.status === 'removed_by_admin' ? 'rgba(239,68,68,0.25)' : 'var(--border-default)'}`, opacity: r.status === 'removed_by_admin' ? 0.65 : 1 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '8px' }}>
+                <div>
+                  <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>
+                    <span style={{ color: ACCENT }}>{r.fromName}</span>
+                    <span style={{ color: 'var(--text-tertiary)' }}> → </span>
+                    <span>{r.recipientId}</span>
+                  </p>
+                  <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '2px 0 0' }}>
+                    {r.projectTitle} · {r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                    {r.status === 'removed_by_admin' && <span style={{ color: 'var(--status-error)', marginLeft: '8px' }}>• Removed</span>}
+                  </p>
+                </div>
+                {r.status === 'removed_by_admin' ? (
+                  <button onClick={() => restoreReview(r.recipientId, r.id)} style={{ fontSize: '11px', padding: '4px 12px', borderRadius: '99px', border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.1)', color: '#22c55e', cursor: 'pointer', flexShrink: 0 }}>Restore</button>
+                ) : (
+                  <button onClick={() => removeReview(r.recipientId, r.id)} style={{ fontSize: '11px', padding: '4px 12px', borderRadius: '99px', border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.08)', color: 'var(--status-error)', cursor: 'pointer', flexShrink: 0 }}>Remove</button>
+                )}
+              </div>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5', margin: 0, fontStyle: 'italic' }}>"{r.text}"</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
+// ── Roadmap Admin Tab ─────────────────────────────────────────────────────────
+
+const ROADMAP_KEY = 'hqcmd_roadmap'
+const ROADMAP_STATUS_OPTIONS = ['shipped', 'in_progress', 'planned', 'considering']
+const ROADMAP_CATEGORY_OPTIONS = ['feature', 'fix', 'improvement', 'coming_soon']
+const INITIAL_ROADMAP_ADMIN = [
+  { id: '1', date: '2026-05-01', title: 'Beta Launch', description: 'HQCMD enters private beta. Core features including project management, team chat, milestones, budget tracking and agreements are live.', status: 'shipped', category: 'feature', upvotes: 0 },
+  { id: '2', date: '2026-05-10', title: 'Agreements System', description: 'Full digital agreement system with 8 templates, countersignature flow, and downloadable PDFs.', status: 'shipped', category: 'feature', upvotes: 0 },
+  { id: '3', date: '2026-05-14', title: 'Achievements & Verification', description: 'User achievements, verified studio badges, and public portfolio pages.', status: 'shipped', category: 'feature', upvotes: 0 },
+  { id: '4', date: '2026-05-20', title: 'Google Login', description: 'Sign in with Google for faster onboarding.', status: 'shipped', category: 'feature', upvotes: 0 },
+  { id: '5', date: '2026-06-01', title: 'Real Backend & Database', description: 'Moving from localStorage to a proper backend (Supabase) for real data persistence and multi-device support.', status: 'planned', category: 'coming_soon', upvotes: 0 },
+  { id: '6', date: '2026-06-15', title: 'Real-time Collaboration', description: 'Live updates in team chat and project workstation — no more polling.', status: 'planned', category: 'coming_soon', upvotes: 0 },
+  { id: '7', date: '2026-07-01', title: 'Mobile App', description: 'Native iOS and Android apps for managing your projects on the go.', status: 'considering', category: 'coming_soon', upvotes: 0 },
+  { id: '8', date: '2026-07-15', title: 'Email Notifications', description: 'Get notified by email when team members message you, agreements are signed, or applications are received.', status: 'in_progress', category: 'feature', upvotes: 0 },
+]
+
+const BLANK_FORM = { title: '', description: '', status: 'planned', category: 'feature', date: new Date().toISOString().slice(0, 10) }
+
+function RoadmapAdminTab() {
+  const [entries, setEntries] = useState([])
+  const [showForm, setShowForm] = useState(false)
+  const [editEntry, setEditEntry] = useState(null)
+  const [form, setForm] = useState(BLANK_FORM)
+  const [feedback, setFeedback] = useState('')
+
+  function load() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(ROADMAP_KEY) || 'null')
+      setEntries(stored || INITIAL_ROADMAP_ADMIN)
+    } catch { setEntries(INITIAL_ROADMAP_ADMIN) }
+  }
+
+  useEffect(() => { load() }, [])
+
+  function save(updated) {
+    localStorage.setItem(ROADMAP_KEY, JSON.stringify(updated))
+    setEntries(updated)
+  }
+
+  function flash(msg) {
+    setFeedback(msg)
+    setTimeout(() => setFeedback(''), 2000)
+  }
+
+  function openAdd() {
+    setEditEntry(null)
+    setForm(BLANK_FORM)
+    setShowForm(true)
+  }
+
+  function openEdit(entry) {
+    setEditEntry(entry)
+    setForm({ title: entry.title, description: entry.description, status: entry.status, category: entry.category, date: entry.date })
+    setShowForm(true)
+  }
+
+  function handleSubmit() {
+    if (!form.title.trim()) return
+    if (editEntry) {
+      save(entries.map(e => e.id === editEntry.id ? { ...e, ...form } : e))
+      flash('Entry updated')
+    } else {
+      save([{ ...form, id: String(Date.now()), upvotes: 0 }, ...entries])
+      flash('Entry added')
+    }
+    setShowForm(false)
+    setEditEntry(null)
+    setForm(BLANK_FORM)
+  }
+
+  function handleDelete(id) {
+    save(entries.filter(e => e.id !== id))
+    flash('Entry deleted')
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+        <div>{feedback && <span style={{ fontSize: '12px', color: 'var(--status-success)' }}>{feedback}</span>}</div>
+        <button onClick={openAdd} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 600, padding: '8px 16px', borderRadius: '99px', border: 'none', background: ACCENT, color: 'white', cursor: 'pointer' }}>
+          <IconPlus size={13} /> Add Entry
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ padding: '20px', borderRadius: '12px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '16px' }}>{editEntry ? 'Edit Entry' : 'Add Entry'}</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              <label style={{ fontSize: '11px', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>Title</label>
+              <input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Feature title…" style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>Description</label>
+              <textarea rows={3} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Describe the feature…" style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '13px', outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>Status</label>
+                <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none' }}>
+                  {ROADMAP_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>Category</label>
+                <select value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none' }}>
+                  {ROADMAP_CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-tertiary)', display: 'block', marginBottom: '4px' }}>Date</label>
+                <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+            <button onClick={handleSubmit} style={{ padding: '8px 20px', borderRadius: '99px', border: 'none', background: ACCENT, color: 'white', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>{editEntry ? 'Update' : 'Add'}</button>
+            <button onClick={() => { setShowForm(false); setEditEntry(null) }} style={{ padding: '8px 20px', borderRadius: '99px', border: '1px solid var(--border-default)', background: 'none', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {entries.length === 0 ? (
+        <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', textAlign: 'center', padding: '32px 0' }}>No entries yet. Add one above.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {entries.map(entry => (
+            <div key={entry.id} style={{ padding: '14px 16px', borderRadius: '10px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 7px', borderRadius: '99px', background: 'var(--bg-elevated)', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>{entry.status}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{entry.date}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>· 👍 {entry.upvotes || 0}</span>
+                </div>
+                <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 3px' }}>{entry.title}</p>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>{entry.description}</p>
+              </div>
+              <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                <button onClick={() => openEdit(entry)} style={{ padding: '5px 12px', borderRadius: '99px', border: '1px solid var(--border-default)', background: 'none', color: 'var(--text-secondary)', fontSize: '11px', cursor: 'pointer' }}>Edit</button>
+                <button onClick={() => handleDelete(entry.id)} style={{ padding: '5px 12px', borderRadius: '99px', border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.08)', color: 'var(--status-error)', fontSize: '11px', cursor: 'pointer' }}>Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
 // ── Main AdminPanel ───────────────────────────────────────────────────────────
 
 export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) {
@@ -1829,6 +2097,8 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
     { id: 'codes',        label: 'Invite Codes',    Icon: IconKey,          count: null },
     { id: 'projects',     label: 'Public Projects', Icon: IconLayoutGrid,   count: null },
     { id: 'verification', label: 'Verification',    Icon: IconShieldCheck,  count: pendingVerifications > 0 ? pendingVerifications : null },
+    { id: 'reviews',      label: 'Reviews',         Icon: IconStar,         count: null },
+    { id: 'roadmap',      label: 'Roadmap',         Icon: IconMap,          count: null },
     { id: 'integrity',    label: 'Data Integrity',  Icon: IconHeartbeat,    count: null },
     { id: 'debug',        label: 'System Debug',    Icon: IconBug,          count: null },
   ]
@@ -1866,6 +2136,8 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
         {tab === 'codes'        && <InviteCodesTab />}
         {tab === 'projects'     && <PublicProjectsTab />}
         {tab === 'verification' && <VerificationTab />}
+        {tab === 'reviews'      && <ReviewsTab />}
+        {tab === 'roadmap'      && <RoadmapAdminTab />}
         {tab === 'integrity'    && <DataIntegrityTab />}
         {tab === 'debug'        && <SystemDebugTab />}
       </div>
