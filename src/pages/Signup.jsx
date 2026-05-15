@@ -69,19 +69,16 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
   }
 
   async function finishSignup() {
-    if (betaMode && inviteVerified) {
-      try {
-        const codes = JSON.parse(localStorage.getItem(INVITE_CODES_KEY) ?? '[]')
-        const updated = codes.map(c =>
-          c.code === inviteCode.trim().toUpperCase() && !c.used
-            ? { ...c, used: true, usedBy: form.email.trim().toLowerCase(), usedAt: new Date().toISOString() }
-            : c
-        )
-        localStorage.setItem(INVITE_CODES_KEY, JSON.stringify(updated))
-      } catch {}
+    try {
+      await onSignup?.({
+        ...form,
+        skills: selectedSkills,
+        inviteCode: betaMode && inviteVerified ? inviteCode.trim().toUpperCase() : undefined,
+      })
+      navigate('/workstation')
+    } catch (e) {
+      setErrors(prev => ({ ...prev, email: e.message || 'Signup failed. Please try again.' }))
     }
-    await onSignup?.({ ...form, skills: selectedSkills })
-    navigate('/workstation')
   }
 
   function submit(e) {

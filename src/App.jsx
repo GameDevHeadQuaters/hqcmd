@@ -905,32 +905,53 @@ export default function App() {
   // ── Auth ──────────────────────────────────────────────────────────────────
 
   async function handleSignup(userData) {
-    const { name, email, password, skills = [] } = userData
+    const { name, email, password, skills = [], inviteCode } = userData
     const trimmedName = (name || '').trim()
     const initials = trimmedName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
     const normalEmail = (email || '').trim().toLowerCase()
 
-    console.log('[Signup] Starting signup for:', normalEmail)
+    console.log('[Signup] Starting - email:', normalEmail, 'hasPassword:', !!password, 'inviteCode:', inviteCode)
     console.log('[Signup] Supabase URL:', import.meta.env.VITE_SUPABASE_URL)
     console.log('[Signup] Has anon key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY)
-    console.log('[Signup] userData received:', {
-      email: normalEmail,
-      hasPassword: !!password,
-      passwordLength: password?.length,
-      name: trimmedName,
-    })
 
+    // Step 1: Check invite code if beta mode is on
+    if (BETA_MODE && inviteCode) {
+      let codeValid = false
+      try {
+        const { data: codeData } = await supabase
+          .from('invite_codes')
+          .select('*')
+          .eq('code', inviteCode.trim().toUpperCase())
+          .eq('used', false)
+          .single()
+        codeValid = !!codeData
+      } catch {}
+
+      if (!codeValid) {
+        const localCodes = JSON.parse(localStorage.getItem('hqcmd_invite_codes') || '[]')
+        codeValid = localCodes.some(c => c.code === inviteCode.trim().toUpperCase() && !c.used)
+      }
+
+      if (!codeValid) {
+        throw new Error('Invalid or already used invite code')
+      }
+    }
+
+    // Step 2: Supabase signup
     let supabaseUserId = null
     try {
+      console.log('[Signup] Calling Supabase auth.signUp...')
       const { data, error } = await supabase.auth.signUp({
         email: normalEmail,
-        password: password,
+        password: String(password),
         options: { data: { name: trimmedName, initials } },
       })
-      console.log('[Signup] Supabase response:', data, error)
+      console.log('[Signup] Supabase response - user:', data?.user?.id, 'error:', error?.message)
       if (error) throw error
+
       if (data?.user) {
         supabaseUserId = data.user.id
+
         const { error: profileError } = await supabase.from('users').insert({
           id: data.user.id,
           email: normalEmail,
@@ -941,7 +962,24 @@ export default function App() {
           avatar_color: hashColor(trimmedName),
         })
         if (profileError) console.error('[Signup] Profile insert error:', profileError)
-        else console.log('[Signup] Profile created in Supabase!')
+        else console.log('[Signup] User created in Supabase:', data.user.id)
+
+        // Mark invite code as used AFTER successful Supabase signup
+        if (BETA_MODE && inviteCode) {
+          await supabase
+            .from('invite_codes')
+            .update({ used: true, used_by: normalEmail, used_at: new Date().toISOString() })
+            .eq('code', inviteCode.trim().toUpperCase())
+
+          const localCodes = JSON.parse(localStorage.getItem('hqcmd_invite_codes') || '[]')
+          localStorage.setItem('hqcmd_invite_codes', JSON.stringify(
+            localCodes.map(c =>
+              c.code === inviteCode.trim().toUpperCase()
+                ? { ...c, used: true, usedBy: normalEmail, usedAt: new Date().toISOString() }
+                : c
+            )
+          ))
+        }
       }
     } catch (e) {
       console.error('[Signup] Supabase signup failed, using localStorage:', e.message)
