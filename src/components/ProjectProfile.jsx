@@ -198,29 +198,47 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
   }
 
   function handleCloseProject() {
+    if (!closureStatus) {
+      alert('Please select a closure status (Complete, On Hold, or Cancelled)')
+      return
+    }
+
+    console.log('[Closure] Starting closure for project:', project?.id, 'status:', closureStatus)
+
     const USERDATA_KEY = 'hqcmd_userData_v4'
     const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
     const myId = String(currentUser?.id)
-    const projectIdx = (allData[myId]?.projects ?? []).findIndex(p => String(p.id) === String(project.id))
-    if (projectIdx === -1) return
 
-    allData[myId].projects[projectIdx].status = closureStatus
-    allData[myId].projects[projectIdx].closed = true
-    allData[myId].projects[projectIdx].closedAt = new Date().toISOString()
-    allData[myId].projects[projectIdx].closureMessage = closureMessage
-    allData[myId].projects[projectIdx].closureLink = closureLink
-    allData[myId].projects[projectIdx].visibility = 'Private'
+    const projectIdx = allData[myId]?.projects?.findIndex(p => String(p.id) === String(project?.id))
+    console.log('[Closure] Project index:', projectIdx, 'in userId:', myId)
+
+    if (projectIdx === -1 || projectIdx === undefined) {
+      alert('Could not find project. Please try again.')
+      return
+    }
+
+    allData[myId].projects[projectIdx] = {
+      ...allData[myId].projects[projectIdx],
+      status: closureStatus,
+      closed: true,
+      closedAt: new Date().toISOString(),
+      closureMessage,
+      closureLink,
+      visibility: 'Private',
+    }
 
     const members = allData[myId].projects[projectIdx].members || []
+    console.log('[Closure] Notifying', members.length, 'members')
+
     members.forEach(member => {
       const memberId = String(member.userId || member.id)
-      if (!allData[memberId]) return
+      if (!allData[memberId]) allData[memberId] = { notifications: [] }
       if (!Array.isArray(allData[memberId].notifications)) allData[memberId].notifications = []
       allData[memberId].notifications.push({
         id: String(Date.now()) + '_closure_' + memberId,
         iconType: 'message',
         type: 'project_closed',
-        text: `"${project.title}" has been ${closureStatus.toLowerCase()} by the owner.${closureMessage ? ' ' + closureMessage.slice(0, 60) : ''}`,
+        text: `"${project.title}" has been marked as ${closureStatus}${closureMessage ? ': ' + closureMessage.slice(0, 80) : ''}`,
         read: false,
         time: 'Just now',
         timestamp: new Date().toISOString(),
@@ -231,13 +249,13 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
     Object.keys(allData).forEach(uid => {
       if (uid === myId) return
       const hasRef = (allData[uid]?.sharedProjects || []).some(sp => String(sp.projectId) === String(project.id))
-      if (hasRef && !members.some(m => String(m.userId || m.id) === uid)) {
+      if (hasRef) {
         if (!Array.isArray(allData[uid].notifications)) allData[uid].notifications = []
         allData[uid].notifications.push({
           id: String(Date.now()) + '_closure_' + uid,
           iconType: 'message',
           type: 'project_closed',
-          text: `"${project.title}" has been ${closureStatus.toLowerCase()}.${closureMessage ? ' ' + closureMessage.slice(0, 60) : ''}`,
+          text: `"${project.title}" has been marked as ${closureStatus}${closureMessage ? ': ' + closureMessage.slice(0, 80) : ''}`,
           read: false,
           time: 'Just now',
           timestamp: new Date().toISOString(),
@@ -249,15 +267,18 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
     localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
     window.dispatchEvent(new Event('storage'))
 
+    console.log('[Closure] Project closed successfully')
+
     setShowClosureModal(false)
+    setClosureStatus('')
+    setClosureMessage('')
+    setClosureLink('')
 
     if (closureStatus === 'Complete') {
-      setTimeout(() => {
-        alert(`🎉 "${project.title}" is marked Complete! Your team will be prompted to leave reviews.`)
-      }, 500)
+      setTimeout(() => alert(`🎉 "${project.title}" marked as Complete! Your team will be prompted to leave reviews.`), 300)
     }
 
-    onClose()
+    if (typeof onClose === 'function') onClose()
   }
 
   const customRoles = form.roles.filter(r => !PRESET_ROLES.includes(r))
