@@ -528,6 +528,10 @@ export default function Inbox({
       setNewContactsCount(0)
       localStorage.setItem('hqcmd_contacts_seen_' + String(currentUser?.id), new Date().toISOString())
     }
+    if (newTab === 'applications') {
+      localStorage.setItem(lastViewedKey, new Date().toISOString())
+      setNewAppsCount(0)
+    }
   }
 
   function updateDm(updated) {
@@ -587,11 +591,18 @@ export default function Inbox({
     return () => clearInterval(interval)
   }, [currentUser]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const lastViewedKey = 'hqcmd_applications_viewed_' + String(currentUser?.id)
+  const [newAppsCount, setNewAppsCount] = useState(() => {
+    const lastViewed = localStorage.getItem(lastViewedKey)
+    const apps = getMyApplications()
+    return apps.filter(a => !lastViewed || new Date(a.createdAt) > new Date(lastViewed)).length
+  })
+
   const TABS = [
-    { id: 'messages',      label: 'Messages',       count: unreadMsgs        },
-    { id: 'notifications', label: 'Notifications',  count: unreadNotifs      },
-    { id: 'applications',  label: 'My Applications', count: 0                },
-    { id: 'contacts',      label: 'Contacts',       count: newContactsCount, icon: IconAddressBook },
+    { id: 'messages',      label: 'Messages',        count: unreadMsgs        },
+    { id: 'notifications', label: 'Notifications',   count: unreadNotifs      },
+    { id: 'applications',  label: 'My Applications', count: newAppsCount      },
+    { id: 'contacts',      label: 'Contacts',        count: newContactsCount, icon: IconAddressBook },
   ]
 
   return (

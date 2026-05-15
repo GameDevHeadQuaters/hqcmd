@@ -503,6 +503,18 @@ export default function BrowseProjects({
       if (!allData[applicantId]) allData[applicantId] = {}
       if (!allData[applicantId].applications) allData[applicantId].applications = []
       allData[applicantId].applications.push({ ...application, ownerUserId })
+      const applicantData = allData[applicantId]
+      if (!Array.isArray(applicantData.notifications)) applicantData.notifications = []
+      applicantData.notifications.push({
+        id: String(Date.now()) + '_applied',
+        iconType: 'application',
+        type: 'application_sent',
+        text: `Your application for ${role} on "${project.title}" has been sent!`,
+        time: 'Just now',
+        read: false,
+        timestamp: new Date().toISOString(),
+        link: '/inbox',
+      })
       localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
     }
 

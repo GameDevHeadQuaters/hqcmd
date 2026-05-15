@@ -31,6 +31,7 @@ import GoogleAuthSuccess from './pages/GoogleAuthSuccess'
 import Roadmap from './pages/Roadmap'
 import DebugPanel from './components/DebugPanel'
 import QuickStartTour from './components/QuickStartTour'
+import ScrollToTop from './components/ScrollToTop'
 import { debugLog } from './utils/debugLogger'
 
 const BETA_MODE = true
@@ -426,6 +427,13 @@ export default function App() {
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Refresh React state after application submission so notification badge updates immediately
+  useEffect(() => {
+    function onApplicationSent() { refreshUserData() }
+    window.addEventListener('hqcmd_application_sent', onApplicationSent)
+    return () => window.removeEventListener('hqcmd_application_sent', onApplicationSent)
   }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Achievement polling ────────────────────────────────────────────────────
@@ -897,6 +905,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <ScrollToTop />
       {(currentUser?.isAdmin === true || currentUser?.isSuperAdmin === true || currentUser?.id === 'superadmin') && <DebugPanel />}
       <AppLayout topNavProps={topNavProps} sidebarProps={sidebarProps}>
       <Routes>
@@ -1199,20 +1208,20 @@ function AppLayout({ children, topNavProps, sidebarProps }) {
 
   if (pathname === '/' || pathname === '/roadmap') {
     return (
-      <>
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <TopNav {...topNavProps} />
-        {children}
+        <div style={{ flex: 1 }}>{children}</div>
         <Footer />
-      </>
+      </div>
     )
   }
 
   if (!showSidebar) {
     return (
-      <>
-        {children}
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <div style={{ flex: 1 }}>{children}</div>
         <Footer />
-      </>
+      </div>
     )
   }
 
