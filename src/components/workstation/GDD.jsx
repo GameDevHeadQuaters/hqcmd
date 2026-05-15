@@ -252,7 +252,7 @@ function SuggestChangeForm({ onSubmit, onCancel }) {
 
 // ── Text Section ──────────────────────────────────────────────────────────
 
-function TextSection({ section, gdd, canEdit, canSuggest, suggestions, onSave, onSuggest, onDismissSuggestion, onApplySuggestion }) {
+function TextSection({ section, gdd, canEdit, canSuggest, suggestions, onSave, onSuggest, onDismissSuggestion, onApplySuggestion, onOpenStoryStudio }) {
   const [editing, setEditing] = useState(false)
   const [localContent, setLocalContent] = useState('')
   const [showSuggestForm, setShowSuggestForm] = useState(false)
@@ -330,6 +330,21 @@ function TextSection({ section, gdd, canEdit, canSuggest, suggestions, onSave, o
         placeholder={section.placeholder}
         readOnly={!editing}
       />
+
+      {section.id === 'story' && onOpenStoryStudio && (
+        <div style={{ marginTop: '16px', padding: '16px', borderRadius: '10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <p style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 2px' }}>📚 Story & Setting Studio</p>
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>Characters, world building, dialogue scripts, story arcs and more</p>
+          </div>
+          <button
+            onClick={onOpenStoryStudio}
+            style={{ padding: '8px 16px', borderRadius: '9999px', border: 'none', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: '600', whiteSpace: 'nowrap' }}
+          >
+            Open Studio →
+          </button>
+        </div>
+      )}
 
       {showSuggestForm && (
         <SuggestChangeForm
@@ -631,7 +646,7 @@ function CutContentSection({ gdd, canEdit, onSaveMechanics }) {
 
 // ── Main GDD Component ────────────────────────────────────────────────────
 
-export default function GDD({ projectId, ownerUserId, currentUser, userRole, onAddNotificationForUser }) {
+export default function GDD({ projectId, ownerUserId, currentUser, userRole, onAddNotificationForUser, onOpenStoryStudio }) {
   const [activeSection, setActiveSection] = useState('vision')
   const [gdd, setGdd] = useState(null)
   const [projectTitle, setProjectTitle] = useState('')
@@ -814,6 +829,7 @@ export default function GDD({ projectId, ownerUserId, currentUser, userRole, onA
         onSuggest={submitSuggestion}
         onDismissSuggestion={dismissSuggestion}
         onApplySuggestion={applySuggestion}
+        onOpenStoryStudio={onOpenStoryStudio}
       />
     )
   }

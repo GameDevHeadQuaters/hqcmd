@@ -8,6 +8,7 @@ import ProjectProfile from './ProjectProfile'
 import CalendarModal from './CalendarModal'
 import ScheduleMeetingModal from './ScheduleMeetingModal'
 import { writeProjectField } from '../utils/projectData'
+import StoryStudio from './workstation/StoryStudio'
 
 function normaliseRole(role) {
   const map = {
@@ -128,6 +129,7 @@ export default function Workstation({
     createdAt:      activeProject?.createdAt      ?? null,
   }))
 
+  const [storyStudioOpen,     setStoryStudioOpen]     = useState(false)
   const [profileOpen,         setProfileOpen]         = useState(false)
   const [calendarOpen,        setCalendarOpen]        = useState(false)
   const [scheduleMeetingOpen, setScheduleMeetingOpen] = useState(false)
@@ -299,53 +301,69 @@ export default function Workstation({
       )}
 
       {/* Main layout */}
-      <div
-        className="max-w-7xl mx-auto px-6 py-5"
-        style={{ display: 'grid', gridTemplateColumns: '1fr 272px', gap: '20px', alignItems: 'start' }}
-      >
-        <div className="flex flex-col gap-4">
-          <ProjectHeader
-            project={project}
-            setProject={setProject}
-            onOpenProfile={() => setProfileOpen(true)}
-            onScheduleMeeting={() => setScheduleMeetingOpen(true)}
-            onAddCalendarEvent={(ev) => handleSetCalendarEvents(prev => [...prev, ev])}
-            onMilestonesChange={(milestones) => onUpdateProject?.({ milestones })}
-            userRole={myRole}
-            projectId={effectiveProjectId}
-            ownerUserId={ownerUserId}
-            currentUser={currentUser}
-          />
-          <TabPanel
-            onOpenCalendar={() => setCalendarOpen(true)}
-            members={[]}
-            applications={applications}
-            setApplications={setApplications}
-            agreements={agreements}
-            setAgreements={setAgreements}
-            projectId={effectiveProjectId}
-            ownerUserId={ownerUserId}
-            projectTitle={project.title}
-            currentUser={currentUser}
-            onAddNotification={onAddNotification}
-            onAcceptApplication={onAcceptApplication}
-            users={users}
-            onAddNotificationForUser={onAddNotificationForUser}
-            onAddDirectMessageForUser={onAddDirectMessageForUser}
-            userRole={myRole}
-          />
+      {storyStudioOpen ? (
+        <div className="max-w-7xl mx-auto px-6 py-5">
+          <div style={{ borderRadius: '12px', border: '1px solid var(--border-default)', overflow: 'hidden', height: 'calc(100vh - 140px)', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column' }}>
+            <StoryStudio
+              projectId={effectiveProjectId}
+              ownerUserId={ownerUserId}
+              currentUser={currentUser}
+              userRole={myRole}
+              project={project}
+              onClose={() => setStoryStudioOpen(false)}
+            />
+          </div>
         </div>
-        <div className="flex flex-col gap-4">
-          <BudgetCard
-            budget={activeProject?.budget}
-            onUpdateBudget={(b) => onUpdateProject?.({ budget: b })}
-            projectId={effectiveProjectId}
-            ownerUserId={ownerUserId}
-            userRole={myRole}
-          />
-          <TeamMembers projectId={effectiveProjectId} ownerUserId={ownerUserId} currentUser={currentUser} agreements={agreements} userRole={myRole} />
+      ) : (
+        <div
+          className="max-w-7xl mx-auto px-6 py-5"
+          style={{ display: 'grid', gridTemplateColumns: '1fr 272px', gap: '20px', alignItems: 'start' }}
+        >
+          <div className="flex flex-col gap-4">
+            <ProjectHeader
+              project={project}
+              setProject={setProject}
+              onOpenProfile={() => setProfileOpen(true)}
+              onScheduleMeeting={() => setScheduleMeetingOpen(true)}
+              onAddCalendarEvent={(ev) => handleSetCalendarEvents(prev => [...prev, ev])}
+              onMilestonesChange={(milestones) => onUpdateProject?.({ milestones })}
+              userRole={myRole}
+              projectId={effectiveProjectId}
+              ownerUserId={ownerUserId}
+              currentUser={currentUser}
+            />
+            <TabPanel
+              onOpenCalendar={() => setCalendarOpen(true)}
+              members={[]}
+              applications={applications}
+              setApplications={setApplications}
+              agreements={agreements}
+              setAgreements={setAgreements}
+              projectId={effectiveProjectId}
+              ownerUserId={ownerUserId}
+              projectTitle={project.title}
+              currentUser={currentUser}
+              onAddNotification={onAddNotification}
+              onAcceptApplication={onAcceptApplication}
+              users={users}
+              onAddNotificationForUser={onAddNotificationForUser}
+              onAddDirectMessageForUser={onAddDirectMessageForUser}
+              userRole={myRole}
+              onOpenStoryStudio={() => setStoryStudioOpen(true)}
+            />
+          </div>
+          <div className="flex flex-col gap-4">
+            <BudgetCard
+              budget={activeProject?.budget}
+              onUpdateBudget={(b) => onUpdateProject?.({ budget: b })}
+              projectId={effectiveProjectId}
+              ownerUserId={ownerUserId}
+              userRole={myRole}
+            />
+            <TeamMembers projectId={effectiveProjectId} ownerUserId={ownerUserId} currentUser={currentUser} agreements={agreements} userRole={myRole} />
+          </div>
         </div>
-      </div>
+      )}
 
       {profileOpen && (
         <ProjectProfile

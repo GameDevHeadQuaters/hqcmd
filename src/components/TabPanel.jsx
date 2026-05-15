@@ -36,6 +36,7 @@ export default function TabPanel({
   onAddNotificationForUser,
   onAddDirectMessageForUser,
   userRole = 'Owner',
+  onOpenStoryStudio,
 }) {
   const [active, setActive] = useState('chat')
   const [gddBadge, setGddBadge] = useState(0)
@@ -114,6 +115,7 @@ export default function TabPanel({
           currentUser={currentUser}
           userRole={userRole}
           onAddNotificationForUser={onAddNotificationForUser}
+          onOpenStoryStudio={onOpenStoryStudio}
         />
       )}
       {activeTab === 'applications' && (
