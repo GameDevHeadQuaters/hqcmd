@@ -37,8 +37,6 @@ import QuickStartTour from './components/QuickStartTour'
 import ScrollToTop from './components/ScrollToTop'
 import { debugLog } from './utils/debugLogger'
 
-const BETA_MODE = true
-
 if (!import.meta.env.VITE_ADMIN_PASSWORD) {
   console.warn('hqcmd: VITE_ADMIN_PASSWORD not set in .env — admin login disabled')
 }
@@ -909,39 +907,16 @@ export default function App() {
   // ── Auth ──────────────────────────────────────────────────────────────────
 
   async function handleSignup(userData) {
-    const { name, email, password, skills = [], inviteCode } = userData
+    const { name, email, password, skills = [] } = userData
     const trimmedName = (name || '').trim()
     const initials = trimmedName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
     const normalEmail = (email || '').trim().toLowerCase()
 
-    console.log('[Signup] Starting - email:', normalEmail, 'hasPassword:', !!password, 'inviteCode:', inviteCode)
+    console.log('[Signup] Starting - email:', normalEmail, 'hasPassword:', !!password)
     console.log('[Signup] Supabase URL:', import.meta.env.VITE_SUPABASE_URL)
     console.log('[Signup] Has anon key:', !!import.meta.env.VITE_SUPABASE_ANON_KEY)
 
-    // Step 1: Check invite code if beta mode is on
-    if (BETA_MODE && inviteCode) {
-      let codeValid = false
-      try {
-        const { data: codeData } = await supabase
-          .from('invite_codes')
-          .select('*')
-          .eq('code', inviteCode.trim().toUpperCase())
-          .eq('used', false)
-          .single()
-        codeValid = !!codeData
-      } catch {}
-
-      if (!codeValid) {
-        const localCodes = JSON.parse(localStorage.getItem('hqcmd_invite_codes') || '[]')
-        codeValid = localCodes.some(c => c.code === inviteCode.trim().toUpperCase() && !c.used)
-      }
-
-      if (!codeValid) {
-        throw new Error('Invalid or already used invite code')
-      }
-    }
-
-    // Step 2: Supabase signup
+    // Supabase signup
     let supabaseUserId = null
     try {
       console.log('[Signup] Calling Supabase auth.signUp...')
@@ -968,22 +943,6 @@ export default function App() {
         if (profileError) console.error('[Signup] Profile insert error:', profileError)
         else console.log('[Signup] User created in Supabase:', data.user.id)
 
-        // Mark invite code as used AFTER successful Supabase signup
-        if (BETA_MODE && inviteCode) {
-          await supabase
-            .from('invite_codes')
-            .update({ used: true, used_by: normalEmail, used_at: new Date().toISOString() })
-            .eq('code', inviteCode.trim().toUpperCase())
-
-          const localCodes = JSON.parse(localStorage.getItem('hqcmd_invite_codes') || '[]')
-          localStorage.setItem('hqcmd_invite_codes', JSON.stringify(
-            localCodes.map(c =>
-              c.code === inviteCode.trim().toUpperCase()
-                ? { ...c, used: true, usedBy: normalEmail, usedAt: new Date().toISOString() }
-                : c
-            )
-          ))
-        }
       }
     } catch (e) {
       console.error('[Signup] Supabase signup failed, using localStorage:', e.message)
@@ -1118,7 +1077,6 @@ export default function App() {
     unreadAgreementsCount,
     onSignOut: handleSignOut,
     projects,
-    betaMode: BETA_MODE,
   }
 
   const sidebarProps = {
@@ -1142,11 +1100,10 @@ export default function App() {
             userData={userData}
             currentUser={currentUser}
             getProjectImage={getProjectImage}
-            betaMode={BETA_MODE}
           />
         } />
         <Route path="/login"  element={<Login  onLogin={handleLogin}   currentUser={currentUser} />} />
-        <Route path="/signup" element={<Signup onSignup={handleSignup} currentUser={currentUser} users={users} betaMode={BETA_MODE} />} />
+        <Route path="/signup" element={<Signup onSignup={handleSignup} currentUser={currentUser} users={users} />} />
         <Route path="/terms"   element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/contact" element={<Contact />} />

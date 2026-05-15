@@ -1,21 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  IconShield, IconUsers, IconMailCheck, IconKey, IconLayoutGrid,
+  IconShield, IconUsers, IconLayoutGrid,
   IconSearch, IconTrash, IconCheck, IconX, IconRefresh, IconCopy, IconPlus,
   IconEye, IconEyeOff, IconHeartbeat, IconBug, IconAlertTriangle, IconShieldCheck,
-  IconStar, IconMap,
+  IconStar, IconMap, IconExternalLink,
 } from '@tabler/icons-react'
 import { runIntegrityCheck, migrateUserIds, REQUIRED_ARRAYS } from '../utils/dataIntegrity'
 import { isDebugMode, setDebugMode, debugLog } from '../utils/debugLogger'
-import { sendEmail, betaApprovedEmail } from '../utils/sendEmail'
+import { sendEmail } from '../utils/sendEmail'
 
 const ACCENT = '#534AB7'
 const UD_KEY    = 'hqcmd_userData_v4'
 const SUSP_KEY  = 'hqcmd_suspended'
-const BETA_KEY  = 'hqcmd_beta_requests'
-const CODE_KEY  = 'hqcmd_invite_codes'
-
 function readLS(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback } catch { return fallback }
 }
@@ -28,9 +25,6 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function genCode() {
-  return Math.random().toString(36).slice(2, 10).toUpperCase()
-}
 
 function completelyDeleteUser(targetUserId, targetEmail) {
   if (String(targetUserId) === 'superadmin') {
@@ -98,28 +92,16 @@ function completelyDeleteUser(targetUserId, targetEmail) {
   // 6. Save cleaned data
   localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
 
-  // 7. Remove from beta requests
-  const betaRequests = JSON.parse(localStorage.getItem('hqcmd_beta_requests') || '[]')
-  localStorage.setItem('hqcmd_beta_requests', JSON.stringify(
-    betaRequests.filter(r => r.email !== targetEmail)
-  ))
-
-  // 8. Remove from suspended list
+  // 7. Remove from suspended list
   const suspended = JSON.parse(localStorage.getItem('hqcmd_suspended') || '[]')
   localStorage.setItem('hqcmd_suspended', JSON.stringify(
     suspended.filter(id => String(id) !== userId)
   ))
 
-  // 9. Remove their invite code usage
-  const codes = JSON.parse(localStorage.getItem('hqcmd_invite_codes') || '[]')
-  localStorage.setItem('hqcmd_invite_codes', JSON.stringify(
-    codes.map(c => c.usedBy === targetEmail ? { ...c, used: false, usedBy: null, usedAt: null } : c)
-  ))
-
-  // 10. Remove their applied projects key
+  // 8. Remove their applied projects key
   localStorage.removeItem('hqcmd_applied_projects_' + userId)
 
-  // 11. Update backup
+  // 9. Update backup
   const freshData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
   localStorage.setItem('hqcmd_userData_backup', JSON.stringify(freshData))
 
@@ -313,191 +295,6 @@ function UsersTab({ users, setUsers }) {
               </button>
             </div>
           </div>
-        </div>
-      )}
-    </>
-  )
-}
-
-// ── Beta Requests Tab ─────────────────────────────────────────────────────────
-
-function BetaRequestsTab() {
-  const [requests, setRequests]       = useState(() => readLS(BETA_KEY, []))
-  const [filter, setFilter]           = useState('all')
-  const [generatedCodes, setGeneratedCodes] = useState({}) // reqId → code
-  const [copied, setCopied]           = useState({})
-  const [approvalFeedback, setApprovalFeedback] = useState({}) // reqId → { success, code, email }
-
-  function persist(next) { setRequests(next); writeLS(BETA_KEY, next) }
-
-  async function approve(req) {
-    const code = genCode()
-    const codes = readLS(CODE_KEY, [])
-    codes.push({ code, createdAt: new Date().toISOString(), used: false, usedBy: null, usedAt: null, forEmail: req.email })
-    writeLS(CODE_KEY, codes)
-    setGeneratedCodes(p => ({ ...p, [req.id]: code }))
-    const { subject, html } = betaApprovedEmail(req.name, code)
-    const emailSent = await sendEmail({ to: req.email, subject, html })
-    setApprovalFeedback(p => ({ ...p, [req.id]: { success: emailSent, code, email: req.email } }))
-    persist(requests.map(r => r.id === req.id ? { ...r, status: 'approved', inviteCode: code, reviewedAt: new Date().toISOString() } : r))
-  }
-
-  function decline(req) {
-    persist(requests.map(r => r.id === req.id ? { ...r, status: 'declined', reviewedAt: new Date().toISOString() } : r))
-  }
-
-  function copyCode(code, id) {
-    navigator.clipboard.writeText(code).catch(() => {})
-    setCopied(p => ({ ...p, [id]: true }))
-    setTimeout(() => setCopied(p => { const n = {...p}; delete n[id]; return n }), 2000)
-  }
-
-  const filters = ['all', 'pending', 'approved', 'declined']
-  const filtered = filter === 'all' ? requests : requests.filter(r => r.status === filter)
-  const pending = requests.filter(r => r.status === 'pending').length
-
-  const statusColors = { pending: ['rgba(245,158,11,0.12)', 'var(--status-warning)'], approved: ['rgba(34,197,94,0.1)', 'var(--status-success)'], declined: ['rgba(239,68,68,0.1)', 'var(--status-error)'] }
-
-  return (
-    <>
-      {/* Filter */}
-      <div className="flex items-center gap-2 mb-5 flex-wrap">
-        {filters.map(f => (
-          <button key={f} onClick={() => setFilter(f)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-colors capitalize"
-            style={{ backgroundColor: filter === f ? ACCENT : 'var(--bg-elevated)', color: filter === f ? 'white' : 'var(--text-secondary)', border: '1px solid var(--border-default)' }}>
-            {f}
-            {f === 'pending' && pending > 0 && <span className="text-[10px] font-bold px-1 py-0.5 rounded-full" style={{ backgroundColor: filter === 'pending' ? 'rgba(255,255,255,0.25)' : 'rgba(237,39,147,0.15)', color: filter === 'pending' ? 'white' : '#ed2793' }}>{pending}</span>}
-          </button>
-        ))}
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="text-center py-12 text-sm" style={{ color: 'var(--text-tertiary)' }}>No {filter === 'all' ? '' : filter} requests</div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map(req => {
-            const [bg, col] = statusColors[req.status] ?? ['var(--bg-elevated)', 'var(--text-tertiary)']
-            const code = generatedCodes[req.id] ?? req.inviteCode
-            return (
-              <div key={req.id} className="rounded-lg p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{req.name}</span>
-                      <span className="text-xs px-2 py-0.5 rounded-full font-medium capitalize" style={{ backgroundColor: bg, color: col }}>{req.status}</span>
-                    </div>
-                    <p className="text-xs mb-1" style={{ color: 'var(--text-tertiary)' }}>{req.email} · {formatDate(req.requestedAt)}</p>
-                    <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{req.reason}</p>
-                    {code && (
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className="text-xs font-mono px-2 py-1 rounded" style={{ backgroundColor: 'var(--bg-elevated)', color: ACCENT }}>{code}</span>
-                        <button onClick={() => copyCode(code, req.id)} className="flex items-center gap-1 text-xs px-2 py-1 rounded-full transition-colors font-medium"
-                          style={{ color: copied[req.id] ? 'var(--status-success)' : ACCENT, border: '1px solid var(--border-default)' }}>
-                          {copied[req.id] ? <><IconCheck size={11} /> Copied</> : <><IconCopy size={11} /> Copy code</>}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  {req.status === 'pending' && (
-                    <div className="flex gap-2 flex-shrink-0">
-                      <button onClick={() => approve(req)} className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-medium text-white"
-                        style={{ backgroundColor: '#16a34a' }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#15803d')}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#16a34a')}>
-                        <IconCheck size={12} /> Approve
-                      </button>
-                      <button onClick={() => decline(req)} className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-medium"
-                        style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: 'var(--status-error)' }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.2)')}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(239,68,68,0.1)')}>
-                        <IconX size={12} /> Decline
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {approvalFeedback[req.id] && (
-                  <div className="mt-2 text-xs font-medium px-2 py-1.5 rounded" style={{
-                    backgroundColor: approvalFeedback[req.id].success ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)',
-                    color: approvalFeedback[req.id].success ? 'var(--status-success)' : 'var(--status-warning)',
-                  }}>
-                    {approvalFeedback[req.id].success
-                      ? `✓ Approved! Invite code ${approvalFeedback[req.id].code} sent to ${approvalFeedback[req.id].email}`
-                      : `✓ Approved! Email failed — send code manually: ${approvalFeedback[req.id].code}`
-                    }
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </>
-  )
-}
-
-// ── Invite Codes Tab ──────────────────────────────────────────────────────────
-
-function InviteCodesTab() {
-  const [codes, setCodes] = useState(() => readLS(CODE_KEY, []))
-  const [copied, setCopied] = useState({})
-
-  function persist(next) { setCodes(next); writeLS(CODE_KEY, next) }
-
-  function generate() {
-    const code = genCode()
-    persist([...codes, { code, createdAt: new Date().toISOString(), used: false, usedBy: null, usedAt: null }])
-  }
-
-  function copyCode(code) {
-    navigator.clipboard.writeText(code).catch(() => {})
-    setCopied(p => ({ ...p, [code]: true }))
-    setTimeout(() => setCopied(p => { const n = {...p}; delete n[code]; return n }), 2000)
-  }
-
-  return (
-    <>
-      <div className="flex items-center justify-between mb-5">
-        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{codes.length} total · {codes.filter(c => !c.used).length} unused</p>
-        <button onClick={generate} className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-full text-white transition-opacity hover:opacity-80"
-          style={{ backgroundColor: ACCENT }}>
-          <IconPlus size={13} /> Generate Code
-        </button>
-      </div>
-
-      {codes.length === 0 ? (
-        <div className="text-center py-12 text-sm" style={{ color: 'var(--text-tertiary)' }}>No invite codes yet. Generate one above.</div>
-      ) : (
-        <div className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-default)' }}>
-          <table className="w-full text-sm">
-            <thead style={{ backgroundColor: 'var(--bg-elevated)' }}>
-              <tr>
-                {['Code', 'Created', 'Status', 'Used By', 'Actions'].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold" style={{ color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border-subtle)' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[...codes].reverse().map((c, i) => (
-                <tr key={c.code} style={{ borderBottom: i < codes.length - 1 ? '1px solid var(--border-subtle)' : 'none', backgroundColor: 'var(--bg-surface)' }}>
-                  <td className="px-4 py-3 font-mono text-xs font-semibold" style={{ color: ACCENT }}>{c.code}</td>
-                  <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-tertiary)' }}>{formatDate(c.createdAt)}</td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: c.used ? 'rgba(100,100,100,0.15)' : 'rgba(34,197,94,0.1)', color: c.used ? 'var(--text-tertiary)' : 'var(--status-success)' }}>
-                      {c.used ? 'Used' : 'Unused'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{c.usedBy ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <button onClick={() => copyCode(c.code)} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full transition-colors"
-                      style={{ border: '1px solid var(--border-default)', color: copied[c.code] ? 'var(--status-success)' : 'var(--text-secondary)' }}>
-                      {copied[c.code] ? <><IconCheck size={11} /> Copied</> : <><IconCopy size={11} /> Copy</>}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       )}
     </>
@@ -2087,14 +1884,10 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
 
   if (!currentUser?.isAdmin) return null
 
-  const pendingBeta = readLS(BETA_KEY, []).filter(r => r.status === 'pending').length
-
   const pendingVerifications = readLS('hqcmd_verification_requests', []).filter(r => r.status === 'pending').length
 
   const TABS = [
     { id: 'users',        label: 'Users',           Icon: IconUsers,        count: users.length },
-    { id: 'beta',         label: 'Beta Requests',   Icon: IconMailCheck,    count: pendingBeta > 0 ? pendingBeta : null },
-    { id: 'codes',        label: 'Invite Codes',    Icon: IconKey,          count: null },
     { id: 'projects',     label: 'Public Projects', Icon: IconLayoutGrid,   count: null },
     { id: 'verification', label: 'Verification',    Icon: IconShieldCheck,  count: pendingVerifications > 0 ? pendingVerifications : null },
     { id: 'reviews',      label: 'Reviews',         Icon: IconStar,         count: null },
@@ -2107,9 +1900,21 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
     <div className="min-h-screen" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', backgroundColor: 'var(--bg-base)', color: 'var(--text-primary)' }}>
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-2">
-          <IconShield size={18} style={{ color: '#ed2793' }} />
-          <span className="font-bold text-white text-lg">Admin Panel</span>
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <IconShield size={18} style={{ color: '#ed2793' }} />
+            <span className="font-bold text-white text-lg">Admin Panel</span>
+          </div>
+          <a
+            href="https://supabase.com/dashboard/project/wgtbfsqzmwaynevtodbc/auth/users"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-full transition-opacity hover:opacity-80"
+            style={{ backgroundColor: ACCENT, color: 'white', textDecoration: 'none' }}
+          >
+            <IconExternalLink size={13} />
+            Manage Users in Supabase
+          </a>
         </div>
 
         {/* Tab bar */}
@@ -2132,8 +1937,6 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
 
       <div className="max-w-6xl mx-auto px-6 py-6">
         {tab === 'users'        && <UsersTab users={users} setUsers={setUsers} />}
-        {tab === 'beta'         && <BetaRequestsTab />}
-        {tab === 'codes'        && <InviteCodesTab />}
         {tab === 'projects'     && <PublicProjectsTab />}
         {tab === 'verification' && <VerificationTab />}
         {tab === 'reviews'      && <ReviewsTab />}

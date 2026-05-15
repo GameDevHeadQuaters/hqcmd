@@ -13,7 +13,6 @@ export default function TopNav({
   unreadAgreementsCount = 0,
   onSignOut,
   projects = [],
-  betaMode = false,
 }) {
   const navigate = useNavigate()
   const { theme, setTheme } = useTheme()
@@ -48,11 +47,6 @@ export default function TopNav({
             style={{ height: '28px', width: 'auto', cursor: 'pointer', display: 'block', visibility: 'visible', opacity: 1, flexShrink: 0 }}
             onClick={() => navigate('/')}
           />
-          {betaMode && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: '#ed2793' }}>
-              BETA
-            </span>
-          )}
         </div>
 
         {/* Right side */}

@@ -125,7 +125,7 @@ function FeaturedProjectCard({ project, onCardClick }) {
   )
 }
 
-export default function Landing({ userData, currentUser, getProjectImage, betaMode = false }) {
+export default function Landing({ userData, currentUser, getProjectImage }) {
   const navigate = useNavigate()
   const { theme } = useTheme()
   const isDark = theme === 'dark'
@@ -170,11 +170,6 @@ export default function Landing({ userData, currentUser, getProjectImage, betaMo
               >
                 Built for indie game dev teams
               </div>
-              {betaMode && (
-                <span className="text-[10px] font-bold px-2 py-1 rounded-full text-white" style={{ backgroundColor: '#ed2793' }}>
-                  PRIVATE BETA
-                </span>
-              )}
             </div>
 
             <img
@@ -202,11 +197,11 @@ export default function Landing({ userData, currentUser, getProjectImage, betaMo
                 e.currentTarget.style.boxShadow = 'none'
               }}
             >
-              {betaMode ? 'Request Beta Access' : 'Get Started Free'}
+              Get Started Free
               <IconArrowRight size={16} />
             </button>
             <p className="text-xs mt-2.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              {betaMode ? 'Applications reviewed within 2–3 business days' : 'No credit card required'}
+              No credit card required
             </p>
             <button
               onClick={() => navigate('/browse?gamejam=true')}

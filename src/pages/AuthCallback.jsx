@@ -108,23 +108,6 @@ export default function AuthCallback() {
           localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allData))
         }
 
-        const pendingCode = sessionStorage.getItem('hqcmd_pending_invite_code')
-        if (pendingCode) {
-          const localCodes = JSON.parse(localStorage.getItem('hqcmd_invite_codes') || '[]')
-          localStorage.setItem('hqcmd_invite_codes', JSON.stringify(
-            localCodes.map(c =>
-              c.code === pendingCode
-                ? { ...c, used: true, usedBy: user.email, usedAt: new Date().toISOString() }
-                : c
-            )
-          ))
-          sessionStorage.removeItem('hqcmd_pending_invite_code')
-          await supabase
-            .from('invite_codes')
-            .update({ used: true, used_by: user.email, used_at: new Date().toISOString() })
-            .eq('code', pendingCode)
-        }
-
         setStatus('Signed in! Redirecting...')
         console.log('[AuthCallback] All done, navigating to /projects')
         navigate('/projects')

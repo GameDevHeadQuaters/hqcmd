@@ -5,8 +5,6 @@ const USERS_KEY   = 'hqcmd_users_v3'
 const UD_KEY      = 'hqcmd_userData_v4'
 const CU_KEY      = 'hqcmd_currentUser_v3'
 const SUSP_KEY    = 'hqcmd_suspended'
-const INVITE_KEY  = 'hqcmd_invite_codes'
-const BETA_MODE   = true
 
 const AVATAR_COLORS = ['#534AB7', '#7c3aed', '#0891b2', '#059669', '#d97706', '#db2777']
 
@@ -76,19 +74,7 @@ export default function GoogleAuthSuccess({ users, setUsers, setCurrentUser, set
       return
     }
 
-    if (BETA_MODE) {
-      const inviteCodes = JSON.parse(localStorage.getItem(INVITE_KEY) || '[]')
-      const usedCode = inviteCodes.find(c =>
-        c.used && c.usedBy?.toLowerCase() === email.toLowerCase()
-      )
-
-      if (!usedCode) {
-        navigate(`/signup?google_email=${encodeURIComponent(email)}&google_name=${encodeURIComponent(name)}&needs_code=true`)
-        return
-      }
-    }
-
-    // Create account (either non-beta, or beta with a previously used invite code)
+    // Create account
     const newUser = createUser({ name, email, picture, googleId })
     const updatedUsers = [...allUsers, newUser]
     localStorage.setItem(USERS_KEY, JSON.stringify(updatedUsers))
