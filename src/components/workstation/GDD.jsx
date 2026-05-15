@@ -82,10 +82,40 @@ function RichTextEditor({ initialContent, onChange, placeholder, readOnly }) {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleChange = () => {
+    if (onChange) onChange(editorRef.current?.innerHTML || '')
+  }
+
   const exec = (command, val = null) => {
     document.execCommand(command, false, val)
     editorRef.current?.focus()
-    if (onChange) onChange(editorRef.current?.innerHTML || '')
+    handleChange()
+  }
+
+  function insertList(ordered) {
+    const editor = editorRef.current
+    if (!editor) return
+    editor.focus()
+
+    const selection = window.getSelection()
+    const range = selection?.getRangeAt(0)
+
+    const success = document.execCommand(ordered ? 'insertOrderedList' : 'insertUnorderedList', false, null)
+
+    if (!success || !editor.querySelector(ordered ? 'ol' : 'ul')) {
+      const listTag = ordered ? 'ol' : 'ul'
+      const listHTML = `<${listTag}><li>List item</li></${listTag}><p><br></p>`
+      if (range) {
+        const fragment = range.createContextualFragment(listHTML)
+        range.deleteContents()
+        range.insertNode(fragment)
+        selection.collapseToEnd()
+      } else {
+        editor.innerHTML += listHTML
+      }
+    }
+
+    handleChange()
   }
 
   return (
@@ -106,17 +136,30 @@ function RichTextEditor({ initialContent, onChange, placeholder, readOnly }) {
             </button>
           ))}
           <div style={{ width: '1px', height: '16px', background: 'var(--border-subtle)', margin: '0 4px' }} />
-          <button onMouseDown={e => { e.preventDefault(); exec('insertUnorderedList') }}
-            style={{ padding: '3px 7px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-primary)' }}>
+          <button
+            onMouseDown={e => { e.preventDefault(); insertList(false) }}
+            style={{ padding: '3px 7px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-primary)' }}
+            title="Bullet List"
+          >
             • List
           </button>
-          <button onMouseDown={e => { e.preventDefault(); exec('insertOrderedList') }}
-            style={{ padding: '3px 7px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-primary)' }}>
+          <button
+            onMouseDown={e => { e.preventDefault(); insertList(true) }}
+            style={{ padding: '3px 7px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-primary)' }}
+            title="Numbered List"
+          >
             1. List
           </button>
-          <button onMouseDown={e => { e.preventDefault(); exec('formatBlock', 'h3') }}
-            style={{ padding: '3px 7px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-primary)' }}>
-            H3
+          <button
+            onMouseDown={e => {
+              e.preventDefault()
+              document.execCommand('insertHTML', false, '<hr><p><br></p>')
+              handleChange()
+            }}
+            style={{ padding: '3px 7px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-primary)' }}
+            title="Insert Divider"
+          >
+            — Divider
           </button>
           <button onMouseDown={e => { e.preventDefault(); exec('removeFormat') }}
             style={{ padding: '3px 7px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--text-tertiary)' }}>
