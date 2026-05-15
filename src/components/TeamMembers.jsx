@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconUserPlus, IconX, IconUsers, IconAlertTriangle } from '@tabler/icons-react'
 import InviteModal from './InviteModal'
@@ -101,6 +101,7 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
   const [inviteOpen, setInviteOpen] = useState(false)
   const [removeTarget, setRemoveTarget] = useState(null)
   const [editingRoles, setEditingRoles] = useState({})
+  const [roleSaved, setRoleSaved] = useState(null)
 
   function loadMembers() {
     const USERDATA_KEY = 'hqcmd_userData_v4'
@@ -121,12 +122,23 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
         return
       }
 
-      const projectMembers = (project.members || []).map(m => ({
-        ...m,
-        userId: String(m.userId || m.id),
-        name: m.name || allUsers.find(u => String(u.id) === String(m.userId || m.id))?.name || 'Unknown',
-        initials: m.initials || (m.name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
-      }))
+      const projectMembers = (project.members || []).map(m => {
+        const mUserId = String(m.userId || m.id)
+        const storedRole = m.role || 'Member'
+        // Fix incorrectly assigned Owner roles — only the actual project owner gets Owner
+        const fixedRole = mUserId === effectiveOwnerId
+          ? 'Owner'
+          : storedRole === 'Owner'
+            ? 'Member'
+            : storedRole
+        return {
+          ...m,
+          userId: mUserId,
+          role: fixedRole,
+          name: m.name || allUsers.find(u => String(u.id) === mUserId)?.name || 'Unknown',
+          initials: m.initials || (m.name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+        }
+      })
 
       const memberIds = new Set(projectMembers.map(m => String(m.userId)))
 
@@ -137,11 +149,18 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
         if (ref) {
           const user = allUsers.find(u => String(u.id) === uid)
           if (user) {
+            const sharedRole = normaliseRole(ref.role) || 'Member'
+            // Fix incorrectly assigned Owner roles in sharedProjects
+            const fixedSharedRole = uid === effectiveOwnerId
+              ? 'Owner'
+              : sharedRole === 'Owner'
+                ? 'Member'
+                : sharedRole
             projectMembers.push({
               id: uid,
               userId: uid,
               name: user.name,
-              role: normaliseRole(ref.role) || 'Member',
+              role: fixedSharedRole,
               initials: user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
               joinedAt: ref.joinedAt,
             })
@@ -157,23 +176,41 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
     }
   }
 
+  // Keep ref up-to-date so interval always calls the latest version
+  const loadMembersRef = useRef(loadMembers)
+  useEffect(() => { loadMembersRef.current = loadMembers })
+
   useEffect(() => {
     console.log('[TeamMembers] Props - projectId:', projectId, 'ownerUserId:', ownerUserId, 'userRole:', userRole)
     loadMembers()
-    const interval = setInterval(loadMembers, 5000)
+    const interval = setInterval(() => loadMembersRef.current(), 5000)
     window.addEventListener('storage', loadMembers)
     return () => {
       clearInterval(interval)
       window.removeEventListener('storage', loadMembers)
     }
-  }, [projectId, ownerUserId, currentUser])
+  }, [projectId, ownerUserId])
 
   function saveRole(member, newRole) {
+    // Optimistically update local state first so UI doesn't flash empty
+    setMembers(prev => prev.map(m =>
+      String(m.userId) === String(member.userId)
+        ? { ...m, role: newRole }
+        : m
+    ))
+
+    // Clear editing state and show success
+    setEditingRoles(prev => { const n = { ...prev }; delete n[member.userId]; return n })
+    setRoleSaved(member.userId)
+    setTimeout(() => setRoleSaved(null), 2000)
+
+    // Save to localStorage
     const USERDATA_KEY = 'hqcmd_userData_v4'
+    const effectiveOwnerId = String(ownerUserId || currentUser?.id)
+    const effectiveProjectId = String(projectId)
+
     try {
       const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
-      const effectiveOwnerId = String(ownerUserId || currentUser?.id)
-      const effectiveProjectId = String(projectId)
 
       const projectIdx = allData[effectiveOwnerId]?.projects?.findIndex(p => String(p.id) === effectiveProjectId)
       if (projectIdx !== undefined && projectIdx !== -1) {
@@ -197,12 +234,10 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
 
       localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
       window.dispatchEvent(new Event('storage'))
+      console.log('[TeamMembers] Role saved:', member.name, '->', newRole)
     } catch (e) {
       console.error('[TeamMembers] saveRole failed:', e)
     }
-
-    setEditingRoles(prev => { const n = { ...prev }; delete n[member.userId]; return n })
-    loadMembers()
   }
 
   function remove(memberId) {
@@ -287,7 +322,6 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
                         onChange={e => setEditingRoles(prev => ({ ...prev, [member.userId]: e.target.value }))}
                         style={{ fontSize: '11px', padding: '1px 4px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
                       >
-                        <option value="Owner">Owner</option>
                         <option value="Co-leader">Co-leader</option>
                         <option value="Member">Member</option>
                         <option value="Contributor">Contributor</option>
@@ -300,6 +334,9 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
                         >
                           Save
                         </button>
+                      )}
+                      {roleSaved === member.userId && (
+                        <span style={{ fontSize: '10px', color: '#22c55e' }}>✓ Saved</span>
                       )}
                     </div>
                   ) : (
