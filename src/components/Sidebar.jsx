@@ -5,6 +5,7 @@ import {
   IconWritingSign, IconCurrencyDollar, IconUser, IconSettings, IconShield,
   IconLogout, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand,
   IconChevronDown, IconBell, IconSun, IconMoon, IconAddressBook, IconPresentation,
+  IconMap,
 } from '@tabler/icons-react'
 import { useTheme } from '../context/ThemeContext'
 
@@ -311,7 +312,8 @@ export default function Sidebar({
         <NavItem icon={IconCompass}       label="Browse Projects" path="/browse"      active={is('/browse')}      collapsed={collapsed} id="sidebar-browse" />
         <NavItem icon={IconAddressBook}   label="Directory"       path="/directory"   active={is('/directory')}   collapsed={collapsed} />
         <NavItem icon={IconUsers}         label="My Teams"        path="/teams"       active={is('/teams')}       collapsed={collapsed} id="sidebar-teams" />
-        <NavItem icon={IconInbox}        label="Inbox"           path="/inbox"       active={is('/inbox')}       collapsed={collapsed} badge={unreadInboxCount} id="sidebar-inbox" />
+        <NavItem icon={IconInbox}         label="Inbox"           path="/inbox"       active={is('/inbox')}       collapsed={collapsed} badge={unreadInboxCount} id="sidebar-inbox" />
+        <NavItem icon={IconMap}           label="Roadmap"         path="/roadmap"     active={is('/roadmap')}     collapsed={collapsed} id="sidebar-roadmap" />
 
         <SectionLabel label="Manage" collapsed={collapsed} />
         <NavItem icon={IconWritingSign}     label="Agreements"   path="/agreements"  active={is('/agreements')}  collapsed={collapsed} badge={unsignedReceived} id="sidebar-agreements" />

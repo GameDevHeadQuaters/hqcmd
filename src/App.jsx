@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import TopNav from './components/TopNav'
 import Sidebar from './components/Sidebar'
+import Footer from './components/Footer'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -1157,12 +1158,18 @@ function AppLayout({ children, topNavProps, sidebarProps }) {
       <>
         <TopNav {...topNavProps} />
         {children}
+        <Footer />
       </>
     )
   }
 
   if (!showSidebar) {
-    return <>{children}</>
+    return (
+      <>
+        {children}
+        <Footer />
+      </>
+    )
   }
 
   return (
@@ -1178,8 +1185,11 @@ function AppLayout({ children, topNavProps, sidebarProps }) {
         flex: 1,
         minWidth: 0,
         minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
       }}>
-        {children}
+        <div style={{ flex: 1 }}>{children}</div>
+        <Footer />
       </div>
     </div>
   )
