@@ -22,6 +22,7 @@ import { runIntegrityCheck, migrateUserIds } from './utils/dataIntegrity'
 import AdminPanel from './pages/AdminPanel'
 import MemberDirectory from './pages/MemberDirectory'
 import TeamsPage from './pages/TeamsPage'
+import Portfolio from './pages/Portfolio'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
 import Contact from './pages/Contact'
@@ -1088,6 +1089,7 @@ export default function App() {
             />
           ) : <Navigate to="/login" replace />
         } />
+        <Route path="/portfolio/:userId" element={<Portfolio currentUser={currentUser} />} />
       </Routes>
       {currentUser && !currentUser.isAdmin && localStorage.getItem('hqcmd_tour_' + currentUser.id) !== 'done' && (
         <QuickStartTour key={tourTick} currentUser={currentUser} onComplete={() => setTourTick(t => t + 1)} />
@@ -1134,7 +1136,7 @@ function AppLayout({ children, topNavProps, sidebarProps }) {
   const { pathname } = useLocation()
   const { currentUser } = sidebarProps
 
-  const isPublic = !currentUser || ['/', '/login', '/signup', '/terms', '/privacy', '/contact'].includes(pathname) || pathname.startsWith('/sign/')
+  const isPublic = !currentUser || ['/', '/login', '/signup', '/terms', '/privacy', '/contact'].includes(pathname) || pathname.startsWith('/sign/') || pathname.startsWith('/portfolio/')
   const showSidebar = !isPublic
 
   const [collapsed, setCollapsed] = useState(() => {

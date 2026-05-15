@@ -134,6 +134,88 @@ function InviteMessageCard({ dm, onUpdate, navigate }) {
   )
 }
 
+function TestimonialRequestCard({ dm, onUpdate, navigate, currentUser }) {
+  const [text, setText] = useState('')
+  const [submitted, setSubmitted] = useState(dm.testimonialSubmitted || false)
+  const CHAR_LIMIT = 280
+  const initials = (dm.fromName ?? '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+
+  function submit() {
+    if (!text.trim()) return
+    try {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const forUserId = String(dm.forUserId)
+      if (!allData[forUserId]) allData[forUserId] = {}
+      allData[forUserId].testimonials = [
+        ...(allData[forUserId].testimonials || []),
+        {
+          id: String(Date.now()),
+          fromUserId: String(currentUser?.id),
+          fromName: currentUser?.name ?? 'Anonymous',
+          text: text.trim(),
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+        },
+      ]
+      localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allData))
+    } catch {}
+    onUpdate({ ...dm, testimonialSubmitted: true, read: true })
+    setSubmitted(true)
+  }
+
+  return (
+    <div
+      className="rounded-lg overflow-hidden"
+      style={{
+        backgroundColor: 'var(--bg-surface)',
+        borderLeft: !dm.read ? '3px solid #805da8' : '1px solid var(--border-default)',
+        border: !dm.read ? '1px solid var(--border-default)' : '1px solid var(--border-default)',
+      }}
+    >
+      <div className="p-5">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: '#534AB7' }}>
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{dm.fromName}</p>
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Testimonial request · {formatTime(dm.timestamp)}</p>
+          </div>
+        </div>
+        <p className="text-sm leading-relaxed mb-3" style={{ color: 'var(--text-secondary)' }}>{dm.message}</p>
+        {submitted ? (
+          <div className="flex items-center gap-2 text-xs font-medium py-2 px-3 rounded-lg" style={{ backgroundColor: 'rgba(83,74,183,0.08)', color: '#534AB7' }}>
+            <IconCheck size={13} /> Testimonial submitted — pending approval
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <textarea
+              rows={3}
+              maxLength={CHAR_LIMIT}
+              className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-none transition-colors"
+              style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+              placeholder="Write your testimonial…"
+              value={text}
+              onChange={e => setText(e.target.value)}
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{text.length}/{CHAR_LIMIT}</span>
+              <button
+                onClick={submit}
+                disabled={!text.trim()}
+                className="text-xs font-semibold px-4 py-1.5 rounded-full text-white transition-opacity"
+                style={{ backgroundColor: '#534AB7', opacity: text.trim() ? 1 : 0.4, cursor: text.trim() ? 'pointer' : 'not-allowed' }}
+              >
+                Submit
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function MessageCard({ dm, onUpdate, navigate, currentUser }) {
   const [showReply, setShowReply] = useState(false)
   const [replyText, setReplyText] = useState(dm.reply || '')
@@ -144,6 +226,9 @@ function MessageCard({ dm, onUpdate, navigate, currentUser }) {
   }
   if (dm.type === 'invite') {
     return <InviteMessageCard dm={dm} onUpdate={onUpdate} navigate={navigate} />
+  }
+  if (dm.type === 'testimonial_request') {
+    return <TestimonialRequestCard dm={dm} onUpdate={onUpdate} navigate={navigate} currentUser={currentUser} />
   }
 
   function sendReply() {

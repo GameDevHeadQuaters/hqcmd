@@ -1162,6 +1162,16 @@ export default function TeamsPage({
                                           )}
                                         </div>
                                       </div>
+                                      {(member.applicantUserId || member.userId) && (
+                                        <button
+                                          onClick={() => navigate(`/portfolio/${member.applicantUserId || member.userId}`)}
+                                          className="text-xs font-medium px-2.5 py-1 rounded-full border flex-shrink-0 transition-colors"
+                                          style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+                                          onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
+                                          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)' }}>
+                                          Portfolio
+                                        </button>
+                                      )}
                                       <button
                                         onClick={() => handleViewInTeam(project.id, memberName)}
                                         className="text-xs font-medium px-2.5 py-1 rounded-full border flex-shrink-0 transition-colors"

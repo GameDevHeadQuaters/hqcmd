@@ -356,23 +356,30 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                   <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{displayMember.name}</h1>
                   <VerificationBadge verification={displayMember.verification} />
                 </div>
-                {!isEditing && isOwnProfile && (
-                  <button
-                    onClick={startEditing}
-                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full flex-shrink-0 transition-colors"
-                    style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.borderColor = ACCENT
-                      e.currentTarget.style.color = ACCENT
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.borderColor = 'var(--border-default)'
-                      e.currentTarget.style.color = 'var(--text-secondary)'
-                    }}
-                  >
-                    <IconPencil size={12} />
-                    Edit Profile
-                  </button>
+                {!isEditing && (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => navigate(`/portfolio/${userId}`)}
+                      className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full flex-shrink-0 transition-colors"
+                      style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                    >
+                      Portfolio
+                    </button>
+                    {isOwnProfile && (
+                      <button
+                        onClick={startEditing}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full flex-shrink-0 transition-colors"
+                        style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                      >
+                        <IconPencil size={12} />
+                        Edit Profile
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 

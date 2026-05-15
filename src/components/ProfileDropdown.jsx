@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconUser, IconSettings, IconLogout, IconLayoutDashboard, IconInbox, IconFileText, IconUsers, IconAddressBook } from '@tabler/icons-react'
+import { IconUser, IconSettings, IconLogout, IconLayoutDashboard, IconInbox, IconFileText, IconUsers, IconAddressBook, IconPresentation } from '@tabler/icons-react'
 
 export default function ProfileDropdown({ onClose, currentUser, onSignOut, onGoToTeam }) {
   const navigate = useNavigate()
@@ -31,8 +31,9 @@ export default function ProfileDropdown({ onClose, currentUser, onSignOut, onGoT
   const profilePath = `/profile/${currentUser?.id ?? 1}`
 
   const mainItems = [
-    { Icon: IconUser,            label: 'View Profile',     action: () => go(profilePath)    },
-    { Icon: IconLayoutDashboard, label: 'My Projects',      action: () => go('/projects')    },
+    { Icon: IconUser,            label: 'View Profile',     action: () => go(profilePath)                          },
+    { Icon: IconPresentation,    label: 'My Portfolio',     action: () => go(`/portfolio/${currentUser?.id ?? 1}`) },
+    { Icon: IconLayoutDashboard, label: 'My Projects',      action: () => go('/projects')                          },
     { Icon: IconUsers,           label: 'My Teams',         action: () => go('/teams')       },
     { Icon: IconAddressBook,     label: 'Directory',        action: () => go('/directory')   },
     { Icon: IconInbox,           label: 'Inbox',            action: () => go('/inbox')       },

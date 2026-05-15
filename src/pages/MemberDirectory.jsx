@@ -128,7 +128,7 @@ function MessageModal({ recipient, sender, onClose, onSend }) {
   )
 }
 
-function MemberCard({ user, publicProjectCount, onViewProfile, onMessage }) {
+function MemberCard({ user, publicProjectCount, onViewProfile, onViewPortfolio, onMessage }) {
   const avatarColor = user.avatarColor ?? hashColor(user.name)
   const displaySkills = (user.skills ?? []).slice(0, 4)
   const extraSkills = (user.skills ?? []).length - 4
@@ -194,7 +194,16 @@ function MemberCard({ user, publicProjectCount, onViewProfile, onMessage }) {
           onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
         >
-          View Profile
+          Profile
+        </button>
+        <button
+          onClick={onViewPortfolio}
+          className="flex-1 text-xs font-medium py-2 rounded-full border transition-colors"
+          style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+        >
+          Portfolio
         </button>
         <button
           onClick={onMessage}
@@ -362,6 +371,7 @@ export default function MemberDirectory({ currentUser, onAddDirectMessageForUser
                 user={u}
                 publicProjectCount={projectCounts[String(u.id)] ?? 0}
                 onViewProfile={() => navigate(`/profile/${u.id}`)}
+                onViewPortfolio={() => navigate(`/portfolio/${u.id}`)}
                 onMessage={() => setMsgTarget(u)}
               />
             ))}

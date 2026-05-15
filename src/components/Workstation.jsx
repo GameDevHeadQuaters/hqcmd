@@ -162,6 +162,7 @@ export default function Workstation({
             userRole={myRole}
             projectId={effectiveProjectId}
             ownerUserId={ownerUserId}
+            currentUser={currentUser}
           />
           <TabPanel
             onOpenCalendar={() => setCalendarOpen(true)}

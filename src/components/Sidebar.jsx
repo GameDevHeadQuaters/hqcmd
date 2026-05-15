@@ -4,7 +4,7 @@ import {
   IconLayoutDashboard, IconDeviceDesktop, IconCompass, IconUsers, IconInbox,
   IconWritingSign, IconCurrencyDollar, IconUser, IconSettings, IconShield,
   IconLogout, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand,
-  IconChevronDown, IconBell, IconSun, IconMoon, IconAddressBook,
+  IconChevronDown, IconBell, IconSun, IconMoon, IconAddressBook, IconPresentation,
 } from '@tabler/icons-react'
 import { useTheme } from '../context/ThemeContext'
 
@@ -367,8 +367,9 @@ export default function Sidebar({
 
         <SectionLabel label="Account" collapsed={collapsed} />
 
-        <NavItem icon={IconUser}     label="View Profile"     path={`/profile/${currentUser?.id}`} active={is('/profile')}    collapsed={collapsed} id="sidebar-profile" />
-        <NavItem icon={IconSettings} label="Account Settings" path="/account"                       active={is('/account')}    collapsed={collapsed} />
+        <NavItem icon={IconUser}         label="View Profile"     path={`/profile/${currentUser?.id}`}     active={is('/profile')}    collapsed={collapsed} id="sidebar-profile" />
+        <NavItem icon={IconPresentation} label="My Portfolio"    path={`/portfolio/${currentUser?.id}`}   active={is('/portfolio')}  collapsed={collapsed} />
+        <NavItem icon={IconSettings}     label="Account Settings" path="/account"                          active={is('/account')}    collapsed={collapsed} />
         {currentUser?.isAdmin && (
           <NavItem icon={IconShield} label="Admin Panel" path="/admin" active={is('/admin')} collapsed={collapsed} badge={adminBadgeCount} />
         )}

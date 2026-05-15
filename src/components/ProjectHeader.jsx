@@ -15,12 +15,16 @@ const statusColors = {
   'Overtime':    { bg: 'rgba(237,39,147,0.12)', text: '#ed2793' },
 }
 
-export default function ProjectHeader({ project, setProject, onOpenProfile, onScheduleMeeting, onAddCalendarEvent, onMilestonesChange, userRole = 'Owner', projectId, ownerUserId }) {
+export default function ProjectHeader({ project, setProject, onOpenProfile, onScheduleMeeting, onAddCalendarEvent, onMilestonesChange, userRole = 'Owner', projectId, ownerUserId, currentUser }) {
   const { title, description } = project
   const progress = calculateProgress(project)
   const status = getProjectStatus(project)
   const sc = statusColors[status] || statusColors['In Progress']
   const isOvertime = status === 'Overtime'
+
+  const isOwner = String(currentUser?.id) === String(ownerUserId)
+  const canEditProject = isOwner || hasPermission(userRole, 'EDIT_PROJECT_PROFILE')
+  const canEditMilestones = isOwner || hasPermission(userRole, 'MANAGE_MILESTONES')
 
   const [localMilestones, setLocalMilestones] = useState(() => project.milestones ?? [])
   const [modal, setModal] = useState(null)
@@ -108,13 +112,13 @@ export default function ProjectHeader({ project, setProject, onOpenProfile, onSc
             <div className="flex-1 min-w-0">
               <div className="flex items-start gap-2 mb-1">
                 <button
-                  onClick={hasPermission(userRole, 'EDIT_PROJECT') ? onOpenProfile : undefined}
+                  onClick={canEditProject ? onOpenProfile : undefined}
                   className="font-semibold text-lg leading-tight text-left"
-                  style={{ color: 'var(--text-primary)', cursor: hasPermission(userRole, 'EDIT_PROJECT') ? 'pointer' : 'default' }}
+                  style={{ color: 'var(--text-primary)', cursor: canEditProject ? 'pointer' : 'default' }}
                 >
                   {title}
                 </button>
-                {hasPermission(userRole, 'EDIT_PROJECT') && (
+                {canEditProject && (
                   <button onClick={onOpenProfile} className="mt-1 transition-colors flex-shrink-0" style={{ color: 'var(--text-tertiary)' }}
                     onMouseEnter={e => (e.currentTarget.style.color = ACCENT)}
                     onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}
@@ -182,7 +186,7 @@ export default function ProjectHeader({ project, setProject, onOpenProfile, onSc
             {milestones.map(m => (
               <button
                 key={m.id}
-                onClick={hasPermission(userRole, 'ADD_MILESTONES') ? () => openEdit(m) : undefined}
+                onClick={canEditMilestones ? () => openEdit(m) : undefined}
                 className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all"
                 style={
                   m.done
@@ -199,7 +203,7 @@ export default function ProjectHeader({ project, setProject, onOpenProfile, onSc
                 )}
               </button>
             ))}
-            {hasPermission(userRole, 'ADD_MILESTONES') && (
+            {canEditMilestones && (
               <button
                 onClick={openCreate}
                 className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-dashed transition-colors"

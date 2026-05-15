@@ -100,6 +100,13 @@ export default function Account({ currentUser, setCurrentUser, users, setUsers }
     email:    currentUser?.email ?? '',
     password: '',
   })
+  const [portfolioVisibility, setPortfolioVisibility] = useState(() => {
+    try {
+      const users = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+      const u = users.find(x => String(x.id) === String(currentUser?.id))
+      return u?.portfolioVisibility || currentUser?.portfolioVisibility || 'public'
+    } catch { return 'public' }
+  })
   const [saved, setSaved] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteInput, setDeleteInput] = useState('')
@@ -109,6 +116,7 @@ export default function Account({ currentUser, setCurrentUser, users, setUsers }
     const updates = {
       name:  form.name.trim()  || currentUser.name,
       email: form.email.trim() || currentUser.email,
+      portfolioVisibility,
     }
     if (form.password) updates.password = form.password
 
@@ -181,6 +189,32 @@ export default function Account({ currentUser, setCurrentUser, users, setUsers }
               onFocus={fa}
               onBlur={fb}
             />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500 }}>Portfolio Visibility</label>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {['public', 'members_only', 'private'].map(v => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setPortfolioVisibility(v)}
+                  style={{
+                    padding: '6px 14px', borderRadius: '9999px', border: '1px solid var(--border-default)',
+                    background: portfolioVisibility === v ? ACCENT : 'none',
+                    color: portfolioVisibility === v ? 'white' : 'var(--text-secondary)',
+                    cursor: 'pointer', fontSize: '12px', transition: 'all 0.15s',
+                  }}
+                >
+                  {v === 'public' ? '🌍 Public' : v === 'members_only' ? '👥 Members Only' : '🔒 Private'}
+                </button>
+              ))}
+            </div>
+            <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: 0 }}>
+              {portfolioVisibility === 'public' ? 'Anyone can view your portfolio' :
+               portfolioVisibility === 'members_only' ? 'Only logged-in HQCMD members can view your portfolio' :
+               'Only you can see your portfolio'}
+            </p>
           </div>
 
           <div className="pt-1">
