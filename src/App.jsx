@@ -1,16 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './lib/supabase'
-
-// Temporary connection test — remove after confirming connection
-supabase.from('_test').select('*').then(({ error }) => {
-  if (error?.code === '42P01') {
-    console.log('[Supabase] Connected successfully — table does not exist yet but connection works')
-  } else if (error) {
-    console.error('[Supabase] Connection error:', error)
-  } else {
-    console.log('[Supabase] Connected and responding')
-  }
-})
+import { signIn, signUp as supabaseSignUp, signOut as supabaseSignOut, getUserProfile, onAuthStateChange } from './lib/supabaseAuth'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import TopNav from './components/TopNav'
 import Sidebar from './components/Sidebar'
@@ -334,6 +324,9 @@ export default function App() {
     } catch { return null }
   })
   const [tourTick, setTourTick] = useState(0)
+  const [authLoading, setAuthLoading] = useState(() => {
+    try { return !localStorage.getItem(STORAGE_KEYS.currentUser) } catch { return false }
+  })
 
   // Agreements live outside userData React state — read/written directly from localStorage.
   function loadAgreementsFromLS(uid) {
@@ -492,6 +485,26 @@ export default function App() {
       const d = prev[String(uid)] ?? emptyUserData()
       return { ...prev, [String(uid)]: { ...d, ...patch } }
     })
+  }
+
+  async function loadUserProfile(authUser) {
+    const existingUser = users.find(u => u.email === authUser.email)
+    if (existingUser) return existingUser
+    const { data: profile } = await getUserProfile(authUser.id)
+    const name = profile?.name || authUser.user_metadata?.name || authUser.email.split('@')[0]
+    const trimmedName = name.trim()
+    const initials = trimmedName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    return {
+      id: authUser.id,
+      name: trimmedName,
+      email: authUser.email,
+      role: profile?.role || '',
+      bio: profile?.bio || '',
+      skills: profile?.skills || [],
+      initials: profile?.initials || initials,
+      avatarColor: profile?.avatar_color || hashColor(trimmedName),
+      supabaseId: authUser.id,
+    }
   }
 
   function updateProject(id, changes) {
@@ -688,6 +701,33 @@ export default function App() {
     return () => clearInterval(interval)
   }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Supabase session bootstrap ────────────────────────────────────────────
+
+  useEffect(() => {
+    let sub
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user && !localStorage.getItem(STORAGE_KEYS.currentUser)) {
+        const profile = await loadUserProfile(session.user)
+        if (profile) {
+          setCurrentUser(profile)
+          setUserData(prev => prev[String(profile.id)] ? prev : { ...prev, [String(profile.id)]: emptyUserData() })
+        }
+      }
+      setAuthLoading(false)
+    })
+    sub = onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user && !localStorage.getItem(STORAGE_KEYS.currentUser)) {
+        const profile = await loadUserProfile(session.user)
+        if (profile) {
+          setCurrentUser(profile)
+          setUserData(prev => prev[String(profile.id)] ? prev : { ...prev, [String(profile.id)]: emptyUserData() })
+        }
+      }
+      setAuthLoading(false)
+    })
+    return () => sub?.unsubscribe()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Force re-read from localStorage (call after cross-user writes) ─────────
 
   function refreshUserData() {
@@ -864,20 +904,26 @@ export default function App() {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
-  function handleSignup({ name, email, password }) {
+  async function handleSignup({ name, email, password, skills = [] }) {
     const trimmedName = name.trim()
     const initials = trimmedName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    const normalEmail = email.trim().toLowerCase()
+
+    const { data, error } = await supabaseSignUp(normalEmail, password, { name: trimmedName })
+    if (error) console.warn('[Auth] Supabase signup failed, using localStorage:', error.message)
+
     const newUser = {
-      id: Date.now(),
+      id: data?.user?.id ?? Date.now(),
       name: trimmedName,
-      email: email.trim().toLowerCase(),
+      email: normalEmail,
       password,
       role: '',
       bio: '',
-      skills: [],
+      skills: skills || [],
       initials,
       avatarColor: hashColor(trimmedName),
       projects: [],
+      ...(data?.user ? { supabaseId: data.user.id } : {}),
     }
     setUsers(prev => [...prev, newUser])
     setCurrentUser(newUser)
@@ -887,9 +933,11 @@ export default function App() {
     debouncedAchievementCheck(newUser)
   }
 
-  function handleLogin({ email, password }) {
+  async function handleLogin({ email, password }) {
     const normalEmail = email.trim().toLowerCase()
     debugLog('Auth', 'Login attempt', { email: normalEmail }, 'info')
+
+    // Super admin — localStorage-only flow
     if (SUPER_ADMIN.email && SUPER_ADMIN.password && normalEmail === SUPER_ADMIN.email && password === SUPER_ADMIN.password) {
       const shadowAccount = ensureAdminShadowAccount()
       const adminProfile  = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
@@ -900,6 +948,23 @@ export default function App() {
       debugLog('Auth', 'Admin login success', { userId: 'superadmin', isAdmin: true }, 'success')
       return null
     }
+
+    // Try Supabase first
+    const { data, error } = await signIn(normalEmail, password)
+    if (!error && data?.user) {
+      const profile = await loadUserProfile(data.user)
+      if (profile) {
+        setUsers(prev => prev.find(u => u.email === normalEmail) ? prev : [...prev, { ...profile, password }])
+        setUserData(prev => prev[String(profile.id)] ? prev : { ...prev, [String(profile.id)]: emptyUserData() })
+        setCurrentUser(profile)
+        setActiveProjectId(null)
+        debugLog('Auth', 'Supabase login success', { userId: profile.id }, 'success')
+        debouncedAchievementCheck(profile)
+        return null
+      }
+    }
+
+    // localStorage fallback for existing users
     const byEmail = users.find(u => u.email === normalEmail)
     if (!byEmail) {
       debugLog('Auth', 'Login failed — user not found', { email: normalEmail }, 'error')
@@ -918,12 +983,13 @@ export default function App() {
     } catch {}
     setCurrentUser(byEmail)
     setActiveProjectId(null)
-    debugLog('Auth', 'Login success', { userId: byEmail.id, isAdmin: byEmail.isAdmin }, 'success')
+    debugLog('Auth', 'Login success (localStorage)', { userId: byEmail.id, isAdmin: byEmail.isAdmin }, 'success')
     debouncedAchievementCheck(byEmail)
     return null
   }
 
-  function handleSignOut() {
+  async function handleSignOut() {
+    await supabaseSignOut().catch(() => {})
     setCurrentUser(null)
     setActiveProjectId(null)
     setActiveOwnerUserId(null)
@@ -957,6 +1023,17 @@ export default function App() {
     notifications.filter(n => !n.read).length
 
   const unreadAgreementsCount = (agreements ?? []).filter(a => a.isReceived && !a.read).length
+
+  if (authLoading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-base)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+          <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '40px', width: 'auto' }} onError={e => { e.target.style.display = 'none' }} />
+          <div className="animate-spin" style={{ width: '24px', height: '24px', border: '2px solid var(--border-default)', borderTopColor: '#534AB7', borderRadius: '50%' }} />
+        </div>
+      </div>
+    )
+  }
 
   const topNavProps = {
     currentUser,

@@ -30,12 +30,12 @@ export default function Login({ onLogin, currentUser }) {
     return errs
   }
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault()
     const errs = validate()
     if (Object.keys(errs).length > 0) { setErrors(prev => ({ ...prev, ...errs })); return }
 
-    const result = onLogin?.(form)
+    const result = await onLogin?.(form)
     if (result) {
       setErrors(prev => ({ ...prev, [result.field]: result.message }))
       return

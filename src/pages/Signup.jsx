@@ -68,7 +68,7 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
     return errs
   }
 
-  function finishSignup() {
+  async function finishSignup() {
     if (betaMode && inviteVerified) {
       try {
         const codes = JSON.parse(localStorage.getItem(INVITE_CODES_KEY) ?? '[]')
@@ -80,7 +80,7 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
         localStorage.setItem(INVITE_CODES_KEY, JSON.stringify(updated))
       } catch {}
     }
-    onSignup?.({ ...form, skills: selectedSkills })
+    await onSignup?.({ ...form, skills: selectedSkills })
     navigate('/workstation')
   }
 
@@ -154,7 +154,7 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
     setGoogleRequestSent(true)
   }
 
-  function submitGoogleWithCode() {
+  async function submitGoogleWithCode() {
     const code = googleCode.trim().toUpperCase()
     if (!code) { setGoogleCodeError('Please enter your invite code'); return }
     try {
@@ -169,7 +169,7 @@ export default function Signup({ onSignup, currentUser, users, betaMode = false 
       setGoogleCodeError('Something went wrong. Please try again.')
       return
     }
-    onSignup?.({ name: googleName, email: googleEmail, password: '' })
+    await onSignup?.({ name: googleName, email: googleEmail, password: '' })
     navigate('/projects')
   }
 
