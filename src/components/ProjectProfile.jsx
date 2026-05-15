@@ -1,11 +1,27 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { IconX, IconUpload, IconToggleLeft, IconToggleRight, IconArchive } from '@tabler/icons-react'
 import { PRESET_ROLES } from '../utils/skillsList'
 import TagInput from './TagInput'
 
 const ACCENT = '#534AB7'
 
-const CATEGORIES = ['RPG', 'FPS', 'Puzzle', 'Platformer', 'Strategy', 'Simulation', 'Horror', 'Adventure', 'Sports', 'Other']
+const PRESET_CATEGORIES = [
+  'Action', 'Adventure', 'RPG', 'Strategy', 'Simulation', 'Puzzle',
+  'Platformer', 'Horror', 'Visual Novel', 'Fighting', 'Racing',
+  'Sports', 'Rhythm', 'Roguelike', 'Tower Defense', 'Idle',
+  'Card Game', 'Board Game', 'Educational', 'Narrative',
+  'Sandbox', 'Survival', 'Stealth', 'Shooter', 'MOBA',
+  'Metroidvania', 'Point & Click', 'Walking Simulator',
+  'Game Jam Entry', 'Game Dev Tool', 'Other',
+]
+
+const TIMELINE_TO_MONTHS = {
+  '< 1 month':   0.75,
+  '1-3 months':  2,
+  '3-6 months':  4,
+  '6-12 months': 9,
+  '1+ year':     14,
+}
 
 function Pill({ label, active, onClick }) {
   return (
@@ -78,6 +94,21 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
   const [closureMessage,  setClosureMessage]  = useState('')
   const [closureLink,     setClosureLink]     = useState('')
 
+  const [validationErrors,  setValidationErrors]  = useState({})
+  const [timelineAutoFilled, setTimelineAutoFilled] = useState(false)
+  const [categoryOpen,       setCategoryOpen]       = useState(false)
+  const categoryRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (categoryRef.current && !categoryRef.current.contains(e.target)) {
+        setCategoryOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   function set(key, val) { setForm(f => ({ ...f, [key]: val })) }
 
   function toggleArr(key, val) {
@@ -101,6 +132,48 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
     const r = form.customRole.trim()
     if (!r || form.roles.includes(r)) return
     setForm(f => ({ ...f, roles: [...f.roles, r], customRole: '' }))
+  }
+
+  function validateProject() {
+    const errors = {}
+    if (!form.title?.trim() || form.title.trim().length < 3)
+      errors.title = 'Project name is required (at least 3 characters)'
+    if (!form.overview?.trim() || form.overview.trim().length < 20)
+      errors.description = 'Please add a short overview (at least 20 characters)'
+    if (!form.commitment)
+      errors.commitment = 'Please select a commitment level'
+    if (!form.compensation || form.compensation.length === 0)
+      errors.compensation = 'Please select a compensation type'
+    if (!form.endDate)
+      errors.endDate = 'Please set a target end date'
+    return errors
+  }
+
+  function handleSave() {
+    const errors = validateProject()
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors)
+      const firstError = document.querySelector('.field-error')
+      if (firstError) firstError.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+    save()
+  }
+
+  function handleTimelineChange(selected) {
+    set('timeline', selected)
+    const months = TIMELINE_TO_MONTHS[selected]
+    if (months !== null && months !== undefined) {
+      const d = new Date()
+      d.setMonth(d.getMonth() + Math.floor(months))
+      d.setDate(d.getDate() + Math.round((months % 1) * 30))
+      const formatted = d.toISOString().split('T')[0]
+      setForm(f => ({ ...f, timeline: selected, endDate: formatted }))
+      setTimelineAutoFilled(true)
+      setValidationErrors(prev => ({ ...prev, endDate: null }))
+    } else {
+      setTimelineAutoFilled(false)
+    }
   }
 
   function save() {
@@ -217,6 +290,11 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {Object.keys(validationErrors).some(k => validationErrors[k]) && (
+            <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(239,68,68,0.1)', border: '1px solid #ef4444', fontSize: '12px', color: '#ef4444' }}>
+              ⚠ Please fill in all required fields before saving.
+            </div>
+          )}
           {/* Cover */}
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Cover Image</label>
@@ -238,9 +316,20 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleCover} />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Project Title</label>
-            <input className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors" style={inputStyle} value={form.title} onChange={e => set('title', e.target.value)} onFocus={fa} onBlur={fb} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+              Project Name <span style={{ color: '#ed2793' }}>*</span>
+            </label>
+            <input
+              className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
+              style={{ ...inputStyle, border: `1px solid ${validationErrors.title ? '#ef4444' : 'var(--border-default)'}` }}
+              value={form.title}
+              onChange={e => { set('title', e.target.value); setValidationErrors(prev => ({ ...prev, title: null })) }}
+              onFocus={fa} onBlur={fb}
+            />
+            {validationErrors.title && (
+              <span className="field-error" style={{ fontSize: '11px', color: '#ef4444' }}>{validationErrors.title}</span>
+            )}
           </div>
 
           <div>
@@ -250,9 +339,21 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Short Overview</label>
-            <input className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors" style={inputStyle} placeholder="One-line pitch for your project" value={form.overview} onChange={e => set('overview', e.target.value)} onFocus={fa} onBlur={fb} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+              Short Overview <span style={{ color: '#ed2793' }}>*</span>
+            </label>
+            <input
+              className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
+              style={{ ...inputStyle, border: `1px solid ${validationErrors.description ? '#ef4444' : 'var(--border-default)'}` }}
+              placeholder="One-line pitch for your project"
+              value={form.overview}
+              onChange={e => { set('overview', e.target.value); setValidationErrors(prev => ({ ...prev, description: null })) }}
+              onFocus={fa} onBlur={fb}
+            />
+            {validationErrors.description && (
+              <span className="field-error" style={{ fontSize: '11px', color: '#ef4444' }}>{validationErrors.description}</span>
+            )}
           </div>
 
           <div>
@@ -270,15 +371,42 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
 
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Category</label>
-            <select
-              className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
-              style={{ ...inputStyle, backgroundColor: 'var(--bg-elevated)' }}
-              value={form.category}
-              onChange={e => set('category', e.target.value)}
-              onFocus={fa} onBlur={fb}
-            >
-              {CATEGORIES.map(c => <option key={c}>{c}</option>)}
-            </select>
+            <div style={{ position: 'relative' }} ref={categoryRef}>
+              <input
+                value={form.category}
+                onChange={e => { set('category', e.target.value); setCategoryOpen(true) }}
+                onFocus={() => setCategoryOpen(true)}
+                placeholder="Select or type a category..."
+                className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
+                style={inputStyle}
+              />
+              {categoryOpen && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', borderRadius: '8px', marginTop: '4px', maxHeight: '200px', overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
+                  {PRESET_CATEGORIES
+                    .filter(c => c.toLowerCase().includes((form.category || '').toLowerCase()))
+                    .map(c => (
+                      <div
+                        key={c}
+                        onMouseDown={() => { set('category', c); setCategoryOpen(false) }}
+                        style={{ padding: '8px 12px', fontSize: '13px', cursor: 'pointer', color: 'var(--text-primary)' }}
+                        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        {c}
+                      </div>
+                    ))
+                  }
+                  {form.category && !PRESET_CATEGORIES.some(c => c.toLowerCase() === form.category.toLowerCase()) && (
+                    <div
+                      onMouseDown={() => setCategoryOpen(false)}
+                      style={{ padding: '8px 12px', fontSize: '12px', cursor: 'pointer', color: 'var(--brand-pink)', borderTop: '1px solid var(--border-subtle)' }}
+                    >
+                      + Use "{form.category}" as custom category
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div>
@@ -289,36 +417,61 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Timeline</label>
             <div className="flex flex-wrap gap-2">
-              {['< 1 month', '1-3 months', '3-6 months', '6-12 months', '1+ year'].map(t => <Pill key={t} label={t} active={form.timeline === t} onClick={() => set('timeline', t)} />)}
+              {['< 1 month', '1-3 months', '3-6 months', '6-12 months', '1+ year'].map(t => (
+                <Pill key={t} label={t} active={form.timeline === t} onClick={() => handleTimelineChange(t)} />
+              ))}
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Target End Date</label>
-            <p className="text-xs mb-1.5" style={{ color: 'var(--text-tertiary)' }}>Used to calculate project progress and detect scope creep.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+              Target End Date <span style={{ color: '#ed2793' }}>*</span>
+            </label>
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Used to calculate project progress and detect scope creep.</p>
             <input
               type="date"
               className="w-full text-sm rounded-lg px-3 py-2 outline-none transition-colors"
-              style={inputStyle}
+              style={{ ...inputStyle, border: `1px solid ${validationErrors.endDate ? '#ef4444' : 'var(--border-default)'}` }}
               value={form.endDate}
-              onChange={e => set('endDate', e.target.value)}
-              onFocus={fa}
-              onBlur={fb}
+              onChange={e => { set('endDate', e.target.value); setTimelineAutoFilled(false); setValidationErrors(prev => ({ ...prev, endDate: null })) }}
+              onFocus={fa} onBlur={fb}
             />
+            {form.endDate && timelineAutoFilled && (
+              <p style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                📅 Auto-calculated from timeline — adjust if needed
+              </p>
+            )}
+            {validationErrors.endDate && (
+              <span className="field-error" style={{ fontSize: '11px', color: '#ef4444' }}>{validationErrors.endDate}</span>
+            )}
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Commitment</label>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+              Commitment <span style={{ color: '#ed2793' }}>*</span>
+            </label>
             <div className="flex flex-wrap gap-2">
-              {['Casual', 'Part-time', 'Full-time'].map(c => <Pill key={c} label={c} active={form.commitment === c} onClick={() => set('commitment', c)} />)}
+              {['Casual', 'Part-time', 'Full-time'].map(c => (
+                <Pill key={c} label={c} active={form.commitment === c} onClick={() => { set('commitment', c); setValidationErrors(prev => ({ ...prev, commitment: null })) }} />
+              ))}
             </div>
+            {validationErrors.commitment && (
+              <span className="field-error" style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px', display: 'block' }}>{validationErrors.commitment}</span>
+            )}
           </div>
 
           <div>
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Compensation</label>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+              Compensation <span style={{ color: '#ed2793' }}>*</span>
+            </label>
             <div className="flex flex-wrap gap-2">
-              {['Paid', 'Rev Share', 'Volunteer', 'Grant'].map(c => <Pill key={c} label={c} active={form.compensation.includes(c)} onClick={() => toggleArr('compensation', c)} />)}
+              {['Paid', 'Rev Share', 'Volunteer', 'Grant'].map(c => (
+                <Pill key={c} label={c} active={form.compensation.includes(c)} onClick={() => { toggleArr('compensation', c); setValidationErrors(prev => ({ ...prev, compensation: null })) }} />
+              ))}
             </div>
+            {validationErrors.compensation && (
+              <span className="field-error" style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px', display: 'block' }}>{validationErrors.compensation}</span>
+            )}
           </div>
 
           <div>
@@ -363,7 +516,7 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
 
         <div className="px-6 py-4 flex gap-3 flex-shrink-0" style={{ borderTop: '1px solid var(--border-subtle)' }}>
           <button
-            onClick={save}
+            onClick={handleSave}
             className="flex-1 py-2.5 rounded-full text-sm font-medium text-white transition-opacity hover:opacity-80"
             style={{ backgroundColor: ACCENT }}
           >
