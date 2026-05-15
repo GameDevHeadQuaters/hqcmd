@@ -27,6 +27,7 @@ import Privacy from './pages/Privacy'
 import Contact from './pages/Contact'
 import GoogleAuthSuccess from './pages/GoogleAuthSuccess'
 import DebugPanel from './components/DebugPanel'
+import QuickStartTour from './components/QuickStartTour'
 import { debugLog } from './utils/debugLogger'
 
 const BETA_MODE = true
@@ -302,6 +303,7 @@ export default function App() {
       return saved ? JSON.parse(saved) : null
     } catch { return null }
   })
+  const [tourTick, setTourTick] = useState(0)
 
   // Agreements live outside userData React state — read/written directly from localStorage.
   function loadAgreementsFromLS(uid) {
@@ -1087,6 +1089,9 @@ export default function App() {
           ) : <Navigate to="/login" replace />
         } />
       </Routes>
+      {currentUser && !currentUser.isAdmin && localStorage.getItem('hqcmd_tour_' + currentUser.id) !== 'done' && (
+        <QuickStartTour key={tourTick} currentUser={currentUser} onComplete={() => setTourTick(t => t + 1)} />
+      )}
       </AppLayout>
     </BrowserRouter>
   )

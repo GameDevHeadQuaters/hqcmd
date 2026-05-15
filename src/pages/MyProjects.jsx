@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconPlus, IconUsers, IconFolderOff, IconInbox, IconAlertTriangle, IconFileText, IconShare } from '@tabler/icons-react'
 import ProjectProfile from '../components/ProjectProfile'
+import { PROJECT_TEMPLATES } from '../utils/projectTemplates'
 import ProfileDropdown from '../components/ProfileDropdown'
 import { calculateProgress, getProjectStatus } from '../utils/progress'
 import OnboardingChecklist from '../components/OnboardingChecklist'
@@ -197,6 +198,8 @@ function SharedProjectCard({ project, ref_, topBorder, onOpen }) {
 export default function MyProjects({ projects, setProjects, setActiveProjectId, setActiveOwnerUserId, applications, onboarding, onUpdateOnboarding, unreadInboxCount, currentUser, onSignOut, getProjectImage }) {
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false)
+  const [projectDefaults, setProjectDefaults] = useState({})
   const [profileDropOpen, setProfileDropOpen] = useState(false)
   const [showLimitModal, setShowLimitModal] = useState(false)
 
@@ -274,7 +277,7 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
         status:         'Planning',
         progress:       0,
         members:        [],
-        milestones:     [],
+        milestones:     data.milestones || [],
         category:       data.category     || 'Other',
         visibility:     data.visibility   || 'Private',
         compensation:   data.compensation || ['Rev Share'],
@@ -301,6 +304,24 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
         return
       }
     } catch {}
+    setShowTemplatePicker(true)
+  }
+
+  function selectTemplate(template) {
+    setShowTemplatePicker(false)
+    setProjectDefaults(template ? {
+      category: template.category,
+      timeline: template.timeline,
+      commitment: template.commitment,
+      compensation: template.compensation,
+      rolesNeeded: template.rolesNeeded,
+      milestones: template.milestones.map((m, i) => ({
+        id: String(Date.now() + i),
+        name: m.name,
+        date: null,
+        completed: false,
+      })),
+    } : {})
     setCreating(true)
   }
 
@@ -426,7 +447,42 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
           project={{}}
           onSave={handleSave}
           onClose={() => setCreating(false)}
+          defaults={projectDefaults}
         />
+      )}
+
+      {showTemplatePicker && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500 }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: '16px', border: '1px solid var(--border-default)', padding: '28px', width: '680px', maxWidth: '90vw', maxHeight: '80vh', overflow: 'auto' }}>
+            <h2 style={{ color: 'var(--text-primary)', fontSize: '18px', fontWeight: '600', marginBottom: '6px' }}>Start from a template</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '20px' }}>Choose a template to pre-fill milestones, roles, and timeline — or start blank.</p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+              {PROJECT_TEMPLATES.map(template => (
+                <div
+                  key={template.id}
+                  onClick={() => selectTemplate(template)}
+                  style={{ padding: '16px', borderRadius: '10px', border: '1px solid var(--border-default)', cursor: 'pointer', background: 'var(--bg-elevated)', transition: 'all 0.15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#534AB7'; e.currentTarget.style.background = 'var(--brand-accent-glow)' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.background = 'var(--bg-elevated)' }}
+                >
+                  <div style={{ fontSize: '28px', marginBottom: '8px' }}>{template.emoji}</div>
+                  <p style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 4px' }}>{template.name}</p>
+                  <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 8px', lineHeight: '1.4' }}>{template.description}</p>
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '99px', background: 'var(--bg-hover)', color: 'var(--text-tertiary)' }}>{template.timeline}</span>
+                    <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '99px', background: 'var(--bg-hover)', color: 'var(--text-tertiary)' }}>{template.commitment}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '16px' }}>
+              <button onClick={() => setShowTemplatePicker(false)} style={{ padding: '8px 16px', borderRadius: '9999px', border: '1px solid var(--border-default)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
+              <button onClick={() => selectTemplate(null)} style={{ padding: '8px 20px', borderRadius: '9999px', border: 'none', background: 'var(--brand-accent)', color: 'white', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>Start Blank</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showLimitModal && (

@@ -48,7 +48,7 @@ function compressImage(base64, maxWidth = 800, quality = 0.7) {
   })
 }
 
-export default function ProjectProfile({ project, onSave, onClose, currentUser }) {
+export default function ProjectProfile({ project, onSave, onClose, currentUser, defaults = {} }) {
   const fileRef = useRef(null)
 
   const [form, setForm] = useState({
@@ -57,13 +57,16 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser }
     overview:     project.description  || '',
     description:  project.description  || '',
     ndaRequired:  project.ndaRequired  || false,
-    category:     project.category     || 'RPG',
+    category:     defaults.category    || project.category    || 'RPG',
     location:     project.location     || 'Remote',
-    timeline:     project.timeline     || '3-6 months',
+    timeline:     defaults.timeline    || project.timeline    || '3-6 months',
     endDate:      project.endDate      || '',
-    commitment:   project.commitment   || 'Part-time',
-    compensation: project.compensation || ['Rev Share'],
-    roles:        project.rolesNeeded || project.roles || ['Programmer', 'Artist'],
+    commitment:   defaults.commitment  || project.commitment  || 'Part-time',
+    compensation: defaults.compensation
+      ? (Array.isArray(defaults.compensation) ? defaults.compensation : [defaults.compensation])
+      : (project.compensation || ['Rev Share']),
+    roles:        defaults.rolesNeeded || project.rolesNeeded || project.roles || ['Programmer', 'Artist'],
+    milestones:   defaults.milestones  || project.milestones  || [],
     customRole:   '',
     gameJam:      project.gameJam      || false,
     coverImage:   project.coverImage   || null,
@@ -111,6 +114,7 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser }
       gameJam:      form.gameJam,
       coverImage:   form.coverImage,
       permanent:    form.permanent,
+      milestones:   form.milestones,
     })
     onClose()
   }

@@ -12,10 +12,11 @@ const ACCENT = '#534AB7'
 const W_EXPANDED = 240
 const W_COLLAPSED = 56
 
-function NavItem({ icon: Icon, label, path, active, collapsed, badge, onClick }) {
+function NavItem({ icon: Icon, label, path, active, collapsed, badge, onClick, id }) {
   const navigate = useNavigate()
   return (
     <button
+      id={id}
       onClick={onClick ?? (() => navigate(path))}
       title={collapsed ? label : undefined}
       style={{
@@ -48,6 +49,7 @@ function NavItem({ icon: Icon, label, path, active, collapsed, badge, onClick })
             backgroundColor: '#ed2793', color: 'white',
             fontSize: '8px', fontWeight: 700,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 6px rgba(237,39,147,0.7)',
           }}>{badge > 9 ? '9+' : badge}</span>
         )}
       </span>
@@ -61,6 +63,7 @@ function NavItem({ icon: Icon, label, path, active, collapsed, badge, onClick })
               backgroundColor: '#ed2793', color: 'white',
               fontSize: '10px', fontWeight: 700,
               padding: '1px 6px', borderRadius: '999px',
+              boxShadow: '0 0 6px rgba(237,39,147,0.7)',
             }}>{badge}</span>
           )}
         </>
@@ -96,6 +99,7 @@ export default function Sidebar({
   const isDark = theme === 'dark'
   const [projectDropOpen, setProjectDropOpen] = useState(false)
   const [unsignedReceived, setUnsignedReceived] = useState(0)
+  const [adminBadgeCount, setAdminBadgeCount] = useState(0)
 
   useEffect(() => {
     function refresh() {
@@ -112,6 +116,24 @@ export default function Sidebar({
     const interval = setInterval(refresh, 5000)
     return () => clearInterval(interval)
   }, [currentUser?.id])
+
+  useEffect(() => {
+    if (!currentUser?.isAdmin) return
+    function refreshAdmin() {
+      try {
+        const betaRequests = JSON.parse(localStorage.getItem('hqcmd_beta_requests') || '[]')
+        const pendingBeta = betaRequests.filter(r => r.status === 'pending').length
+        const verificationRequests = JSON.parse(localStorage.getItem('hqcmd_verification_requests') || '[]')
+        const pendingVerification = verificationRequests.filter(r => r.status === 'pending').length
+        const contactMessages = JSON.parse(localStorage.getItem('hqcmd_contact_messages') || '[]')
+        const unreadContacts = contactMessages.filter(m => !m.read).length
+        setAdminBadgeCount(pendingBeta + pendingVerification + unreadContacts)
+      } catch {}
+    }
+    refreshAdmin()
+    const interval = setInterval(refreshAdmin, 10000)
+    return () => clearInterval(interval)
+  }, [currentUser?.isAdmin])
 
   const activeProject = projects.find(p => p.id === activeProjectId) ?? projects[0] ?? null
 
@@ -282,17 +304,17 @@ export default function Sidebar({
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: collapsed ? '4px 8px' : '4px 12px' }}>
 
         <SectionLabel label="Workspace" collapsed={collapsed} />
-        <NavItem icon={IconLayoutDashboard} label="My Projects"  path="/projects"     active={is('/projects')}     collapsed={collapsed} />
+        <NavItem icon={IconLayoutDashboard} label="My Projects"  path="/projects"     active={is('/projects')}     collapsed={collapsed} id="sidebar-my-projects" />
         <NavItem icon={IconDeviceDesktop}   label="Workstation"  path="/workstation"  active={is('/workstation')}  collapsed={collapsed} />
 
         <SectionLabel label="Collaborate" collapsed={collapsed} />
-        <NavItem icon={IconCompass}       label="Browse Projects" path="/browse"      active={is('/browse')}      collapsed={collapsed} />
+        <NavItem icon={IconCompass}       label="Browse Projects" path="/browse"      active={is('/browse')}      collapsed={collapsed} id="sidebar-browse" />
         <NavItem icon={IconAddressBook}   label="Directory"       path="/directory"   active={is('/directory')}   collapsed={collapsed} />
-        <NavItem icon={IconUsers}         label="My Teams"        path="/teams"       active={is('/teams')}       collapsed={collapsed} />
-        <NavItem icon={IconInbox}        label="Inbox"           path="/inbox"       active={is('/inbox')}       collapsed={collapsed} badge={unreadInboxCount} />
+        <NavItem icon={IconUsers}         label="My Teams"        path="/teams"       active={is('/teams')}       collapsed={collapsed} id="sidebar-teams" />
+        <NavItem icon={IconInbox}        label="Inbox"           path="/inbox"       active={is('/inbox')}       collapsed={collapsed} badge={unreadInboxCount} id="sidebar-inbox" />
 
         <SectionLabel label="Manage" collapsed={collapsed} />
-        <NavItem icon={IconWritingSign}     label="Agreements"   path="/agreements"  active={is('/agreements')}  collapsed={collapsed} badge={unsignedReceived} />
+        <NavItem icon={IconWritingSign}     label="Agreements"   path="/agreements"  active={is('/agreements')}  collapsed={collapsed} badge={unsignedReceived} id="sidebar-agreements" />
         <NavItem icon={IconCurrencyDollar}  label="Budget"       path={budgetPath}   active={pathname.startsWith('/budget')} collapsed={collapsed} />
 
       </div>
@@ -345,10 +367,10 @@ export default function Sidebar({
 
         <SectionLabel label="Account" collapsed={collapsed} />
 
-        <NavItem icon={IconUser}     label="View Profile"     path={`/profile/${currentUser?.id}`} active={is('/profile')}    collapsed={collapsed} />
+        <NavItem icon={IconUser}     label="View Profile"     path={`/profile/${currentUser?.id}`} active={is('/profile')}    collapsed={collapsed} id="sidebar-profile" />
         <NavItem icon={IconSettings} label="Account Settings" path="/account"                       active={is('/account')}    collapsed={collapsed} />
         {currentUser?.isAdmin && (
-          <NavItem icon={IconShield} label="Admin Panel" path="/admin" active={is('/admin')} collapsed={collapsed} />
+          <NavItem icon={IconShield} label="Admin Panel" path="/admin" active={is('/admin')} collapsed={collapsed} badge={adminBadgeCount} />
         )}
 
         {/* Profile strip */}
