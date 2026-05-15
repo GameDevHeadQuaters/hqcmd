@@ -149,7 +149,6 @@ export default function Sidebar({
 
   function handleSignOut() {
     onSignOut?.()
-    navigate('/')
   }
 
   function selectProject(p) {

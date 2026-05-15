@@ -715,17 +715,25 @@ export default function App() {
       setAuthLoading(false)
     })
     sub = onAuthStateChange(async (event, session) => {
-      console.log('[App] Auth state change:', event, session?.user?.id)
+      console.log('[App] Auth event:', event, 'user:', session?.user?.id)
+
+      if (event === 'SIGNED_OUT') {
+        setCurrentUser(null)
+        setUserData({})
+        localStorage.removeItem(STORAGE_KEYS.currentUser)
+        window.location.replace('/')
+        return
+      }
+
       if (session?.user) {
         const profile = await loadUserProfile(session.user)
         if (profile) {
           setCurrentUser(profile)
           setUserData(prev => prev[String(profile.id)] ? prev : { ...prev, [String(profile.id)]: emptyUserData() })
         }
-      } else if (event === 'SIGNED_OUT') {
-        setCurrentUser(null)
+      } else {
+        setAuthLoading(false)
       }
-      setAuthLoading(false)
     })
     return () => sub?.unsubscribe()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1025,11 +1033,25 @@ export default function App() {
   }
 
   async function handleSignOut() {
-    await supabaseSignOut().catch(() => {})
+    console.log('[Logout] Starting signout...')
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) console.error('[Logout] Supabase signout error:', error)
+      else console.log('[Logout] Supabase signout successful')
+    } catch (e) {
+      console.error('[Logout] Error:', e)
+    }
+
+    // Always clear local state regardless of Supabase result
     setCurrentUser(null)
+    setUserData({})
     setActiveProjectId(null)
     setActiveOwnerUserId(null)
     setCalendarEvents([])
+    localStorage.removeItem(STORAGE_KEYS.currentUser)
+
+    console.log('[Logout] Local state cleared, navigating to /')
+    window.location.replace('/')
   }
 
   // ── Derived data for current user ─────────────────────────────────────────

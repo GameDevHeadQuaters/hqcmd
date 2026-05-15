@@ -25,7 +25,6 @@ export default function ProfileDropdown({ onClose, currentUser, onSignOut, onGoT
   function signOut() {
     onSignOut?.()
     onClose()
-    navigate('/')
   }
 
   const profilePath = `/profile/${currentUser?.id ?? 1}`
