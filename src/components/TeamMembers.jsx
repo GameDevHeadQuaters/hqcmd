@@ -101,7 +101,9 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
   const [inviteOpen, setInviteOpen] = useState(false)
   const [removeTarget, setRemoveTarget] = useState(null)
   const [editingRoles, setEditingRoles] = useState({})
-  const [roleSaved, setRoleSaved] = useState(null)
+  const [savedRoles, setSavedRoles] = useState({})
+
+  const isProjectOwner = String(currentUser?.id) === String(ownerUserId || currentUser?.id)
 
   function loadMembers() {
     const USERDATA_KEY = 'hqcmd_userData_v4'
@@ -117,60 +119,63 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
       const project = ownerProjects.find(p => String(p.id) === effectiveProjectId)
 
       if (!project) {
-        console.log('[TeamMembers] Project not found:', effectiveProjectId, 'owner:', effectiveOwnerId)
+        console.log('[TeamMembers] Project not found:', effectiveProjectId)
         setMembers([])
         return
       }
 
-      const projectMembers = (project.members || []).map(m => {
-        const mUserId = String(m.userId || m.id)
-        const storedRole = m.role || 'Member'
-        // Fix incorrectly assigned Owner roles — only the actual project owner gets Owner
-        const fixedRole = mUserId === effectiveOwnerId
-          ? 'Owner'
-          : storedRole === 'Owner'
-            ? 'Member'
-            : storedRole
-        return {
+      const memberMap = new Map()
+
+      // Always add the owner first
+      const ownerUser = allUsers.find(u => String(u.id) === effectiveOwnerId)
+      if (ownerUser) {
+        memberMap.set(effectiveOwnerId, {
+          id: effectiveOwnerId,
+          userId: effectiveOwnerId,
+          name: ownerUser.name,
+          role: 'Owner',
+          initials: ownerUser.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+          isOwner: true,
+        })
+      }
+
+      // Add members from project.members array
+      ;(project.members || []).forEach(m => {
+        const uid = String(m.userId || m.id)
+        if (memberMap.has(uid)) return
+        const user = allUsers.find(u => String(u.id) === uid)
+        memberMap.set(uid, {
           ...m,
-          userId: mUserId,
-          role: fixedRole,
-          name: m.name || allUsers.find(u => String(u.id) === mUserId)?.name || 'Unknown',
-          initials: m.initials || (m.name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
-        }
+          userId: uid,
+          name: m.name || user?.name || 'Unknown',
+          role: m.role || 'Member',
+          initials: (m.name || user?.name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+        })
       })
 
-      const memberIds = new Set(projectMembers.map(m => String(m.userId)))
-
+      // Add members from sharedProjects references
       Object.keys(allData).forEach(uid => {
-        if (memberIds.has(uid)) return
+        if (memberMap.has(uid)) return
         const refs = allData[uid]?.sharedProjects || []
         const ref = refs.find(sp => String(sp.projectId) === effectiveProjectId)
         if (ref) {
           const user = allUsers.find(u => String(u.id) === uid)
           if (user) {
-            const sharedRole = normaliseRole(ref.role) || 'Member'
-            // Fix incorrectly assigned Owner roles in sharedProjects
-            const fixedSharedRole = uid === effectiveOwnerId
-              ? 'Owner'
-              : sharedRole === 'Owner'
-                ? 'Member'
-                : sharedRole
-            projectMembers.push({
+            memberMap.set(uid, {
               id: uid,
               userId: uid,
               name: user.name,
-              role: fixedSharedRole,
+              role: ref.role || 'Member',
               initials: user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
               joinedAt: ref.joinedAt,
             })
-            memberIds.add(uid)
           }
         }
       })
 
-      console.log('[TeamMembers] Loaded', projectMembers.length, 'members for project:', effectiveProjectId)
-      setMembers(projectMembers)
+      const membersList = Array.from(memberMap.values())
+      console.log('[TeamMembers] Loaded:', membersList.map(m => ({ name: m.name, role: m.role })))
+      setMembers(membersList)
     } catch (e) {
       console.warn('[TeamMembers] loadMembers failed:', e)
     }
@@ -192,17 +197,13 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
   }, [projectId, ownerUserId])
 
   function saveRole(member, newRole) {
-    // Optimistically update local state first so UI doesn't flash empty
+    // Optimistic update
     setMembers(prev => prev.map(m =>
-      String(m.userId) === String(member.userId)
-        ? { ...m, role: newRole }
-        : m
+      String(m.userId) === String(member.userId) ? { ...m, role: newRole } : m
     ))
-
-    // Clear editing state and show success
     setEditingRoles(prev => { const n = { ...prev }; delete n[member.userId]; return n })
-    setRoleSaved(member.userId)
-    setTimeout(() => setRoleSaved(null), 2000)
+    setSavedRoles(prev => ({ ...prev, [member.userId]: true }))
+    setTimeout(() => setSavedRoles(prev => { const n = { ...prev }; delete n[member.userId]; return n }), 2000)
 
     // Save to localStorage
     const USERDATA_KEY = 'hqcmd_userData_v4'
@@ -213,11 +214,11 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
       const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
 
       const projectIdx = allData[effectiveOwnerId]?.projects?.findIndex(p => String(p.id) === effectiveProjectId)
-      if (projectIdx !== undefined && projectIdx !== -1) {
+      if (projectIdx !== -1 && projectIdx !== undefined) {
         const memberIdx = allData[effectiveOwnerId].projects[projectIdx].members?.findIndex(
           m => String(m.userId || m.id) === String(member.userId)
         )
-        if (memberIdx !== undefined && memberIdx !== -1) {
+        if (memberIdx !== -1 && memberIdx !== undefined) {
           allData[effectiveOwnerId].projects[projectIdx].members[memberIdx].role = newRole
           allData[effectiveOwnerId].projects[projectIdx].members[memberIdx].position = newRole
         }
@@ -303,24 +304,25 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
             </p>
           ) : members.map(member => {
             const isSelf = String(member.userId) === String(currentUser?.id)
-            const canEdit = hasPermission(userRole, 'CHANGE_MEMBER_ROLES') && !isSelf
+            const isOwnerMember = member.isOwner || member.role === 'Owner'
+            const canEdit = isProjectOwner && !isSelf && !isOwnerMember
             const isEditing = editingRoles[member.userId] !== undefined
 
             return (
-              <div key={member.userId} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--brand-accent-glow)', border: '1px solid var(--brand-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '600', color: 'var(--brand-accent)', flexShrink: 0 }}>
+              <div key={member.userId} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: isOwnerMember ? 'var(--brand-pink-glow)' : 'var(--brand-accent-glow)', border: `1px solid ${isOwnerMember ? 'var(--brand-pink)' : 'var(--brand-accent)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '600', color: isOwnerMember ? 'var(--brand-pink)' : 'var(--brand-accent)', flexShrink: 0 }}>
                   {member.initials || member.name?.slice(0, 2).toUpperCase()}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <p style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', margin: '0 0 2px' }}>
                     {member.name}{isSelf ? ' (you)' : ''}
                   </p>
                   {canEdit ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <select
-                        value={editingRoles[member.userId] ?? (member.role || 'Member')}
+                        value={editingRoles[member.userId] ?? member.role}
                         onChange={e => setEditingRoles(prev => ({ ...prev, [member.userId]: e.target.value }))}
-                        style={{ fontSize: '11px', padding: '1px 4px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+                        style={{ fontSize: '11px', padding: '2px 4px', borderRadius: '4px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
                       >
                         <option value="Co-leader">Co-leader</option>
                         <option value="Member">Member</option>
@@ -330,22 +332,22 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
                       {isEditing && (
                         <button
                           onClick={() => saveRole(member, editingRoles[member.userId])}
-                          style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', border: 'none', background: 'var(--brand-accent)', color: 'white', cursor: 'pointer' }}
+                          style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', border: 'none', background: 'var(--brand-accent)', color: 'white', cursor: 'pointer' }}
                         >
                           Save
                         </button>
                       )}
-                      {roleSaved === member.userId && (
+                      {savedRoles[member.userId] && (
                         <span style={{ fontSize: '10px', color: '#22c55e' }}>✓ Saved</span>
                       )}
                     </div>
                   ) : (
-                    <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '99px', background: 'var(--brand-accent-glow)', color: 'var(--brand-accent)', border: '1px solid var(--brand-accent)' }}>
-                      {member.role || 'Member'}
+                    <span style={{ fontSize: '10px', padding: '1px 7px', borderRadius: '99px', background: isOwnerMember ? 'var(--brand-pink-glow)' : 'var(--brand-accent-glow)', color: isOwnerMember ? 'var(--brand-pink)' : 'var(--brand-accent)', border: `1px solid ${isOwnerMember ? 'var(--brand-pink)' : 'var(--brand-accent)'}` }}>
+                      {member.role}
                     </span>
                   )}
                 </div>
-                {canRemove(userRole, member.position ?? member.role ?? 'Member') && !isSelf && (
+                {canRemove(userRole, member.position ?? member.role ?? 'Member') && !isSelf && !isOwnerMember && (
                   <button
                     onClick={() => setRemoveTarget(member)}
                     className="p-1 rounded transition-all"
