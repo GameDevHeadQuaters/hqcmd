@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { IconPencil, IconTrash, IconPlus, IconDownload } from '@tabler/icons-react'
+import { IconPencil, IconTrash, IconPlus, IconDownload, IconBulb } from '@tabler/icons-react'
 import { hasPermission } from '../../utils/permissions'
-import { appendToProjectArray, updateProjectArrayItem } from '../../utils/projectData'
+import { appendToProjectArray } from '../../utils/projectData'
 
 const ACCENT = '#534AB7'
 
@@ -146,21 +146,38 @@ function RichTextEditor({ initialContent, onChange, placeholder, readOnly }) {
 
 // ── Suggestions ───────────────────────────────────────────────────────────
 
-function SuggestionsList({ suggestions, onDismiss }) {
+function SuggestionsList({ suggestions, canEdit, onApply, onDismiss }) {
   if (!suggestions || suggestions.length === 0) return null
   return (
-    <div style={{ marginBottom: '16px', background: 'rgba(83,74,183,0.06)', border: '1px solid rgba(83,74,183,0.2)', borderRadius: '8px', padding: '12px 14px' }}>
-      <p style={{ fontSize: '11px', fontWeight: 600, color: ACCENT, margin: '0 0 8px' }}>💡 Pending suggestions</p>
+    <div style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {suggestions.map(s => (
-        <div key={s.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' }}>
-          <div style={{ flex: 1 }}>
-            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginRight: '6px' }}>{s.fromName}</span>
-            <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{s.suggestion}</span>
+        <div key={s.id} style={{
+          background: 'rgba(245,158,11,0.08)',
+          border: '1px solid rgba(245,158,11,0.35)',
+          borderRadius: '10px',
+          padding: '12px 14px',
+          display: 'flex', alignItems: 'flex-start', gap: '10px',
+        }}>
+          <IconBulb size={15} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '1px' }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#f59e0b' }}>Suggestion</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>from {s.fromName}</span>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>{s.suggestion}</p>
           </div>
-          <button
-            onClick={() => onDismiss(s.id)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '0 2px', fontSize: '14px', lineHeight: 1, flexShrink: 0 }}
-          >✕</button>
+          {canEdit && (
+            <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+              <button
+                onClick={() => onApply(s)}
+                style={{ padding: '4px 10px', borderRadius: '99px', border: 'none', background: '#f59e0b', color: 'white', cursor: 'pointer', fontSize: '11px', fontWeight: 500 }}
+              >Apply</button>
+              <button
+                onClick={() => onDismiss(s.id)}
+                style={{ padding: '4px 10px', borderRadius: '99px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--text-tertiary)' }}
+              >Dismiss</button>
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -192,7 +209,7 @@ function SuggestChangeForm({ onSubmit, onCancel }) {
 
 // ── Text Section ──────────────────────────────────────────────────────────
 
-function TextSection({ section, gdd, canEdit, canSuggest, suggestions, onSave, onSuggest, onDismissSuggestion }) {
+function TextSection({ section, gdd, canEdit, canSuggest, suggestions, onSave, onSuggest, onDismissSuggestion, onApplySuggestion }) {
   const [editing, setEditing] = useState(false)
   const [localContent, setLocalContent] = useState('')
   const [showSuggestForm, setShowSuggestForm] = useState(false)
@@ -254,7 +271,14 @@ function TextSection({ section, gdd, canEdit, canSuggest, suggestions, onSave, o
         </div>
       </div>
 
-      {canEdit && <SuggestionsList suggestions={suggestions} onDismiss={onDismissSuggestion} />}
+      {canEdit && (
+        <SuggestionsList
+          suggestions={suggestions}
+          canEdit={canEdit}
+          onApply={onApplySuggestion}
+          onDismiss={onDismissSuggestion}
+        />
+      )}
 
       <RichTextEditor
         key={editing ? 'edit' : 'view'}
@@ -377,7 +401,7 @@ function MechanicCard({ mechanic, canEdit, onUpdate, onDelete }) {
 
 // ── Mechanics Section ─────────────────────────────────────────────────────
 
-function MechanicsSection({ gdd, canEdit, canSuggest, suggestions, onSaveMechanics, onSuggest, onDismissSuggestion }) {
+function MechanicsSection({ gdd, canEdit, canSuggest, suggestions, onSaveMechanics, onSuggest, onDismissSuggestion, onApplySuggestion }) {
   const mechanics = gdd?.sections?.mechanics || []
   const activeMechanics = mechanics.filter(m => m.status !== 'Cut')
 
@@ -433,7 +457,14 @@ function MechanicsSection({ gdd, canEdit, canSuggest, suggestions, onSaveMechani
         </div>
       </div>
 
-      {canEdit && <SuggestionsList suggestions={suggestions} onDismiss={onDismissSuggestion} />}
+      {canEdit && (
+        <SuggestionsList
+          suggestions={suggestions}
+          canEdit={canEdit}
+          onApply={onApplySuggestion}
+          onDismiss={onDismissSuggestion}
+        />
+      )}
 
       {activeMechanics.length === 0 && !showAddForm && (
         <div style={{ padding: '32px', textAlign: 'center', border: '1px dashed var(--border-default)', borderRadius: '10px' }}>
@@ -561,6 +592,7 @@ export default function GDD({ projectId, ownerUserId, currentUser, userRole, onA
   const [activeSection, setActiveSection] = useState('vision')
   const [gdd, setGdd] = useState(null)
   const [projectTitle, setProjectTitle] = useState('')
+  const [suggestions, setSuggestions] = useState([])
 
   const canEdit    = hasPermission(userRole, 'EDIT_PROJECT_PROFILE')
   const canSuggest = !canEdit && hasPermission(userRole, 'ADD_CONTENT')
@@ -574,10 +606,25 @@ export default function GDD({ projectId, ownerUserId, currentUser, userRole, onA
     } catch {}
   }
 
+  function loadSuggestions() {
+    try {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const proj = allData[String(ownerUserId)]?.projects?.find(p => String(p.id) === String(projectId))
+      setSuggestions(proj?.gddSuggestions || [])
+    } catch {}
+  }
+
   useEffect(() => {
     loadGDD()
     window.addEventListener('storage', loadGDD)
     return () => window.removeEventListener('storage', loadGDD)
+  }, [projectId, ownerUserId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    loadSuggestions()
+    const interval = setInterval(loadSuggestions, 5000)
+    window.addEventListener('storage', loadSuggestions)
+    return () => { clearInterval(interval); window.removeEventListener('storage', loadSuggestions) }
   }, [projectId, ownerUserId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function saveSection(sectionId, data) {
@@ -621,16 +668,63 @@ export default function GDD({ projectId, ownerUserId, currentUser, userRole, onA
     }
   }
 
-  function dismissSuggestion(suggestionId) {
-    updateProjectArrayItem(projectId, ownerUserId, 'gddSuggestions', suggestionId, { status: 'dismissed' })
-  }
-
-  function getPendingSuggestions(sectionId) {
+  function applySuggestion(suggestion) {
     try {
       const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-      const proj = allData[String(ownerUserId)]?.projects?.find(p => String(p.id) === String(projectId))
-      return (proj?.gddSuggestions || []).filter(s => s.sectionId === sectionId && s.status === 'pending')
-    } catch { return [] }
+      const ownerId = String(ownerUserId)
+      const idx = allData[ownerId]?.projects?.findIndex(p => String(p.id) === String(projectId))
+      if (idx === undefined || idx === -1) return
+
+      const suggs = allData[ownerId].projects[idx].gddSuggestions || []
+      const suggIdx = suggs.findIndex(s => s.id === suggestion.id)
+      if (suggIdx !== -1) suggs[suggIdx] = { ...suggs[suggIdx], status: 'applied' }
+      allData[ownerId].projects[idx].gddSuggestions = suggs
+
+      if (suggestion.sectionId !== 'mechanics') {
+        if (!allData[ownerId].projects[idx].gdd) allData[ownerId].projects[idx].gdd = { sections: {} }
+        if (!allData[ownerId].projects[idx].gdd.sections) allData[ownerId].projects[idx].gdd.sections = {}
+        const existing = allData[ownerId].projects[idx].gdd.sections[suggestion.sectionId]?.content || ''
+        allData[ownerId].projects[idx].gdd.sections[suggestion.sectionId] = {
+          ...allData[ownerId].projects[idx].gdd.sections[suggestion.sectionId],
+          content: existing + (existing ? '<br><br>' : '') + `<p><em>Suggestion from ${suggestion.fromName}: ${suggestion.suggestion}</em></p>`,
+          lastUpdated: new Date().toISOString(),
+        }
+        allData[ownerId].projects[idx].gdd.lastUpdated = new Date().toISOString()
+        allData[ownerId].projects[idx].gdd.lastUpdatedBy = currentUser?.name || 'Unknown'
+      }
+
+      localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allData))
+      window.dispatchEvent(new Event('storage'))
+
+      if (String(suggestion.fromUserId) !== String(currentUser?.id)) {
+        const sectionLabel = SECTIONS.find(s => s.id === suggestion.sectionId)?.label || suggestion.sectionId
+        onAddNotificationForUser?.(String(suggestion.fromUserId), {
+          id: String(Date.now()),
+          iconType: 'check',
+          type: 'gdd_suggestion_applied',
+          text: `✅ Your GDD suggestion for the ${sectionLabel} section was applied by ${currentUser?.name || 'the team lead'}.`,
+          time: 'Just now',
+          read: false,
+          timestamp: new Date().toISOString(),
+          link: `/workstation?projectId=${projectId}&ownerUserId=${ownerUserId}`,
+        })
+      }
+    } catch (e) { console.error('[GDD] applySuggestion failed:', e) }
+  }
+
+  function dismissSuggestion(suggestionId) {
+    try {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const ownerId = String(ownerUserId)
+      const idx = allData[ownerId]?.projects?.findIndex(p => String(p.id) === String(projectId))
+      if (idx === undefined || idx === -1) return
+      const suggs = allData[ownerId].projects[idx].gddSuggestions || []
+      const suggIdx = suggs.findIndex(s => s.id === suggestionId)
+      if (suggIdx !== -1) suggs[suggIdx] = { ...suggs[suggIdx], status: 'dismissed' }
+      allData[ownerId].projects[idx].gddSuggestions = suggs
+      localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allData))
+      window.dispatchEvent(new Event('storage'))
+    } catch (e) { console.error('[GDD] dismissSuggestion failed:', e) }
   }
 
   function sectionHasContent(id) {
@@ -646,10 +740,11 @@ export default function GDD({ projectId, ownerUserId, currentUser, userRole, onA
           gdd={gdd}
           canEdit={canEdit}
           canSuggest={canSuggest}
-          suggestions={canEdit ? getPendingSuggestions('mechanics') : []}
+          suggestions={canEdit ? suggestions.filter(s => s.sectionId === 'mechanics' && s.status === 'pending') : []}
           onSaveMechanics={mechanics => saveSection('mechanics', mechanics)}
           onSuggest={submitSuggestion}
           onDismissSuggestion={dismissSuggestion}
+          onApplySuggestion={applySuggestion}
         />
       )
     }
@@ -671,10 +766,11 @@ export default function GDD({ projectId, ownerUserId, currentUser, userRole, onA
         gdd={gdd}
         canEdit={canEdit}
         canSuggest={canSuggest}
-        suggestions={canEdit ? getPendingSuggestions(activeSection) : []}
+        suggestions={canEdit ? suggestions.filter(s => s.sectionId === activeSection && s.status === 'pending') : []}
         onSave={saveSection}
         onSuggest={submitSuggestion}
         onDismissSuggestion={dismissSuggestion}
+        onApplySuggestion={applySuggestion}
       />
     )
   }
