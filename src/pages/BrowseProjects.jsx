@@ -126,6 +126,12 @@ function ApplyModal({ project, currentUser, onClose, onAddApplication, onAddNoti
           </button>
         </div>
         <div className="px-6 py-5 space-y-4">
+          {project.ndaRequired && (
+            <div style={{ padding: '10px 12px', borderRadius: '8px', background: 'rgba(83,74,183,0.1)', border: '1px solid rgba(83,74,183,0.35)', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+              <span style={{ flexShrink: 0 }}>🔒</span>
+              <span>This project requires an <strong style={{ color: 'var(--text-primary)' }}>NDA</strong>. By applying you acknowledge you may be asked to sign a non-disclosure agreement before joining the team.</span>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Role</label>
             <select
@@ -296,6 +302,19 @@ function MessageModal({ project, currentUser, onClose, onAddDirectMessage, onAdd
   )
 }
 
+function ProjectBadges({ project, style = {} }) {
+  return (
+    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', ...style }}>
+      {project.gameJam && (
+        <span style={{ fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '99px', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white', display: 'flex', alignItems: 'center', gap: '3px', boxShadow: '0 0 8px rgba(237,39,147,0.4)' }}>🏁 Game Jam</span>
+      )}
+      {project.ndaRequired && (
+        <span style={{ fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '99px', background: 'rgba(83,74,183,0.15)', color: '#534AB7', border: '1px solid rgba(83,74,183,0.5)', display: 'flex', alignItems: 'center', gap: '3px' }}>🔒 NDA Required</span>
+      )}
+    </div>
+  )
+}
+
 function ProjectCard({ project, onApply, onMessage, borderColor, isOwnProject, alreadyApplied, alreadyMember }) {
   const compColor = project.compensation === 'Paid'
     ? { bg: 'rgba(34,197,94,0.12)', text: 'var(--status-success)' }
@@ -329,6 +348,8 @@ function ProjectCard({ project, onApply, onMessage, borderColor, isOwnProject, a
             </div>
           </div>
         </div>
+
+        <ProjectBadges project={project} style={{ marginBottom: '8px' }} />
 
         <p className="text-sm leading-relaxed mb-4 flex-1" style={{ color: 'var(--text-secondary)' }}>{project.description}</p>
 
@@ -418,14 +439,16 @@ export default function BrowseProjects({
     if (currentUser) onMarkBrowsed?.()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Pre-fill search from ?search= URL param (used by invite links)
+  // Pre-fill filters from URL params
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const s = params.get('search')
     if (s) setSearch(s)
+    if (params.get('gamejam') === 'true') setGameJamOnly(true)
   }, [location.search])
   const [category, setCategory] = useState('All')
   const [comp, setComp]         = useState('All')
+  const [gameJamOnly, setGameJamOnly] = useState(false)
   const [applyProject, setApplyProject] = useState(null)
   const [msgProject,   setMsgProject]   = useState(null)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
@@ -520,6 +543,7 @@ export default function BrowseProjects({
   const filtered = allProjects.filter(p => {
     if (category !== 'All' && p.category !== category) return false
     if (comp !== 'All' && p.compensation !== comp) return false
+    if (gameJamOnly && !p.gameJam) return false
     if (search) {
       const matchTitle    = p.title.toLowerCase().includes(searchLower)
       const matchDesc     = p.description.toLowerCase().includes(searchLower)
@@ -677,6 +701,18 @@ export default function BrowseProjects({
               </button>
             ))}
           </div>
+
+          <button
+            onClick={() => setGameJamOnly(v => !v)}
+            className="text-xs font-medium px-2.5 py-1 rounded-full border transition-all"
+            style={
+              gameJamOnly
+                ? { background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white', borderColor: 'transparent', boxShadow: '0 0 8px rgba(237,39,147,0.35)' }
+                : { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)', borderColor: 'var(--border-default)' }
+            }
+          >
+            🏁 Game Jam
+          </button>
         </div>
 
         {/* Results */}

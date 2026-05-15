@@ -30,6 +30,19 @@ const statusColors = {
   'Overtime':    { bg: 'rgba(237,39,147,0.12)', text: '#ed2793' },
 }
 
+function ProjectBadges({ project, style = {} }) {
+  return (
+    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', ...style }}>
+      {project.gameJam && (
+        <span style={{ fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '99px', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white', display: 'flex', alignItems: 'center', gap: '3px', boxShadow: '0 0 8px rgba(237,39,147,0.4)' }}>🏁 Game Jam</span>
+      )}
+      {project.ndaRequired && (
+        <span style={{ fontSize: '10px', fontWeight: '700', padding: '2px 8px', borderRadius: '99px', background: 'rgba(83,74,183,0.15)', color: '#534AB7', border: '1px solid rgba(83,74,183,0.5)', display: 'flex', alignItems: 'center', gap: '3px' }}>🔒 NDA Required</span>
+      )}
+    </div>
+  )
+}
+
 function ProjectCard({ project, onOpen, onManageTeam, topBorder }) {
   const progress = calculateProgress(project)
   const status = getProjectStatus(project)
@@ -64,6 +77,8 @@ function ProjectCard({ project, onOpen, onManageTeam, topBorder }) {
             {status}
           </span>
         </div>
+
+        <ProjectBadges project={project} style={{ marginBottom: '6px' }} />
 
         <p className="text-sm leading-relaxed mb-3 line-clamp-2" style={{ color: 'var(--text-secondary)' }}>{project.description}</p>
 

@@ -673,6 +673,8 @@ export default function TeamsPage({
                       <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>{project.title}</span>
                       <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: 'var(--brand-accent-glow)', color: ACCENT }}>{project.userRole}</span>
                       <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{members.length} member{members.length !== 1 ? 's' : ''}</span>
+                      {project.gameJam && <span style={{ fontSize: '10px', fontWeight: '700', padding: '1px 7px', borderRadius: '99px', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white', boxShadow: '0 0 6px rgba(237,39,147,0.35)' }}>🏁 Game Jam</span>}
+                      {project.ndaRequired && <span style={{ fontSize: '10px', fontWeight: '700', padding: '1px 7px', borderRadius: '99px', background: 'rgba(83,74,183,0.15)', color: '#534AB7', border: '1px solid rgba(83,74,183,0.5)' }}>🔒 NDA</span>}
                     </div>
                     {!project.isOwned && (
                       <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>Owner: {project.ownerName}</p>

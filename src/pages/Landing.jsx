@@ -110,6 +110,16 @@ function FeaturedProjectCard({ project, onCardClick }) {
             {compensation}
           </span>
         )}
+        {(project.gameJam || project.ndaRequired) && (
+          <div className="flex gap-1 flex-wrap mt-1.5">
+            {project.gameJam && (
+              <span style={{ fontSize: '9px', fontWeight: '700', padding: '2px 6px', borderRadius: '99px', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white' }}>🏁 Game Jam</span>
+            )}
+            {project.ndaRequired && (
+              <span style={{ fontSize: '9px', fontWeight: '700', padding: '2px 6px', borderRadius: '99px', background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.8)', border: '1px solid rgba(255,255,255,0.25)' }}>🔒 NDA</span>
+            )}
+          </div>
+        )}
       </div>
     </button>
   )
@@ -198,6 +208,15 @@ export default function Landing({ userData, currentUser, getProjectImage, betaMo
             <p className="text-xs mt-2.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
               {betaMode ? 'Applications reviewed within 2–3 business days' : 'No credit card required'}
             </p>
+            <button
+              onClick={() => navigate('/browse?gamejam=true')}
+              className="text-xs font-medium mt-3 transition-colors"
+              style={{ color: 'rgba(255,255,255,0.55)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.9)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.55)')}
+            >
+              🏁 Browse Game Jams →
+            </button>
           </div>
 
           {/* Featured projects strip */}
