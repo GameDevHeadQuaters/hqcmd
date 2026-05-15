@@ -41,7 +41,7 @@ const EMPTY_STUDIO = () => ({
 
 // ── Rich Text Editor ──────────────────────────────────────────────────────
 
-function RTE({ init, onChange, placeholder, readOnly, minH = '160px' }) {
+function RTE({ init, onChange, placeholder, readOnly, minH = '120px' }) {
   const ref = useRef(null)
   useEffect(() => { if (ref.current) ref.current.innerHTML = init || '' }, []) // eslint-disable-line
   const fire = () => { if (onChange) onChange(ref.current?.innerHTML || '') }
@@ -80,7 +80,7 @@ function RTE({ init, onChange, placeholder, readOnly, minH = '160px' }) {
       )}
       <div ref={ref} contentEditable={!readOnly} suppressContentEditableWarning onInput={fire}
         data-placeholder={placeholder}
-        style={{ padding: '14px 16px', minHeight: readOnly ? 'auto' : minH, outline: 'none', fontSize: '13px', lineHeight: '1.7', color: 'var(--text-primary)', background: readOnly ? 'transparent' : 'var(--bg-surface)' }} />
+        style={{ padding: '14px 16px', minHeight: minH, outline: 'none', fontSize: '13px', lineHeight: '1.7', color: 'var(--text-primary)', background: readOnly ? 'transparent' : 'var(--bg-surface)' }} />
     </div>
   )
 }
@@ -366,161 +366,185 @@ export default function StoryStudio({ projectId, ownerUserId, currentUser, userR
     const statusColor = { Active: '#22c55e', Deceased: '#ef4444', Unknown: '#f59e0b' }[charForm.status] || '#22c55e'
 
     return (
-      <div style={{ position: 'absolute', inset: 0, zIndex: 10, background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Modal header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)', flexShrink: 0 }}>
-          <button onClick={() => { setExpandedChar(null); setCharForm(null) }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>
-            <IconArrowLeft size={14} /> Characters
-          </button>
-          <div style={{ width: '1px', height: '16px', background: 'var(--border-subtle)' }} />
-          {canEdit ? (
-            <input value={charForm.name} onChange={e => setCharForm(f => ({ ...f, name: e.target.value }))} placeholder="Character name"
-              style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }} />
-          ) : (
-            <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', flex: 1 }}>{charForm.name || 'Unnamed Character'}</span>
-          )}
-          {canEdit && (
-            <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-              {!isNew && <button onClick={() => deleteChar(charForm.id)} style={{ padding: '4px 10px', borderRadius: '99px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', fontSize: '11px', color: '#ef4444' }}>Delete</button>}
-              <button onClick={saveChar} style={{ padding: '4px 12px', borderRadius: '99px', border: 'none', background: ACCENT, color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: 500 }}>Save</button>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500 }}>
+        <div style={{ background: 'var(--bg-surface)', borderRadius: '16px', border: '1px solid var(--border-default)', width: '600px', maxWidth: '90vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+          {/* Header — fixed */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--brand-accent-glow)', border: `1px solid ${ACCENT}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: '700', color: ACCENT, flexShrink: 0 }}>
+              {charForm.name?.slice(0, 2).toUpperCase() || '??'}
             </div>
-          )}
-        </div>
-        {/* Modal sub-tabs */}
-        <div style={{ display: 'flex', gap: '2px', padding: '6px 16px', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', flexShrink: 0 }}>
-          {CHAR_MODAL_TABS.map(t => (
-            <button key={t} onClick={() => setCharModalTab(t)}
-              style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: charModalTab === t ? '600' : '400', background: charModalTab === t ? `${ACCENT}22` : 'none', color: charModalTab === t ? ACCENT : 'var(--text-secondary)' }}>
-              {t}
+            {canEdit ? (
+              <input value={charForm.name} onChange={e => setCharForm(f => ({ ...f, name: e.target.value }))} placeholder="Character name"
+                style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)' }} />
+            ) : (
+              <span style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', flex: 1 }}>{charForm.name || 'Unnamed Character'}</span>
+            )}
+            <button onClick={() => { setExpandedChar(null); setCharForm(null) }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '4px', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-primary)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}>
+              <IconX size={16} />
             </button>
-          ))}
-        </div>
-        {/* Modal content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
-          {charModalTab === 'Overview' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-                {canEdit ? (
-                  <>
-                    <div>
-                      <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 4px' }}>Role</p>
-                      <select value={charForm.role} onChange={e => setCharForm(f => ({ ...f, role: e.target.value }))}
-                        style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none' }}>
-                        {CHAR_ROLES.map(r => <option key={r}>{r}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 4px' }}>Age</p>
-                      <input value={charForm.age} onChange={e => setCharForm(f => ({ ...f, age: e.target.value }))} placeholder="e.g. 27"
-                        style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }} />
-                    </div>
-                    <div>
-                      <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 4px' }}>Status</p>
-                      <select value={charForm.status} onChange={e => setCharForm(f => ({ ...f, status: e.target.value }))}
-                        style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: `1px solid ${statusColor}`, background: 'var(--bg-elevated)', color: statusColor, fontSize: '12px', outline: 'none' }}>
-                        <option>Active</option><option>Deceased</option><option>Unknown</option>
-                      </select>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div><p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 2px' }}>Role</p><p style={{ fontSize: '12px', color: 'var(--text-primary)', margin: 0 }}>{charForm.role}</p></div>
-                    <div><p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 2px' }}>Age</p><p style={{ fontSize: '12px', color: 'var(--text-primary)', margin: 0 }}>{charForm.age || '—'}</p></div>
-                    <div><p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 2px' }}>Status</p><span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '99px', border: `1px solid ${statusColor}`, color: statusColor }}>{charForm.status}</span></div>
-                  </>
-                )}
-              </div>
-              <div>
-                <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 6px' }}>Motivations — what do they want?</p>
-                {canEdit ? <textarea rows={2} value={charForm.motivations} onChange={e => setCharForm(f => ({ ...f, motivations: e.target.value }))} placeholder="What drives them…"
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
-                  : <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>{charForm.motivations || '—'}</p>}
-              </div>
-              <div>
-                <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 6px' }}>Fears — what do they fear?</p>
-                {canEdit ? <textarea rows={2} value={charForm.fears} onChange={e => setCharForm(f => ({ ...f, fears: e.target.value }))} placeholder="What holds them back…"
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
-                  : <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>{charForm.fears || '—'}</p>}
-              </div>
-              <div>
-                <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 6px' }}>Personality</p>
-                {canEdit ? <textarea rows={3} value={charForm.personality} onChange={e => setCharForm(f => ({ ...f, personality: e.target.value }))} placeholder="Personality traits, quirks, speech patterns…"
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
-                  : <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>{charForm.personality || '—'}</p>}
-              </div>
-            </div>
-          )}
-          {charModalTab === 'Appearance' && (
-            <div>
-              <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 8px' }}>Physical description, clothing, distinguishing features</p>
-              <RTE key={`char-appear-${charForm.id}`} init={charForm.appearance || ''}
-                onChange={canEdit ? v => setCharForm(f => ({ ...f, appearance: v })) : undefined}
-                placeholder="Describe how they look…" readOnly={!canEdit} />
-            </div>
-          )}
-          {charModalTab === 'Backstory' && (
-            <div>
-              <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 8px' }}>History, origin, key life events that shaped them</p>
-              <RTE key={`char-back-${charForm.id}`} init={charForm.backstory || ''}
-                onChange={canEdit ? v => setCharForm(f => ({ ...f, backstory: v })) : undefined}
-                placeholder="Their history and backstory…" readOnly={!canEdit} />
-            </div>
-          )}
-          {charModalTab === 'Relationships' && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: 0 }}>Relationships with other characters</p>
-                {canEdit && <button onClick={() => setCharForm(f => ({ ...f, relationships: [...(f.relationships || []), { id: uid(), characterName: '', type: '', description: '' }] }))}
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '99px', border: 'none', background: ACCENT, color: 'white', cursor: 'pointer', fontSize: '11px' }}>
-                  <IconPlus size={11} /> Add
-                </button>}
-              </div>
-              {(charForm.relationships || []).length === 0 && <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>No relationships defined yet.</p>}
-              {(charForm.relationships || []).map((rel, i) => (
-                <div key={rel.id} style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', marginBottom: '8px' }}>
+          </div>
+
+          {/* Tab bar — fixed */}
+          <div style={{ display: 'flex', gap: '2px', padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0, overflowX: 'auto' }}>
+            {CHAR_MODAL_TABS.map(t => (
+              <button key={t} onClick={() => setCharModalTab(t)}
+                style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: charModalTab === t ? '600' : '400', whiteSpace: 'nowrap', background: charModalTab === t ? `${ACCENT}22` : 'none', color: charModalTab === t ? ACCENT : 'var(--text-secondary)' }}>
+                {t}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content — scrollable, no height constraints */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+            {charModalTab === 'Overview' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
                   {canEdit ? (
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <input value={rel.characterName} onChange={e => setCharForm(f => ({ ...f, relationships: f.relationships.map((r, j) => j === i ? { ...r, characterName: e.target.value } : r) }))}
-                            placeholder="Character name" list={`chars-${charForm.id}`}
-                            style={{ flex: 1, padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none' }} />
-                          <input value={rel.type} onChange={e => setCharForm(f => ({ ...f, relationships: f.relationships.map((r, j) => j === i ? { ...r, type: e.target.value } : r) }))}
-                            placeholder="Type (e.g. Ally, Rival)" list="rel-types"
-                            style={{ flex: 1, padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none' }} />
-                        </div>
-                        <input value={rel.description} onChange={e => setCharForm(f => ({ ...f, relationships: f.relationships.map((r, j) => j === i ? { ...r, description: e.target.value } : r) }))}
-                          placeholder="Brief description of relationship…"
-                          style={{ width: '100%', padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }} />
+                    <>
+                      <div>
+                        <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 4px' }}>Role</p>
+                        <select value={charForm.role} onChange={e => setCharForm(f => ({ ...f, role: e.target.value }))}
+                          style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none' }}>
+                          {CHAR_ROLES.map(r => <option key={r}>{r}</option>)}
+                        </select>
                       </div>
-                      <button onClick={() => setCharForm(f => ({ ...f, relationships: f.relationships.filter((_, j) => j !== i) }))}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '4px', flexShrink: 0 }}
-                        onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-                        onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}>
-                        <IconX size={13} />
-                      </button>
-                    </div>
+                      <div>
+                        <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 4px' }}>Age</p>
+                        <input value={charForm.age} onChange={e => setCharForm(f => ({ ...f, age: e.target.value }))} placeholder="e.g. 27"
+                          style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 4px' }}>Status</p>
+                        <select value={charForm.status} onChange={e => setCharForm(f => ({ ...f, status: e.target.value }))}
+                          style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: `1px solid ${statusColor}`, background: 'var(--bg-elevated)', color: statusColor, fontSize: '12px', outline: 'none' }}>
+                          <option>Active</option><option>Deceased</option><option>Unknown</option>
+                        </select>
+                      </div>
+                    </>
                   ) : (
-                    <div>
-                      <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 2px' }}>{rel.characterName} <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>· {rel.type}</span></p>
-                      {rel.description && <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>{rel.description}</p>}
-                    </div>
+                    <>
+                      <div><p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 2px' }}>Role</p><p style={{ fontSize: '12px', color: 'var(--text-primary)', margin: 0 }}>{charForm.role}</p></div>
+                      <div><p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 2px' }}>Age</p><p style={{ fontSize: '12px', color: 'var(--text-primary)', margin: 0 }}>{charForm.age || '—'}</p></div>
+                      <div><p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 2px' }}>Status</p><span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '99px', border: `1px solid ${statusColor}`, color: statusColor }}>{charForm.status}</span></div>
+                    </>
                   )}
                 </div>
-              ))}
-              <datalist id={`chars-${charForm.id}`}>{(studio.characters || []).filter(c => c.id !== charForm.id).map(c => <option key={c.id} value={c.name} />)}</datalist>
-              <datalist id="rel-types"><option value="Ally" /><option value="Rival" /><option value="Enemy" /><option value="Friend" /><option value="Romantic" /><option value="Family" /><option value="Mentor" /><option value="Student" /></datalist>
-            </div>
-          )}
-          {charModalTab === 'Notes' && (
-            <div>
-              <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 8px' }}>Miscellaneous notes and ideas for this character</p>
-              <RTE key={`char-notes-${charForm.id}`} init={charForm.notes || ''}
-                onChange={canEdit ? v => setCharForm(f => ({ ...f, notes: v })) : undefined}
-                placeholder="Random ideas, plot threads, development notes…" readOnly={!canEdit} />
-            </div>
-          )}
+                <div>
+                  <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 6px' }}>Motivations — what do they want?</p>
+                  {canEdit ? <textarea rows={2} value={charForm.motivations} onChange={e => setCharForm(f => ({ ...f, motivations: e.target.value }))} placeholder="What drives them…"
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
+                    : <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>{charForm.motivations || '—'}</p>}
+                </div>
+                <div>
+                  <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 6px' }}>Fears — what do they fear?</p>
+                  {canEdit ? <textarea rows={2} value={charForm.fears} onChange={e => setCharForm(f => ({ ...f, fears: e.target.value }))} placeholder="What holds them back…"
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
+                    : <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>{charForm.fears || '—'}</p>}
+                </div>
+                <div>
+                  <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 6px' }}>Personality</p>
+                  {canEdit ? <textarea rows={3} value={charForm.personality} onChange={e => setCharForm(f => ({ ...f, personality: e.target.value }))} placeholder="Personality traits, quirks, speech patterns…"
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '12px', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
+                    : <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>{charForm.personality || '—'}</p>}
+                </div>
+              </div>
+            )}
+            {charModalTab === 'Appearance' && (
+              <div>
+                <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 8px' }}>Physical description, clothing, distinguishing features</p>
+                <RTE key={`char-appear-${charForm.id}`} init={charForm.appearance || ''}
+                  onChange={canEdit ? v => setCharForm(f => ({ ...f, appearance: v })) : undefined}
+                  placeholder="Describe how they look…" readOnly={!canEdit} />
+              </div>
+            )}
+            {charModalTab === 'Backstory' && (
+              <div>
+                <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 8px' }}>History, origin, key life events that shaped them</p>
+                <RTE key={`char-back-${charForm.id}`} init={charForm.backstory || ''}
+                  onChange={canEdit ? v => setCharForm(f => ({ ...f, backstory: v })) : undefined}
+                  placeholder="Their history and backstory…" readOnly={!canEdit} />
+              </div>
+            )}
+            {charModalTab === 'Relationships' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: 0 }}>Relationships with other characters</p>
+                  {canEdit && <button onClick={() => setCharForm(f => ({ ...f, relationships: [...(f.relationships || []), { id: uid(), characterName: '', type: '', description: '' }] }))}
+                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '99px', border: 'none', background: ACCENT, color: 'white', cursor: 'pointer', fontSize: '11px' }}>
+                    <IconPlus size={11} /> Add
+                  </button>}
+                </div>
+                {(charForm.relationships || []).length === 0 && <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>No relationships defined yet.</p>}
+                {(charForm.relationships || []).map((rel, i) => (
+                  <div key={rel.id} style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', marginBottom: '8px' }}>
+                    {canEdit ? (
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <input value={rel.characterName} onChange={e => setCharForm(f => ({ ...f, relationships: f.relationships.map((r, j) => j === i ? { ...r, characterName: e.target.value } : r) }))}
+                              placeholder="Character name" list={`chars-${charForm.id}`}
+                              style={{ flex: 1, padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none' }} />
+                            <input value={rel.type} onChange={e => setCharForm(f => ({ ...f, relationships: f.relationships.map((r, j) => j === i ? { ...r, type: e.target.value } : r) }))}
+                              placeholder="Type (e.g. Ally, Rival)" list="rel-types"
+                              style={{ flex: 1, padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none' }} />
+                          </div>
+                          <input value={rel.description} onChange={e => setCharForm(f => ({ ...f, relationships: f.relationships.map((r, j) => j === i ? { ...r, description: e.target.value } : r) }))}
+                            placeholder="Brief description of relationship…"
+                            style={{ width: '100%', padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }} />
+                        </div>
+                        <button onClick={() => setCharForm(f => ({ ...f, relationships: f.relationships.filter((_, j) => j !== i) }))}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '4px', flexShrink: 0 }}
+                          onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}>
+                          <IconX size={13} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 2px' }}>{rel.characterName} <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>· {rel.type}</span></p>
+                        {rel.description && <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>{rel.description}</p>}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <datalist id={`chars-${charForm.id}`}>{(studio.characters || []).filter(c => c.id !== charForm.id).map(c => <option key={c.id} value={c.name} />)}</datalist>
+                <datalist id="rel-types"><option value="Ally" /><option value="Rival" /><option value="Enemy" /><option value="Friend" /><option value="Romantic" /><option value="Family" /><option value="Mentor" /><option value="Student" /></datalist>
+              </div>
+            )}
+            {charModalTab === 'Notes' && (
+              <div>
+                <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '0 0 8px' }}>Miscellaneous notes and ideas for this character</p>
+                <RTE key={`char-notes-${charForm.id}`} init={charForm.notes || ''}
+                  onChange={canEdit ? v => setCharForm(f => ({ ...f, notes: v })) : undefined}
+                  placeholder="Random ideas, plot threads, development notes…" readOnly={!canEdit} />
+              </div>
+            )}
+          </div>
+
+          {/* Footer — fixed */}
+          <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border-subtle)', flexShrink: 0, display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+            {canEdit && !isNew && (
+              <button onClick={() => deleteChar(charForm.id)}
+                style={{ padding: '8px 16px', borderRadius: '99px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', fontSize: '12px', color: '#ef4444', marginRight: 'auto' }}>
+                Delete Character
+              </button>
+            )}
+            <button onClick={() => { setExpandedChar(null); setCharForm(null) }}
+              style={{ padding: '8px 16px', borderRadius: '99px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-secondary)' }}>
+              {canEdit ? 'Cancel' : 'Close'}
+            </button>
+            {canEdit && (
+              <button onClick={saveChar}
+                style={{ padding: '8px 16px', borderRadius: '99px', border: 'none', background: ACCENT, color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>
+                Save
+              </button>
+            )}
+          </div>
+
         </div>
       </div>
     )
@@ -529,7 +553,7 @@ export default function StoryStudio({ projectId, ownerUserId, currentUser, userR
   function renderCharacters() {
     const chars = studio.characters || []
     return (
-      <div style={{ position: 'relative' }}>
+      <div>
         {expandedChar && renderCharModal()}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
