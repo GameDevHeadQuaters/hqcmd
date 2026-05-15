@@ -231,7 +231,7 @@ export default function TeamsPage({
     }, 2000)
   }
 
-  function saveRole(projectId, ownerUserId, member, newRole) {
+  function saveAccessRole(projectId, ownerUserId, member, newAccessRole) {
     const USERDATA_KEY = 'hqcmd_userData_v4'
     const effectiveOwnerId = String(ownerUserId || currentUser?.id)
     try {
@@ -242,28 +242,30 @@ export default function TeamsPage({
           m => String(m.userId || m.id) === String(member.userId || member.id)
         )
         if (memberIdx !== undefined && memberIdx !== -1) {
-          allData[effectiveOwnerId].projects[projectIdx].members[memberIdx].role = newRole
-          allData[effectiveOwnerId].projects[projectIdx].members[memberIdx].position = newRole
+          allData[effectiveOwnerId].projects[projectIdx].members[memberIdx].accessRole = newAccessRole
+          allData[effectiveOwnerId].projects[projectIdx].members[memberIdx].role = newAccessRole
+          allData[effectiveOwnerId].projects[projectIdx].members[memberIdx].position = newAccessRole
         }
       }
       const memberId = String(member.userId || member.id)
       if (allData[memberId]?.sharedProjects) {
         const spIdx = allData[memberId].sharedProjects.findIndex(sp => String(sp.projectId) === String(projectId))
         if (spIdx !== -1) {
-          allData[memberId].sharedProjects[spIdx].role = newRole
-          allData[memberId].sharedProjects[spIdx].userRole = newRole
+          allData[memberId].sharedProjects[spIdx].accessRole = newAccessRole
+          allData[memberId].sharedProjects[spIdx].role = newAccessRole
+          allData[memberId].sharedProjects[spIdx].userRole = newAccessRole
         }
       }
       localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
       window.dispatchEvent(new Event('storage'))
-      console.log('[TeamsPage] saveRole:', member.name, '->', newRole)
+      console.log('[TeamsPage] saveAccessRole:', member.name, '->', newAccessRole)
     } catch (e) {
-      console.error('[TeamsPage] saveRole failed:', e)
+      console.error('[TeamsPage] saveAccessRole failed:', e)
     }
     const memberId = String(member.userId || member.id)
     setEditingRoles(prev => { const n = { ...prev }; delete n[memberId]; return n })
     const key = posKey(projectId, member.id)
-    setPositionFeedback(prev => ({ ...prev, [key]: `Role updated to ${newRole}` }))
+    setPositionFeedback(prev => ({ ...prev, [key]: `Access updated to ${newAccessRole}` }))
     setTimeout(() => setPositionFeedback(prev => { const n = { ...prev }; delete n[key]; return n }), 2000)
   }
 
@@ -299,12 +301,12 @@ export default function TeamsPage({
   }
 
   function getProjectMembers(project) {
-    // Build from project.members, cross-checking sharedProjects for the most current role
     const projectMembers = (project.members ?? []).map(m => {
       const uid = String(m.userId || m.id)
       const sharedRef = allUD[uid]?.sharedProjects?.find(sp => String(sp.projectId) === String(project.id))
-      const actualRole = sharedRef?.role || m.role || 'No Role'
-      return { ...m, userId: uid, role: actualRole, position: actualRole }
+      const jobRole = m.jobRole || sharedRef?.jobRole || ''
+      const accessRole = m.accessRole || sharedRef?.accessRole || 'No Role'
+      return { ...m, userId: uid, jobRole, accessRole, role: accessRole, position: accessRole }
     })
     const memberIds = new Set(projectMembers.map(m => String(m.userId)))
     const sharedMembers = []
@@ -317,10 +319,12 @@ export default function TeamsPage({
         if (user) {
           sharedMembers.push({
             id: userId,
-            userId: userId,
+            userId,
             name: user.name,
-            role: ref.role || 'No Role',
-            position: ref.role || 'No Role',
+            jobRole: ref.jobRole || '',
+            accessRole: ref.accessRole || 'No Role',
+            role: ref.accessRole || 'No Role',
+            position: ref.accessRole || 'No Role',
             initials: user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
             joinedAt: ref.joinedAt,
           })
@@ -476,15 +480,17 @@ export default function TeamsPage({
     const arrays = ['projects', 'applications', 'directMessages', 'notifications', 'agreements', 'contacts', 'sharedProjects']
     arrays.forEach(k => { if (!Array.isArray(allData[applicantId][k])) allData[applicantId][k] = [] })
 
-    const grantedRole = (application.role && application.role.trim() !== '') ? application.role : 'No Role'
+    const grantedJobRole = (application.role && application.role.trim() !== '') ? application.role.trim() : ''
     const ref = {
       id: String(Date.now()),
       projectId: String(project.id),
       ownerUserId: String(currentUser.id),
       ownerName: currentUser.name,
       projectTitle: project.title,
-      role: grantedRole,
-      userRole: grantedRole,
+      jobRole: grantedJobRole,
+      accessRole: 'No Role',
+      role: 'No Role',
+      userRole: 'No Role',
       joinedAt: new Date().toISOString(),
     }
     allData[applicantId].sharedProjects.push(ref)
@@ -502,8 +508,10 @@ export default function TeamsPage({
           id: applicantId,
           userId: applicantId,
           name: applicant.name,
-          role: grantedRole,
-          position: grantedRole,
+          jobRole: grantedJobRole,
+          accessRole: 'No Role',
+          role: 'No Role',
+          position: 'No Role',
           initials: applicant.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
           joinedAt: new Date().toISOString(),
         })
@@ -517,7 +525,7 @@ export default function TeamsPage({
       id: String(Date.now()) + '_access',
       type: 'access_granted',
       iconType: 'application',
-      text: `You have been granted access to "${project.title}" as ${ref.role}`,
+      text: `You have been granted access to "${project.title}"${grantedJobRole ? ` as ${grantedJobRole}` : ''}`,
       time: 'Just now',
       read: false,
       timestamp: new Date().toISOString(),
@@ -714,7 +722,7 @@ export default function TeamsPage({
                         <table className="w-full">
                           <thead>
                             <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                              {['Member', 'Role', 'Agreement', 'Joined', ...(isManager ? ['Actions'] : [])].map(h => (
+                              {['Member', 'Job Role', 'Project Access', 'Agreement', 'Joined', ...(isManager ? ['Actions'] : [])].map(h => (
                                 <th key={h} className="text-left text-xs font-medium px-5 py-2.5" style={{ color: 'var(--text-tertiary)' }}>{h}</th>
                               ))}
                             </tr>
@@ -743,58 +751,62 @@ export default function TeamsPage({
                                     </div>
                                   </td>
                                   <td className="px-5 py-3">
+                                    <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '99px', background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}>
+                                      {m.jobRole || 'Not specified'}
+                                    </span>
+                                  </td>
+                                  <td className="px-5 py-3">
                                     {(() => {
                                       const isProjectOwner = project.isOwned === true
                                       const myRoleOnProject = isProjectOwner ? 'Owner' : (project.userRole || 'Observer')
-                                      const memberRole = m.role ?? m.position ?? 'No Role'
-                                      const isNoRole = memberRole === 'No Role'
+                                      const accessRole = m.accessRole ?? 'No Role'
+                                      const isNoAccess = !accessRole || accessRole === 'No Role'
                                       const isSelf = String(m.userId || m.id) === String(currentUser?.id)
-                                      const canManage = !isSelf && (isProjectOwner || canManageMember(myRoleOnProject, memberRole))
+                                      const canManage = !isSelf && (isProjectOwner || canManageMember(myRoleOnProject, accessRole))
                                       const memberId = String(m.userId || m.id)
                                       const feedback = positionFeedback[posKey(project.id, m.id)]
                                       if (isSelf) {
-                                        return <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>{memberRole} (you)</span>
+                                        return <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>{accessRole} (you)</span>
                                       }
                                       if (canManage) {
                                         return (
-                                          <div className="flex items-center gap-2">
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                             <select
-                                              className="text-xs rounded-lg px-2 py-1 outline-none appearance-none cursor-pointer"
-                                              style={{ border: `1px solid ${isNoRole ? '#ed2793' : 'var(--border-default)'}`, backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
-                                              value={editingRoles[memberId] ?? (memberRole || 'No Role')}
+                                              style={{ fontSize: '11px', padding: '2px 6px', borderRadius: '4px', border: `1px solid ${isNoAccess ? '#ed2793' : 'var(--border-default)'}`, background: 'var(--bg-elevated)', color: 'var(--text-primary)', outline: isNoAccess ? '2px solid rgba(237,39,147,0.3)' : 'none' }}
+                                              value={editingRoles[memberId] ?? accessRole}
                                               onChange={e => setEditingRoles(prev => ({ ...prev, [memberId]: e.target.value }))}
-                                              onFocus={fi} onBlur={fb}
                                             >
-                                              <option value="No Role" disabled>Select a role...</option>
+                                              <option value="No Role" disabled style={{ color: '#ed2793' }}>⚠ Set Access Level...</option>
                                               {isProjectOwner && <option value="Co-leader">Co-leader</option>}
                                               <option value="Member">Member</option>
                                               <option value="Contributor">Contributor</option>
                                               <option value="Observer">Observer</option>
                                             </select>
                                             {feedback ? (
-                                              <span className="text-xs" style={{ color: 'var(--status-success)' }}>{feedback}</span>
-                                            ) : (editingRoles[memberId] && editingRoles[memberId] !== memberRole) ? (
+                                              <span style={{ fontSize: '10px', color: 'var(--status-success)' }}>{feedback}</span>
+                                            ) : (editingRoles[memberId] && editingRoles[memberId] !== accessRole) ? (
                                               <button
-                                                onClick={() => saveRole(project.id, project._ownerUserId, m, editingRoles[memberId])}
-                                                className="text-xs font-medium px-2.5 py-1 rounded-full text-white transition-opacity hover:opacity-80"
-                                                style={{ backgroundColor: isNoRole ? '#ed2793' : ACCENT }}
+                                                onClick={() => saveAccessRole(project.id, project._ownerUserId, m, editingRoles[memberId])}
+                                                style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', border: 'none', background: 'var(--brand-accent)', color: 'white', cursor: 'pointer' }}
                                               >
-                                                Save Role
+                                                Save
                                               </button>
+                                            ) : (isNoAccess && !editingRoles[memberId]) ? (
+                                              <span style={{ fontSize: '10px', color: '#ed2793', animation: 'pulse 2s infinite' }}>⚠ Required</span>
                                             ) : null}
                                           </div>
                                         )
                                       }
-                                      if (isNoRole) {
+                                      if (isNoAccess) {
                                         return (
                                           <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '99px', background: 'rgba(237,39,147,0.15)', color: '#ed2793', border: '1px solid #ed2793', fontWeight: '600', animation: 'pulse 2s infinite' }}>
-                                            Set Role ↓
+                                            ⚠ No Access Set
                                           </span>
                                         )
                                       }
                                       return (
                                         <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '99px', background: 'var(--brand-accent-glow)', color: 'var(--brand-accent)', border: '1px solid var(--brand-accent)' }}>
-                                          {memberRole}
+                                          {accessRole}
                                         </span>
                                       )
                                     })()}

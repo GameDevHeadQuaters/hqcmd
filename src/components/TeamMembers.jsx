@@ -145,11 +145,16 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
         const uid = String(m.userId || m.id)
         if (memberMap.has(uid)) return
         const user = allUsers.find(u => String(u.id) === uid)
+        const sharedRef = allData[uid]?.sharedProjects?.find(sp => String(sp.projectId) === effectiveProjectId)
+        const jobRole = m.jobRole || sharedRef?.jobRole || ''
+        const accessRole = m.accessRole || sharedRef?.accessRole || 'No Role'
         memberMap.set(uid, {
           ...m,
           userId: uid,
           name: m.name || user?.name || 'Unknown',
-          role: m.role || 'Member',
+          jobRole,
+          accessRole,
+          role: accessRole,
           initials: (m.name || user?.name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
         })
       })
@@ -166,7 +171,9 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
               id: uid,
               userId: uid,
               name: user.name,
-              role: ref.role || 'Member',
+              jobRole: ref.jobRole || '',
+              accessRole: ref.accessRole || 'No Role',
+              role: ref.accessRole || 'No Role',
               initials: user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
               joinedAt: ref.joinedAt,
             })
@@ -200,13 +207,12 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
   function saveRole(member, newRole) {
     // Optimistic update
     setMembers(prev => prev.map(m =>
-      String(m.userId) === String(member.userId) ? { ...m, role: newRole } : m
+      String(m.userId) === String(member.userId) ? { ...m, accessRole: newRole, role: newRole } : m
     ))
     setEditingRoles(prev => { const n = { ...prev }; delete n[member.userId]; return n })
     setSavedRoles(prev => ({ ...prev, [member.userId]: true }))
     setTimeout(() => setSavedRoles(prev => { const n = { ...prev }; delete n[member.userId]; return n }), 2000)
 
-    // Save to localStorage
     const USERDATA_KEY = 'hqcmd_userData_v4'
     const effectiveOwnerId = String(ownerUserId || currentUser?.id)
     const effectiveProjectId = String(projectId)
@@ -220,6 +226,7 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
           m => String(m.userId || m.id) === String(member.userId)
         )
         if (memberIdx !== -1 && memberIdx !== undefined) {
+          allData[effectiveOwnerId].projects[projectIdx].members[memberIdx].accessRole = newRole
           allData[effectiveOwnerId].projects[projectIdx].members[memberIdx].role = newRole
           allData[effectiveOwnerId].projects[projectIdx].members[memberIdx].position = newRole
         }
@@ -229,6 +236,7 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
       if (allData[memberId]?.sharedProjects) {
         const spIdx = allData[memberId].sharedProjects.findIndex(sp => String(sp.projectId) === effectiveProjectId)
         if (spIdx !== -1) {
+          allData[memberId].sharedProjects[spIdx].accessRole = newRole
           allData[memberId].sharedProjects[spIdx].role = newRole
           allData[memberId].sharedProjects[spIdx].userRole = newRole
         }
@@ -236,7 +244,7 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
 
       localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
       window.dispatchEvent(new Event('storage'))
-      console.log('[TeamMembers] Role saved:', member.name, '->', newRole)
+      console.log('[TeamMembers] saveRole:', member.name, '->', newRole)
     } catch (e) {
       console.error('[TeamMembers] saveRole failed:', e)
     }
@@ -305,8 +313,9 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
             </p>
           ) : members.map(member => {
             const isSelf = String(member.userId) === String(currentUser?.id)
-            const isOwnerMember = member.isOwner || member.role === 'Owner'
-            const isNoRole = member.role === 'No Role' || (!member.role && !isOwnerMember)
+            const isOwnerMember = member.isOwner || member.accessRole === 'Owner' || member.role === 'Owner'
+            const accessRole = member.accessRole || member.role || 'No Role'
+            const isNoAccess = !isOwnerMember && (accessRole === 'No Role' || !accessRole)
             const canEdit = isProjectOwner && !isSelf && !isOwnerMember
             const isEditing = editingRoles[member.userId] !== undefined
 
@@ -316,17 +325,20 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
                   {member.initials || member.name?.slice(0, 2).toUpperCase()}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', margin: '0 0 2px' }}>
+                  <p style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-primary)', margin: '0 0 1px' }}>
                     {member.name}{isSelf ? ' (you)' : ''}
                   </p>
-                  {(canEdit || isNoRole) && isProjectOwner ? (
+                  {member.jobRole && !isOwnerMember && (
+                    <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', margin: '0 0 2px' }}>{member.jobRole}</p>
+                  )}
+                  {(canEdit || isNoAccess) && isProjectOwner ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <select
-                        value={editingRoles[member.userId] ?? (isNoRole ? '' : member.role)}
+                        value={editingRoles[member.userId] ?? (isNoAccess ? '' : accessRole)}
                         onChange={e => setEditingRoles(prev => ({ ...prev, [member.userId]: e.target.value }))}
-                        style={{ fontSize: '11px', padding: '2px 4px', borderRadius: '4px', border: `1px solid ${isNoRole ? '#ed2793' : 'var(--border-default)'}`, background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+                        style={{ fontSize: '11px', padding: '2px 4px', borderRadius: '4px', border: `1px solid ${isNoAccess ? '#ed2793' : 'var(--border-default)'}`, background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
                       >
-                        {isNoRole && <option value="" disabled>Select a role...</option>}
+                        {isNoAccess && <option value="" disabled>Set access level...</option>}
                         <option value="Co-leader">Co-leader</option>
                         <option value="Member">Member</option>
                         <option value="Contributor">Contributor</option>
@@ -335,7 +347,7 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
                       {(isEditing && editingRoles[member.userId]) && (
                         <button
                           onClick={() => saveRole(member, editingRoles[member.userId])}
-                          style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', border: 'none', background: isNoRole ? '#ed2793' : 'var(--brand-accent)', color: 'white', cursor: 'pointer' }}
+                          style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', border: 'none', background: isNoAccess ? '#ed2793' : 'var(--brand-accent)', color: 'white', cursor: 'pointer' }}
                         >
                           Save
                         </button>
@@ -344,17 +356,17 @@ export default function TeamMembers({ projectId, ownerUserId, currentUser, agree
                         <span style={{ fontSize: '10px', color: '#22c55e' }}>✓ Saved</span>
                       )}
                     </div>
-                  ) : isNoRole ? (
+                  ) : isNoAccess ? (
                     <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '99px', background: 'rgba(237,39,147,0.15)', color: '#ed2793', border: '1px solid #ed2793', fontWeight: '600', animation: 'pulse 2s infinite' }}>
-                      Set Role ↓
+                      ⚠ No Access Set
                     </span>
                   ) : (
                     <span style={{ fontSize: '10px', padding: '1px 7px', borderRadius: '99px', background: isOwnerMember ? 'var(--brand-pink-glow)' : 'var(--brand-accent-glow)', color: isOwnerMember ? 'var(--brand-pink)' : 'var(--brand-accent)', border: `1px solid ${isOwnerMember ? 'var(--brand-pink)' : 'var(--brand-accent)'}` }}>
-                      {member.role}
+                      {accessRole}
                     </span>
                   )}
                 </div>
-                {canRemove(userRole, member.position ?? member.role ?? 'Member') && !isSelf && !isOwnerMember && (
+                {canRemove(userRole, member.position ?? member.accessRole ?? member.role ?? 'Member') && !isSelf && !isOwnerMember && (
                   <button
                     onClick={() => setRemoveTarget(member)}
                     className="p-1 rounded transition-all"
