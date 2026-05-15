@@ -1,4 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
+import { supabase } from './lib/supabase'
+
+// Temporary connection test — remove after confirming connection
+supabase.from('_test').select('*').then(({ error }) => {
+  if (error?.code === '42P01') {
+    console.log('[Supabase] Connected successfully — table does not exist yet but connection works')
+  } else if (error) {
+    console.error('[Supabase] Connection error:', error)
+  } else {
+    console.log('[Supabase] Connected and responding')
+  }
+})
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import TopNav from './components/TopNav'
 import Sidebar from './components/Sidebar'
