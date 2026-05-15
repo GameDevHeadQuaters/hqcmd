@@ -52,38 +52,15 @@ function checkProfileComplete(user) {
   )
 }
 
-function ApplyModal({ project, currentUser, onClose, onAddApplication, onAddNotification }) {
+function ApplyModal({ project, currentUser, onClose, onSubmitApplication }) {
   const [role, setRole] = useState(project.roles[0] || '')
   const [name, setName] = useState(currentUser?.name ?? '')
   const [message, setMessage] = useState('')
   const [sent, setSent] = useState(false)
 
   function submit() {
-    const applicantName = currentUser?.name ?? (name.trim() || 'Anonymous')
-    debugLog('Application', 'Submit application', { projectId: project.originalId ?? project.id, role, applicantName }, 'info')
-    onAddApplication({
-      id: Date.now(),
-      projectId: project.originalId ?? project.id,
-      projectTitle: project.title,
-      applicantName,
-      applicantId: currentUser?.id ?? null,
-      applicantEmail: currentUser?.email ?? null,
-      applicantUserId: currentUser?.id ?? null,
-      role,
-      message: message.trim(),
-      status: 'pending',
-      reply: '',
-      timestamp: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      read: false,
-    })
-    onAddNotification({
-      type: 'application',
-      text: `New application from ${applicantName} for ${role} on ${project.title}`,
-      link: '/teams',
-    })
-    debugLog('Application', 'Application submitted', { projectTitle: project.title, ownerEmail: project.ownerEmail }, 'success')
-    setSent(true)
+    const result = onSubmitApplication(role, message.trim())
+    if (result) setSent(true)
   }
 
   if (sent) {
@@ -473,6 +450,66 @@ export default function BrowseProjects({
     cb()
   }
 
+  function submitApplication(project, role, message) {
+    const USERDATA_KEY = 'hqcmd_userData_v4'
+    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+    const ownerUserId = String(project._ownerUserId)
+    const projectId = String(project.originalId ?? project.id)
+
+    if (!allData[ownerUserId]) allData[ownerUserId] = {}
+    if (!allData[ownerUserId].projects) allData[ownerUserId].projects = []
+
+    const projectIdx = allData[ownerUserId].projects.findIndex(p => String(p.id) === projectId)
+    if (projectIdx === -1) return false
+
+    if (!allData[ownerUserId].projects[projectIdx].applications) {
+      allData[ownerUserId].projects[projectIdx].applications = []
+    }
+
+    const applicantName = currentUser?.name ?? 'Anonymous'
+    const application = {
+      id: Date.now(),
+      projectId: project.originalId ?? project.id,
+      projectTitle: project.title,
+      applicantName,
+      applicantId: currentUser?.id ?? null,
+      applicantEmail: currentUser?.email ?? null,
+      applicantUserId: currentUser?.id ?? null,
+      role,
+      message,
+      status: 'pending',
+      reply: '',
+      timestamp: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      read: false,
+    }
+
+    allData[ownerUserId].projects[projectIdx].applications.push(application)
+
+    if (!allData[ownerUserId].notifications) allData[ownerUserId].notifications = []
+    allData[ownerUserId].notifications.push({
+      id: Date.now() + 1,
+      iconType: 'application',
+      text: `New application from ${applicantName} for ${role} on ${project.title}`,
+      time: new Date().toISOString(),
+      read: false,
+      link: '/teams',
+    })
+
+    localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+
+    if (currentUser?.id) {
+      const applicantId = String(currentUser.id)
+      if (!allData[applicantId]) allData[applicantId] = {}
+      if (!allData[applicantId].applications) allData[applicantId].applications = []
+      allData[applicantId].applications.push({ ...application, ownerUserId })
+      localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+    }
+
+    debugLog('Application', 'Application saved to owner project', { ownerUserId, projectId, role, applicantName }, 'success')
+    return true
+  }
+
   function handleApply(project) {
     requireAuth(() => {
       if (!checkProfileComplete(currentUser)) {
@@ -529,6 +566,7 @@ export default function BrowseProjects({
         allProjects.push({
           ...p,
           ownerId: userId,
+          _ownerUserId: userId,
           originalId: p.id,
           owner: ownerName,
           roles: p.rolesNeeded || p.roles || [],
@@ -784,13 +822,15 @@ export default function BrowseProjects({
           project={applyProject}
           currentUser={currentUser}
           onClose={() => setApplyProject(null)}
-          onAddApplication={(app) => {
-            onAddApplicationToOwner(applyProject.ownerId, app)
-            if (currentUser) onAddContactToOwner?.(applyProject.ownerId, currentUser, 'applied', applyProject.title)
-            setAppliedProjectIds(prev => new Set([...prev, String(applyProject.originalId ?? applyProject.id)]))
-            window.dispatchEvent(new CustomEvent('hqcmd_application_sent'))
+          onSubmitApplication={(role, message) => {
+            const result = submitApplication(applyProject, role, message)
+            if (result) {
+              setAppliedProjectIds(prev => new Set([...prev, String(applyProject.originalId ?? applyProject.id)]))
+              if (currentUser) onAddContactToOwner?.(applyProject.ownerId, currentUser, 'applied', applyProject.title)
+              window.dispatchEvent(new CustomEvent('hqcmd_application_sent'))
+            }
+            return result
           }}
-          onAddNotification={(n) => onAddNotificationToOwner(applyProject.ownerId, n)}
         />
       )}
       {msgProject && (
