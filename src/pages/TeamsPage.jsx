@@ -384,89 +384,97 @@ export default function TeamsPage({
   }
 
   function handleGrantAccess(application, project) {
+    console.log('[GrantAccess] Starting...')
+    console.log('[GrantAccess] Application:', JSON.stringify(application))
+    console.log('[GrantAccess] Project:', project?.id, project?.title)
+
     const USERDATA_KEY = 'hqcmd_userData_v4'
     const USERS_KEY = 'hqcmd_users_v3'
-
-    debugLog('Access', 'Grant access started', { applicantName: application.applicantName, applicantEmail: application.applicantEmail, projectId: project.id }, 'info')
-
     const allUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
-    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+
+    console.log('[GrantAccess] All users:', allUsers.map(u => ({ id: u.id, email: u.email, name: u.name })))
+    console.log('[GrantAccess] Looking for:', application.applicantEmail, '/', application.applicantName)
 
     const applicant = allUsers.find(u =>
-      (application.applicantEmail && u.email?.toLowerCase().trim() === application.applicantEmail.toLowerCase().trim()) ||
-      (application.counterpartyEmail && u.email?.toLowerCase().trim() === application.counterpartyEmail.toLowerCase().trim()) ||
-      (application.applicantName && u.name?.toLowerCase().trim() === application.applicantName.toLowerCase().trim())
+      (application.applicantEmail && u.email?.toLowerCase().trim() === application.applicantEmail?.toLowerCase().trim()) ||
+      (application.applicantName && u.name?.toLowerCase().trim() === application.applicantName?.toLowerCase().trim())
     )
 
-    debugLog('Access', applicant ? 'Applicant found' : 'Applicant NOT found', { applicant: applicant ? { id: applicant.id, name: applicant.name } : null }, applicant ? 'success' : 'error')
+    console.log('[GrantAccess] Applicant found:', applicant?.id, applicant?.name)
 
     if (!applicant) {
-      setGrantError(prev => ({ ...prev, [application.id]: 'User account not found. Make sure they have registered.' }))
+      alert(`Could not find user account for "${application.applicantName}" (${application.applicantEmail}). Make sure they have registered on HQCMD.`)
       return
     }
 
     const applicantId = String(applicant.id)
+    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
 
-    const alreadyHasAccess = (allData[applicantId]?.sharedProjects || []).some(sp =>
-      String(sp.projectId) === String(project.id)
-    )
-    if (alreadyHasAccess) {
+    const existing = (allData[applicantId]?.sharedProjects || []).find(sp => String(sp.projectId) === String(project.id))
+    if (existing) {
+      alert(`${applicant.name} already has access to this project.`)
       setGrantedIds(prev => [...prev, application.id])
       updateApp({ ...application, status: 'access_granted', read: true })
       setPipelineTab(project.id, 'active')
       return
     }
 
-    if (!allData[applicantId]) allData[applicantId] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
-    if (!Array.isArray(allData[applicantId].sharedProjects)) allData[applicantId].sharedProjects = []
-    if (!Array.isArray(allData[applicantId].notifications)) allData[applicantId].notifications = []
+    if (!allData[applicantId]) allData[applicantId] = {}
+    const arrays = ['projects', 'applications', 'directMessages', 'notifications', 'agreements', 'contacts', 'sharedProjects']
+    arrays.forEach(k => { if (!Array.isArray(allData[applicantId][k])) allData[applicantId][k] = [] })
 
-    debugLog('Access', 'sharedProject write', { applicantId, projectId: project.id, role: normaliseRole(application.role) }, 'info')
-    allData[applicantId].sharedProjects.push({
+    const ref = {
       id: String(Date.now()),
       projectId: String(project.id),
       ownerUserId: String(currentUser.id),
       ownerName: currentUser.name,
       projectTitle: project.title,
-      role: normaliseRole(application.role),
-      userRole: normaliseRole(application.role),
+      role: normaliseRole(application.role) || 'Member',
+      userRole: normaliseRole(application.role) || 'Member',
       joinedAt: new Date().toISOString(),
-    })
+    }
+    allData[applicantId].sharedProjects.push(ref)
+    console.log('[GrantAccess] Writing sharedProject ref:', JSON.stringify(ref))
+
+    const ownerProjects = allData[String(currentUser.id)]?.projects || []
+    const projectIdx = ownerProjects.findIndex(p => String(p.id) === String(project.id))
+    if (projectIdx !== -1) {
+      if (!Array.isArray(allData[String(currentUser.id)].projects[projectIdx].members)) {
+        allData[String(currentUser.id)].projects[projectIdx].members = []
+      }
+      const alreadyMember = allData[String(currentUser.id)].projects[projectIdx].members.some(m => String(m.userId || m.id) === applicantId)
+      if (!alreadyMember) {
+        allData[String(currentUser.id)].projects[projectIdx].members.push({
+          id: applicantId,
+          userId: applicantId,
+          name: applicant.name,
+          role: normaliseRole(application.role) || 'Member',
+          position: normaliseRole(application.role) || 'Member',
+          initials: applicant.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+          joinedAt: new Date().toISOString(),
+        })
+      }
+      const projectApps = allData[String(currentUser.id)].projects[projectIdx].applications || []
+      const appIdx = projectApps.findIndex(a => a.id === application.id)
+      if (appIdx !== -1) allData[String(currentUser.id)].projects[projectIdx].applications[appIdx].status = 'access_granted'
+    }
 
     allData[applicantId].notifications.push({
-      id: String(Date.now()) + '_n',
+      id: String(Date.now()) + '_access',
       type: 'access_granted',
       iconType: 'application',
-      text: `You've been granted access to "${project.title}" as ${application.role || 'Member'}. Check My Projects!`,
+      text: `You have been granted access to "${project.title}" as ${ref.role}`,
       time: 'Just now',
       read: false,
       timestamp: new Date().toISOString(),
       link: '/projects',
     })
 
-    const ownerData = allData[String(currentUser.id)]
-    if (ownerData) {
-      const projectIndex = (ownerData.projects ?? []).findIndex(p => String(p.id) === String(project.id))
-      if (projectIndex !== -1) {
-        if (!Array.isArray(ownerData.projects[projectIndex].members)) ownerData.projects[projectIndex].members = []
-        const alreadyMember = ownerData.projects[projectIndex].members.some(m => String(m.id) === applicantId || String(m.userId) === applicantId)
-        if (!alreadyMember) {
-          ownerData.projects[projectIndex].members.push({
-            id: applicantId,
-            userId: applicantId,
-            name: applicant.name,
-            role: application.role || 'Member',
-            position: application.role || 'Member',
-            initials: applicant.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
-            joinedAt: new Date().toISOString(),
-          })
-        }
-      }
-    }
-
     localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
-    const verifyUD = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
-    debugLog('Access', 'Grant access complete', { sharedProjectsCount: verifyUD[applicantId]?.sharedProjects?.length }, 'success')
+
+    const verify = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+    console.log('[GrantAccess] Verification - applicant sharedProjects:', verify[applicantId]?.sharedProjects)
+    console.log('[GrantAccess] Verification - project members:', verify[String(currentUser.id)]?.projects?.find(p => String(p.id) === String(project.id))?.members)
 
     if (applicant.email) {
       const { subject, html } = accessGrantedEmail(applicant.name, project.title, currentUser.name)
@@ -474,6 +482,8 @@ export default function TeamsPage({
     }
 
     window.dispatchEvent(new Event('storage'))
+
+    alert(`✓ Access granted to ${applicant.name}!`)
 
     setGrantedIds(prev => [...prev, application.id])
     onAcceptApplication?.(application)

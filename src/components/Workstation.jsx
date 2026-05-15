@@ -52,9 +52,17 @@ export default function Workstation({
 
   const isSharedProject = !!urlOwnerUserId && urlOwnerUserId !== String(currentUser?.id)
 
-  const effectiveProjectId = urlProjectId || String(activeProject?.id ?? '')
+  const effectiveProjectId = useMemo(() => {
+    if (urlProjectId) return String(urlProjectId)
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const lsProjects = allData[String(currentUser?.id)]?.projects || []
+    return lsProjects[0]?.id ? String(lsProjects[0].id) : null
+  }, [urlProjectId, currentUser])
+
   const effectiveOwnerUserId = urlOwnerUserId || String(currentUser?.id)
   const ownerUserId = effectiveOwnerUserId
+
+  console.log('[Workstation] effectiveProjectId:', effectiveProjectId, 'effectiveOwnerUserId:', effectiveOwnerUserId)
 
   // Sync URL params → App state (handles page refresh and direct URL access)
   useEffect(() => {

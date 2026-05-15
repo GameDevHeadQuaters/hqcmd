@@ -15,6 +15,14 @@ import { canManageMember } from '../utils/permissions'
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
 
+function normaliseRole(role) {
+  const map = {
+    'co-leader': 'Co-leader', 'coleader': 'Co-leader', 'co leader': 'Co-leader',
+    'owner': 'Owner', 'member': 'Member', 'contributor': 'Contributor', 'observer': 'Observer',
+  }
+  return map[role?.toLowerCase?.()] || role || 'Member'
+}
+
 const POSITIONS = ['Owner', 'Co-leader', 'Member', 'Contributor', 'Observer']
 
 const APP_STATUS = {
@@ -193,85 +201,117 @@ export default function ManageTeam({
   }
 
   function grantAccess(app) {
-    if (getAgreementStatus(app) !== 'signed') return
+    console.log('[GrantAccess] Starting...')
+    console.log('[GrantAccess] Application:', JSON.stringify(app))
+    console.log('[GrantAccess] Project:', project?.id, project?.title)
 
     const USERDATA_KEY = 'hqcmd_userData_v4'
     const USERS_KEY = 'hqcmd_users_v3'
-
     const allUsers = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
-    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+
+    console.log('[GrantAccess] All users:', allUsers.map(u => ({ id: u.id, email: u.email, name: u.name })))
+    console.log('[GrantAccess] Looking for:', app.applicantEmail, '/', app.applicantName)
 
     const applicant = allUsers.find(u =>
-      (app.applicantEmail && u.email?.toLowerCase().trim() === app.applicantEmail.toLowerCase().trim()) ||
-      (app.applicantName && u.name?.toLowerCase().trim() === app.applicantName.toLowerCase().trim())
+      (app.applicantEmail && u.email?.toLowerCase().trim() === app.applicantEmail?.toLowerCase().trim()) ||
+      (app.applicantName && u.name?.toLowerCase().trim() === app.applicantName?.toLowerCase().trim())
     )
 
+    console.log('[GrantAccess] Applicant found:', applicant?.id, applicant?.name)
+
     if (!applicant) {
-      setGrantError(prev => ({ ...prev, [app.id]: 'User account not found. Make sure they have registered.' }))
+      alert(`Could not find user account for "${app.applicantName}" (${app.applicantEmail}). Make sure they have registered on HQCMD.`)
       return
     }
 
     const applicantId = String(applicant.id)
+    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
 
-    if (!allData[applicantId]) {
-      allData[applicantId] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
-    }
-    if (!Array.isArray(allData[applicantId].sharedProjects)) allData[applicantId].sharedProjects = []
-    if (!Array.isArray(allData[applicantId].notifications)) allData[applicantId].notifications = []
-
-    const alreadyHasAccess = allData[applicantId].sharedProjects.some(sp =>
-      String(sp.projectId) === String(project.id)
-    )
-    if (alreadyHasAccess) {
+    const existing = (allData[applicantId]?.sharedProjects || []).find(sp => String(sp.projectId) === String(project.id))
+    if (existing) {
+      alert(`${applicant.name} already has access to this project.`)
       setGrantedIds(prev => [...prev, app.id])
       updateApp({ ...app, status: 'access_granted', read: true })
       setPipelineTab('active')
       return
     }
 
-    allData[applicantId].sharedProjects.push({
+    if (!allData[applicantId]) allData[applicantId] = {}
+    const arrays = ['projects', 'applications', 'directMessages', 'notifications', 'agreements', 'contacts', 'sharedProjects']
+    arrays.forEach(k => { if (!Array.isArray(allData[applicantId][k])) allData[applicantId][k] = [] })
+
+    const ref = {
       id: String(Date.now()),
       projectId: String(project.id),
       ownerUserId: String(currentUser.id),
       ownerName: currentUser.name,
       projectTitle: project.title,
-      role: app.role || 'Member',
-      userRole: app.role || 'Member',
+      role: normaliseRole(app.role) || 'Member',
+      userRole: normaliseRole(app.role) || 'Member',
       joinedAt: new Date().toISOString(),
-    })
+    }
+    allData[applicantId].sharedProjects.push(ref)
+    console.log('[GrantAccess] Writing sharedProject ref:', JSON.stringify(ref))
+
+    const ownerProjects = allData[String(currentUser.id)]?.projects || []
+    const projectIdx = ownerProjects.findIndex(p => String(p.id) === String(project.id))
+    if (projectIdx !== -1) {
+      if (!Array.isArray(allData[String(currentUser.id)].projects[projectIdx].members)) {
+        allData[String(currentUser.id)].projects[projectIdx].members = []
+      }
+      const alreadyMember = allData[String(currentUser.id)].projects[projectIdx].members.some(m => String(m.userId || m.id) === applicantId)
+      if (!alreadyMember) {
+        allData[String(currentUser.id)].projects[projectIdx].members.push({
+          id: applicantId,
+          userId: applicantId,
+          name: applicant.name,
+          role: normaliseRole(app.role) || 'Member',
+          position: normaliseRole(app.role) || 'Member',
+          initials: applicant.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+          joinedAt: new Date().toISOString(),
+        })
+      }
+      const projectApps = allData[String(currentUser.id)].projects[projectIdx].applications || []
+      const appIdx = projectApps.findIndex(a => a.id === app.id)
+      if (appIdx !== -1) allData[String(currentUser.id)].projects[projectIdx].applications[appIdx].status = 'access_granted'
+    }
 
     allData[applicantId].notifications.push({
-      id: String(Date.now()) + '_notif',
+      id: String(Date.now()) + '_access',
       type: 'access_granted',
       iconType: 'application',
-      text: `You've been granted access to "${project.title}" as ${app.role || 'Member'}. Check My Projects!`,
+      text: `You have been granted access to "${project.title}" as ${ref.role}`,
       time: 'Just now',
       read: false,
       timestamp: new Date().toISOString(),
       link: '/projects',
     })
 
-    try {
-      localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+    localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
 
-      if (applicant.email) {
-        const { subject, html } = accessGrantedEmail(applicant.name, project.title, currentUser.name)
-        sendEmail({ to: applicant.email, subject, html })
-      }
+    const verify = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+    console.log('[GrantAccess] Verification - applicant sharedProjects:', verify[applicantId]?.sharedProjects)
+    console.log('[GrantAccess] Verification - project members:', verify[String(currentUser.id)]?.projects?.find(p => String(p.id) === String(project.id))?.members)
 
-      setGrantedIds(prev => [...prev, app.id])
-      onAcceptApplication?.(app)
-      updateApp({ ...app, status: 'access_granted', read: true })
-      onAddNotification?.({
-        type: 'application',
-        text: `${app.applicantName} has been granted access to ${project?.title ?? 'your project'} as ${app.role}.`,
-        link: '/workstation',
-      })
-      onRefreshUserData?.()
-      setPipelineTab('active')
-    } catch {
-      setGrantError(prev => ({ ...prev, [app.id]: 'Failed to save — please try again.' }))
+    if (applicant.email) {
+      const { subject, html } = accessGrantedEmail(applicant.name, project.title, currentUser.name)
+      sendEmail({ to: applicant.email, subject, html })
     }
+
+    window.dispatchEvent(new Event('storage'))
+
+    alert(`✓ Access granted to ${applicant.name}!`)
+
+    setGrantedIds(prev => [...prev, app.id])
+    onAcceptApplication?.(app)
+    updateApp({ ...app, status: 'access_granted', read: true })
+    onAddNotification?.({
+      type: 'application',
+      text: `${app.applicantName} has been granted access to ${project?.title ?? 'your project'} as ${app.role}.`,
+      link: '/workstation',
+    })
+    onRefreshUserData?.()
+    setPipelineTab('active')
   }
 
   function getRecipientEmail(name, id) {
