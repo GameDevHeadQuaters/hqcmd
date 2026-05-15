@@ -182,7 +182,7 @@ export default function TeamsPage({
   // ── Stats ─────────────────────────────────────────────────────────────────
   const totalProjects = allEntries.length
   const allMemberNames = new Set()
-  allEntries.forEach(p => (p.members ?? []).forEach(m => allMemberNames.add(m.name)))
+  allEntries.forEach(p => getProjectMembers(p).forEach(m => { if (!m.isOwner) allMemberNames.add(m.name) }))
   const totalMembers = allMemberNames.size
   const pendingOnboardingCount = (applications ?? []).filter(a =>
     ['pending', 'accepted_pending_agreement', 'agreement_sent'].includes(a.status)
@@ -635,7 +635,15 @@ export default function TeamsPage({
               }
             })
             const allActiveMembers = [...activeMembers, ...sharedActiveMembers]
-            const totalPipelineApps = pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + allActiveMembers.length
+            const activeApplications = (project.applications || []).filter(app =>
+              app.status === 'access_granted' &&
+              !members.some(m =>
+                (app.applicantName && m.name?.toLowerCase() === app.applicantName?.toLowerCase()) ||
+                (app.applicantId && String(m.userId || m.id) === String(app.applicantId)) ||
+                (app.applicantUserId && String(m.userId || m.id) === String(app.applicantUserId))
+              )
+            )
+            const totalPipelineApps = pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + activeApplications.length
 
             return (
               <div key={project.id} className="rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
@@ -731,7 +739,6 @@ export default function TeamsPage({
                                       </div>
                                       <div>
                                         <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{m.name}</p>
-                                        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{m.role}</p>
                                       </div>
                                     </div>
                                   </td>
@@ -851,7 +858,7 @@ export default function TeamsPage({
                           <IconBriefcase size={16} style={{ color: ACCENT }} />
                           <h4 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Application Pipeline</h4>
                           <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-tertiary)' }}>
-                            {pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + allActiveMembers.length}
+                            {pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + activeApplications.length}
                           </span>
                           <button
                             onClick={e => { e.stopPropagation(); navigate(`/team/${project.id}`) }}
@@ -869,7 +876,7 @@ export default function TeamsPage({
                             { id: 'applied',   label: 'Applied',   count: pipeline.applied.length,   icon: IconUserPlus },
                             { id: 'accepted',  label: 'Accepted',  count: pipeline.accepted.length,  icon: IconCheck },
                             { id: 'agreement', label: 'Agreement', count: pipeline.agreement.length, icon: IconWritingSign },
-                            { id: 'active',    label: 'Active',    count: allActiveMembers.length,   icon: IconUserCheck },
+                            { id: 'active',    label: 'Active',    count: activeApplications.length, icon: IconUserCheck },
                           ].map((stage, idx, arr) => (
                             <button
                               key={stage.id}
@@ -1091,38 +1098,41 @@ export default function TeamsPage({
 
                         {/* Stage 4: Active */}
                         {pipelineTab === 'active' && (
-                          allActiveMembers.length === 0 ? (
+                          activeApplications.length === 0 ? (
                             <div className="rounded-lg p-10 text-center" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
                               <IconUserCheck size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-2" />
-                              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No active team members yet.</p>
+                              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>All active members are shown above.</p>
                             </div>
                           ) : (
                             <div className="space-y-3">
-                              {allActiveMembers.map(member => {
+                              {activeApplications.map(member => {
+                                const memberName = member.applicantName || member.name || ''
+                                const memberRole = member.role || 'No Role'
+                                const memberJoinedAt = member.grantedAt || member.joinedAt
                                 const agStatus = getMemberAgreementStatus(member, project.id)
-                                const av = member.avatarColor ?? hashColor(member.name)
+                                const av = hashColor(memberName)
                                 return (
-                                  <div key={member.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
+                                  <div key={member.id || member.applicantId} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
                                     <div className="flex items-center gap-3">
                                       <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: av }}>
-                                        {member.initials || initials(member.name)}
+                                        {initials(memberName)}
                                       </div>
                                       <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{member.name}</p>
-                                          {(member.role === 'No Role' || (!member.role && !member.position)) ? (
+                                          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{memberName}</p>
+                                          {memberRole === 'No Role' ? (
                                             <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '99px', background: 'rgba(237,39,147,0.15)', color: '#ed2793', border: '1px solid #ed2793', fontWeight: '600', animation: 'pulse 2s infinite' }}>
                                               Set Role ↓
                                             </span>
                                           ) : (
                                             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'var(--brand-accent-glow)', color: ACCENT }}>
-                                              {member.role || member.position || 'Member'}
+                                              {memberRole}
                                             </span>
                                           )}
                                         </div>
                                         <div className="flex items-center gap-3 mt-0.5">
-                                          {member.joinedAt && (
-                                            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Joined {formatDate(member.joinedAt)}</p>
+                                          {memberJoinedAt && (
+                                            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Joined {formatDate(memberJoinedAt)}</p>
                                           )}
                                           {agStatus.type === 'signed' && (
                                             <span className="text-xs font-medium" style={{ color: 'var(--status-success)' }}>Agreement signed ✓</span>
@@ -1133,7 +1143,7 @@ export default function TeamsPage({
                                         </div>
                                       </div>
                                       <button
-                                        onClick={() => handleViewInTeam(project.id, member.name)}
+                                        onClick={() => handleViewInTeam(project.id, memberName)}
                                         className="text-xs font-medium px-2.5 py-1 rounded-full border flex-shrink-0 transition-colors"
                                         style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
                                         onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
