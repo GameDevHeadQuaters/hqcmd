@@ -51,7 +51,7 @@ export default function Login({ onLogin, currentUser }) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: 'https://hqcmd.vercel.app/auth/callback',
           queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       })
