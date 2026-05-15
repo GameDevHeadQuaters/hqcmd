@@ -718,10 +718,10 @@ export default function App() {
       console.log('[App] Auth event:', event, 'user:', session?.user?.id)
 
       if (event === 'SIGNED_OUT') {
+        console.log('[App] Supabase SIGNED_OUT event received')
         setCurrentUser(null)
         setUserData({})
         localStorage.removeItem(STORAGE_KEYS.currentUser)
-        window.location.replace('/')
         return
       }
 
@@ -1032,17 +1032,10 @@ export default function App() {
     return null
   }
 
-  async function handleSignOut() {
+  function handleSignOut() {
     console.log('[Logout] Starting signout...')
-    try {
-      const { error } = await supabase.auth.signOut()
-      if (error) console.error('[Logout] Supabase signout error:', error)
-      else console.log('[Logout] Supabase signout successful')
-    } catch (e) {
-      console.error('[Logout] Error:', e)
-    }
 
-    // Always clear local state regardless of Supabase result
+    // Clear local state IMMEDIATELY — don't wait for Supabase
     setCurrentUser(null)
     setUserData({})
     setActiveProjectId(null)
@@ -1050,8 +1043,15 @@ export default function App() {
     setCalendarEvents([])
     localStorage.removeItem(STORAGE_KEYS.currentUser)
 
-    console.log('[Logout] Local state cleared, navigating to /')
+    // Navigate away immediately
     window.location.replace('/')
+
+    // Then try Supabase signout in background — don't await
+    supabase.auth.signOut().then(() => {
+      console.log('[Logout] Supabase signout complete')
+    }).catch(e => {
+      console.error('[Logout] Supabase signout error (ignored):', e)
+    })
   }
 
   // ── Derived data for current user ─────────────────────────────────────────
