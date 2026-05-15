@@ -290,11 +290,25 @@ export default function App() {
       const raw = localStorage.getItem(STORAGE_KEYS.userData)
       if (!raw) return {}
       const data = JSON.parse(raw)
-      // Strip agreements and sharedProjects from React state — they live only in localStorage.
+      // Strip volatile arrays from React state — they live only in localStorage.
       // App.jsx must never hold or persist these through React state.
       const stripped = {}
       Object.keys(data).forEach(uid => {
-        stripped[uid] = { ...data[uid], agreements: [], sharedProjects: [] }
+        stripped[uid] = {
+          ...data[uid],
+          agreements: [],
+          sharedProjects: [],
+          projects: (data[uid].projects || []).map(p => ({
+            ...p,
+            applications: [],
+            members: [],
+            chatMessages: [],
+            todos: [],
+            links: [],
+            calendarEvents: [],
+            milestones: [],
+          })),
+        }
       })
       return deserializeUserData(stripped)
     } catch { return {} }
@@ -334,7 +348,7 @@ export default function App() {
     safeSet(STORAGE_KEYS.users, JSON.stringify(users))
   }, [users])
 
-  // Nuclear persist — save userData state but ALWAYS restore agreements and sharedProjects from localStorage.
+  // Nuclear persist — save userData state but ALWAYS restore volatile arrays from localStorage.
   // App.jsx React state must never overwrite these fields — they are localStorage-authoritative.
   useEffect(() => {
     try {
@@ -343,36 +357,52 @@ export default function App() {
       const currentData = currentRaw ? JSON.parse(currentRaw) : {}
 
       // Serialize React state (converts Icon components → iconType strings for storage)
-      const serialized = serializeUserData(userData)
+      const toSave = JSON.parse(JSON.stringify(serializeUserData(userData)))
 
-      // Start with the serialized React state as the base to save
-      const toSave = { ...serialized }
-
-      // For EVERY user in localStorage: hard-override agreements and sharedProjects with the LS copy.
-      // React state for both is always [] (stripped on load) so this is purely defensive.
       Object.keys(currentData).forEach(uid => {
         if (!toSave[uid]) {
           toSave[uid] = currentData[uid]
         } else {
-          toSave[uid] = {
-            ...toSave[uid],
-            agreements:     currentData[uid].agreements     || toSave[uid].agreements     || [],
-            sharedProjects: currentData[uid].sharedProjects || toSave[uid].sharedProjects || [],
-          }
-        }
-      })
+          // Agreements: localStorage always wins
+          toSave[uid].agreements = currentData[uid].agreements || toSave[uid].agreements || []
 
-      // Ensure users only in toSave (new signups) have empty arrays for both fields
-      Object.keys(toSave).forEach(uid => {
-        if (!currentData[uid]) {
-          if (!toSave[uid].agreements)     toSave[uid].agreements     = []
-          if (!toSave[uid].sharedProjects) toSave[uid].sharedProjects = []
+          // sharedProjects: localStorage always wins
+          toSave[uid].sharedProjects = currentData[uid].sharedProjects || toSave[uid].sharedProjects || []
+
+          // Projects: merge carefully — preserve volatile arrays from localStorage
+          if (currentData[uid].projects && Array.isArray(currentData[uid].projects)) {
+            if (!toSave[uid].projects || !Array.isArray(toSave[uid].projects)) {
+              toSave[uid].projects = currentData[uid].projects
+            } else {
+              toSave[uid].projects = toSave[uid].projects.map(stateProject => {
+                const currentProject = currentData[uid].projects.find(p => String(p.id) === String(stateProject.id))
+                if (!currentProject) return stateProject
+                return {
+                  ...stateProject,
+                  applications:   currentProject.applications   || stateProject.applications   || [],
+                  members:        (currentProject.members?.length ?? 0) >= (stateProject.members?.length ?? 0)
+                                    ? currentProject.members
+                                    : stateProject.members || [],
+                  chatMessages:   currentProject.chatMessages   || stateProject.chatMessages   || [],
+                  todos:          currentProject.todos          || stateProject.todos          || [],
+                  links:          currentProject.links          || stateProject.links          || [],
+                  calendarEvents: currentProject.calendarEvents || stateProject.calendarEvents || [],
+                  milestones:     currentProject.milestones     || stateProject.milestones     || [],
+                }
+              })
+              // Add any projects in localStorage not yet in React state
+              currentData[uid].projects.forEach(currentProject => {
+                const exists = toSave[uid].projects.find(p => String(p.id) === String(currentProject.id))
+                if (!exists) toSave[uid].projects.push(currentProject)
+              })
+            }
+          }
         }
       })
 
       safeSet(key, JSON.stringify(toSave))
     } catch (e) {
-      console.warn('hqcmd: userData persist failed', e)
+      console.error('[App] Save error:', e)
       try { safeSet(STORAGE_KEYS.userData, JSON.stringify(serializeUserData(userData))) } catch {}
     }
   }, [userData])
@@ -583,7 +613,21 @@ export default function App() {
       const raw = localStorage.getItem(STORAGE_KEYS.userData)
       const allData = raw ? JSON.parse(raw) : {}
       const stripped = Object.fromEntries(
-        Object.entries(allData).map(([uid, slot]) => [uid, { ...slot, agreements: [] }])
+        Object.entries(allData).map(([uid, slot]) => [uid, {
+          ...slot,
+          agreements: [],
+          sharedProjects: [],
+          projects: (slot.projects || []).map(p => ({
+            ...p,
+            applications: [],
+            members: [],
+            chatMessages: [],
+            todos: [],
+            links: [],
+            calendarEvents: [],
+            milestones: [],
+          })),
+        }])
       )
       setUserData(deserializeUserData(stripped))
       if (currentUser) {
