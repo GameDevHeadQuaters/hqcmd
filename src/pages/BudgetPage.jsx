@@ -96,7 +96,9 @@ export default function BudgetPage({ currentUser, projects, onUpdateProject, set
 
   function goBack() {
     if (project) setActiveProjectId?.(project.id)
-    navigate('/workstation')
+    const params = `?projectId=${String(project?.id ?? '')}&ownerUserId=${String(currentUser?.id ?? '')}`
+    console.log('[BudgetPage] goBack → /workstation' + params)
+    navigate('/workstation' + params)
   }
 
   function exportCSV() {

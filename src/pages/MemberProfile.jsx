@@ -765,7 +765,9 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                     onClick={() => {
                       if (isOwnProfile) {
                         setActiveProjectId?.(project.id)
-                        navigate('/workstation')
+                        const params = `?projectId=${String(project.id)}&ownerUserId=${String(currentUser?.id ?? '')}`
+                        console.log('[MemberProfile] open project → /workstation' + params)
+                        navigate('/workstation' + params)
                       } else {
                         navigate('/browse?search=' + encodeURIComponent(project.title))
                       }

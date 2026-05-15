@@ -142,7 +142,9 @@ export default function ManageTeam({
 
   function goBack() {
     if (project) setActiveProjectId?.(project.id)
-    navigate('/workstation')
+    const params = `?projectId=${String(project?.id ?? '')}&ownerUserId=${String(currentUser?.id ?? '')}`
+    console.log('[ManageTeam] goBack → /workstation' + params)
+    navigate('/workstation' + params)
   }
 
   function updateApp(updatedApp) {

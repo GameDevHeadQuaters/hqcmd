@@ -361,7 +361,7 @@ export default function Workstation({
               onAddNotification?.({
                 type: 'message',
                 text: `📅 End date for ${data.title || project.title} was moved to ${formatted} — check your timeline!`,
-                link: '/workstation',
+                link: `/workstation?projectId=${effectiveProjectId}&ownerUserId=${ownerUserId}`,
               })
             }
             const newCreatedEndDate = project.createdEndDate || (data.endDate ? data.endDate : null)

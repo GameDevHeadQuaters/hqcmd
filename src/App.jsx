@@ -1256,6 +1256,7 @@ function AppLayout({ children, topNavProps, sidebarProps }) {
 
   const isPublic = !currentUser || ['/', '/login', '/signup', '/terms', '/privacy', '/contact', '/roadmap'].includes(pathname) || pathname.startsWith('/sign/') || pathname.startsWith('/portfolio/')
   const showSidebar = !isPublic
+  const isWorkstation = pathname === '/workstation'
 
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('hqcmd_sidebar_collapsed') === 'true' } catch { return false }
@@ -1299,12 +1300,13 @@ function AppLayout({ children, topNavProps, sidebarProps }) {
         transition: 'margin-left 0.2s ease',
         flex: 1,
         minWidth: 0,
-        overflowY: 'auto',
+        overflow: isWorkstation ? 'hidden' : undefined,
+        overflowY: isWorkstation ? undefined : 'auto',
         display: 'flex',
         flexDirection: 'column',
       }}>
         <main style={{ flex: 1 }}>{children}</main>
-        <Footer />
+        {!isWorkstation && <Footer />}
       </div>
     </div>
   )
