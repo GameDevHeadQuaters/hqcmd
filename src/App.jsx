@@ -449,27 +449,18 @@ export default function App() {
     return () => window.removeEventListener('hqcmd_application_sent', onApplicationSent)
   }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Achievement polling ────────────────────────────────────────────────────
+  // ── Achievement check — once per session only ─────────────────────────────
 
-  const lastAchievementCheck = useRef(0)
+  const achievementsChecked = useRef(false)
 
   function debouncedAchievementCheck(user) {
+    if (achievementsChecked.current) return
     const target = user || currentUser
     if (!target || target.isAdmin) return
-    const now = Date.now()
-    if (now - lastAchievementCheck.current < 60000) return
-    lastAchievementCheck.current = now
+    achievementsChecked.current = true
+    console.log('[Achievements] Running check (once per session)')
     checkAndAwardAchievements(target, setCurrentUser)
   }
-
-  useEffect(() => {
-    if (!currentUser || currentUser.isAdmin) return
-    debouncedAchievementCheck(currentUser)
-    const interval = setInterval(() => {
-      debouncedAchievementCheck(currentUser)
-    }, 30000)
-    return () => clearInterval(interval)
-  }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Per-user data helpers ─────────────────────────────────────────────────
 

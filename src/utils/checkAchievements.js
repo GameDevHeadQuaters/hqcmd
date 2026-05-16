@@ -4,6 +4,16 @@ export async function checkAndAwardAchievements(currentUser, setCurrentUser) {
   if (!currentUser || currentUser.isAdmin) return
   if (!currentUser.id) return
 
+  // Only run once per 5 minutes per user
+  const lockKey = `hqcmd_ach_checked_${currentUser.id}`
+  const lastChecked = localStorage.getItem(lockKey)
+  const now = Date.now()
+  if (lastChecked && (now - parseInt(lastChecked)) < 5 * 60 * 1000) {
+    console.log('[Achievements] Skipping — checked less than 5 minutes ago')
+    return
+  }
+  localStorage.setItem(lockKey, String(now))
+
   // Get already earned achievements from Supabase first, fall back to currentUser state
   let earnedAchievements = []
   let earnedIds = []
@@ -75,15 +85,23 @@ export async function checkAndAwardAchievements(currentUser, setCurrentUser) {
     ))
   } catch {}
 
-  // Push notifications for newly earned only
+  // Push notifications for newly earned only — deduplicated
   try {
     const freshData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
-    const slot = freshData[String(currentUser.id)]
+    const myId = String(currentUser.id)
+    const slot = freshData[myId]
     if (slot) {
       if (!Array.isArray(slot.notifications)) slot.notifications = []
       newlyEarned.forEach(earned => {
         const achievement = ACHIEVEMENTS.find(a => a.id === earned.id)
         if (!achievement) return
+        const alreadyNotified = slot.notifications.some(n =>
+          n.type === 'achievement' && n.text?.includes(achievement.name)
+        )
+        if (alreadyNotified) {
+          console.log('[Achievements] Notification already exists for:', achievement.id)
+          return
+        }
         slot.notifications.unshift({
           id: String(Date.now()) + '_ach_' + earned.id,
           iconType: 'message',
