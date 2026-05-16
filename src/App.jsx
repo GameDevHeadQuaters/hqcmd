@@ -513,13 +513,13 @@ export default function App() {
         initials: profile.initials || profile.name?.slice(0, 2).toUpperCase(),
         avatarColor: profile.avatar_color || '#534AB7',
         avatarUrl: profile.avatar_url || null,
+        socialLinks: profile.social_links || {},
+        profileLinksVerified: profile.profile_links_verified || false,
+        portfolioVisibility: profile.portfolio_visibility || 'public',
         isAdmin: profile.is_admin || false,
         isSuperAdmin: profile.is_super_admin || false,
         achievements: profile.achievements || [],
         verification: profile.verification || {},
-        socialLinks: profile.social_links || {},
-        profileLinksVerified: profile.profile_links_verified || false,
-        portfolioVisibility: profile.portfolio_visibility || 'public',
       }
 
       // Save to currentUser localStorage

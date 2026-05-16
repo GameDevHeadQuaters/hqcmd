@@ -130,17 +130,34 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
   const fa = e => (e.target.style.borderColor = ACCENT)
   const fb = e => (e.target.style.borderColor = 'var(--border-default)')
 
-  function startEditing() {
-    const users = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
-    const freshUser = users.find(u => String(u.id) === String(currentUser.id)) || currentUser
-    console.log('[Profile] Starting edit with:', freshUser.name, freshUser.bio?.length, freshUser.role)
-    setEditName(freshUser.name || '')
-    setEditBio(freshUser.bio || '')
-    setEditRole(freshUser.role || '')
-    setEditSkills(freshUser.skills || [])
+  async function startEditing() {
+    console.log('[Profile] Loading fresh data before edit...')
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', String(currentUser.id))
+        .single()
+
+      const source = (data && !error) ? data : currentUser
+      console.log('[Profile] Edit source:', source.name, source.bio?.length, source.role)
+
+      setEditName(source.name || '')
+      setEditBio(source.bio || '')
+      setEditRole(source.role || '')
+      setEditSkills(source.skills || [])
+      setEditSocialLinks(source.social_links || source.socialLinks || {})
+      setConfirmLinksOwnership(source.profile_links_verified || source.profileLinksVerified || false)
+    } catch (e) {
+      console.error('[Profile] Failed to load fresh data:', e)
+      setEditName(currentUser.name || '')
+      setEditBio(currentUser.bio || '')
+      setEditRole(currentUser.role || '')
+      setEditSkills(currentUser.skills || [])
+      setEditSocialLinks(currentUser.socialLinks || {})
+      setConfirmLinksOwnership(currentUser.profileLinksVerified || false)
+    }
     setNewSkill('')
-    setEditSocialLinks(freshUser.socialLinks || {})
-    setConfirmLinksOwnership(freshUser.profileLinksVerified || false)
     setIsEditing(true)
   }
 
