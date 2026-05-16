@@ -451,15 +451,15 @@ export default function App() {
 
   // ── Achievement polling ────────────────────────────────────────────────────
 
-  const achievementTimeout = useRef(null)
+  const lastAchievementCheck = useRef(0)
 
   function debouncedAchievementCheck(user) {
     const target = user || currentUser
     if (!target || target.isAdmin) return
-    if (achievementTimeout.current) clearTimeout(achievementTimeout.current)
-    achievementTimeout.current = setTimeout(() => {
-      checkAndAwardAchievements(target, setCurrentUser)
-    }, 2000)
+    const now = Date.now()
+    if (now - lastAchievementCheck.current < 60000) return
+    lastAchievementCheck.current = now
+    checkAndAwardAchievements(target, setCurrentUser)
   }
 
   useEffect(() => {

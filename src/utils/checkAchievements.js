@@ -1,16 +1,36 @@
 import { ACHIEVEMENTS } from './achievements'
 
-export function checkAndAwardAchievements(currentUser, setCurrentUser) {
-  if (!currentUser || currentUser.isAdmin) return []
+export async function checkAndAwardAchievements(currentUser, setCurrentUser) {
+  if (!currentUser || currentUser.isAdmin) return
+  if (!currentUser.id) return
+
+  // Get already earned achievements from Supabase first, fall back to currentUser state
+  let earnedAchievements = []
+  let earnedIds = []
+  try {
+    const { supabase } = await import('../lib/supabase')
+    const { data } = await supabase
+      .from('users')
+      .select('achievements')
+      .eq('id', String(currentUser.id))
+      .single()
+
+    if (data?.achievements) {
+      earnedAchievements = data.achievements
+      earnedIds = data.achievements.map(a => a.id || a)
+      console.log('[Achievements] Already earned from Supabase:', earnedIds.length)
+    }
+  } catch (e) {
+    earnedAchievements = currentUser.achievements || []
+    earnedIds = earnedAchievements.map(a => (typeof a === 'string' ? a : a.id))
+    console.log('[Achievements] Using local earned list:', earnedIds.length)
+  }
 
   const USERDATA_KEY = 'hqcmd_userData_v4'
   let allData
-  try {
-    allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
-  } catch { return [] }
+  try { allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}') } catch { return }
 
   const myData = allData[String(currentUser.id)] || {}
-  const earnedIds = (currentUser.achievements || []).map(a => (typeof a === 'string' ? a : a.id))
   const newlyEarned = []
 
   ACHIEVEMENTS.forEach(achievement => {
@@ -24,14 +44,25 @@ export function checkAndAwardAchievements(currentUser, setCurrentUser) {
     }
   })
 
-  if (newlyEarned.length === 0) return []
+  if (newlyEarned.length === 0) return
 
-  const updatedAchievements = [
-    ...(currentUser.achievements || []),
-    ...newlyEarned,
-  ]
+  console.log('[Achievements] Newly earned:', newlyEarned.map(a => a.id))
 
-  // Update currentUser state + session storage
+  const updatedAchievements = [...earnedAchievements, ...newlyEarned]
+
+  // Save to Supabase
+  try {
+    const { supabase } = await import('../lib/supabase')
+    await supabase
+      .from('users')
+      .update({ achievements: updatedAchievements })
+      .eq('id', String(currentUser.id))
+    console.log('[Achievements] Saved to Supabase')
+  } catch (e) {
+    console.error('[Achievements] Supabase save failed:', e)
+  }
+
+  // Update currentUser state and localStorage
   const updatedUser = { ...currentUser, achievements: updatedAchievements }
   setCurrentUser(updatedUser)
   try { localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify(updatedUser)) } catch {}
@@ -44,7 +75,7 @@ export function checkAndAwardAchievements(currentUser, setCurrentUser) {
     ))
   } catch {}
 
-  // Push a notification for each new achievement
+  // Push notifications for newly earned only
   try {
     const freshData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
     const slot = freshData[String(currentUser.id)]
@@ -68,6 +99,5 @@ export function checkAndAwardAchievements(currentUser, setCurrentUser) {
     }
   } catch {}
 
-  console.log('[Achievements] Newly earned:', newlyEarned.map(a => a.id))
   return newlyEarned
 }
