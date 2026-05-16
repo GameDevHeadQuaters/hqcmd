@@ -7,6 +7,7 @@ import {
 } from '@tabler/icons-react'
 import ProfileDropdown from '../components/ProfileDropdown'
 import ContactsTab from '../components/ContactsTab'
+import { supabase } from '../lib/supabase'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -233,6 +234,21 @@ function MessageCard({ dm, onUpdate, navigate, currentUser }) {
 
   function sendReply() {
     if (!replyText.trim()) return
+
+    // Send reply via Supabase (fire-and-forget)
+    if (dm.fromUserId && currentUser?.id) {
+      supabase.from('messages').insert({
+        from_user_id: String(currentUser.id),
+        to_user_id: String(dm.fromUserId),
+        subject: dm.projectTitle ? `Re: ${dm.projectTitle}` : 'Reply',
+        message: replyText.trim(),
+        type: 'reply',
+      }).then(({ error }) => {
+        if (error) console.error('[Messages] Supabase reply send failed:', error)
+        else console.log('[Messages] ✅ Reply sent via Supabase')
+      })
+    }
+
     try {
       const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
       const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
@@ -511,6 +527,51 @@ export default function Inbox({
       return myContacts.filter(c => c.addedAt && new Date(c.addedAt) > new Date(lastSeen)).length
     } catch { return 0 }
   })
+
+  useEffect(() => {
+    if (!currentUser?.id) return
+
+    async function loadMessages() {
+      try {
+        const { data, error } = await supabase
+          .from('messages')
+          .select('*, users!from_user_id(name, initials, avatar_color)')
+          .eq('to_user_id', String(currentUser.id))
+          .order('created_at', { ascending: false })
+
+        if (error) throw error
+
+        const supabaseMessages = (data || []).map(m => ({
+          id: m.id,
+          fromName: m.users?.name || 'Unknown',
+          fromUserId: m.from_user_id,
+          subject: m.subject,
+          message: m.message,
+          type: m.type || 'message',
+          shareToken: m.share_token,
+          read: m.read,
+          timestamp: m.created_at,
+        }))
+
+        const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+        const myId = String(currentUser.id)
+        const localMessages = allData[myId]?.directMessages || []
+        const supabaseIds = new Set(supabaseMessages.map(m => String(m.id)))
+        const localOnly = localMessages.filter(m => !supabaseIds.has(String(m.id)))
+
+        setDirectMessages([...supabaseMessages, ...localOnly]
+          .sort((a, b) => new Date(b.timestamp || b.created_at || 0) - new Date(a.timestamp || a.created_at || 0)))
+      } catch (e) {
+        console.error('[Messages] Load error:', e)
+        const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+        setDirectMessages(allData[String(currentUser.id)]?.directMessages || [])
+      }
+    }
+
+    loadMessages()
+    const interval = setInterval(loadMessages, 10000)
+    return () => clearInterval(interval)
+  }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (tab === 'messages') {

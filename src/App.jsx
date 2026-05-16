@@ -367,6 +367,50 @@ async function loadUserProjects(supabaseClient, userId) {
   }
 }
 
+async function loadUserNotifications(supabaseClient, userId) {
+  const USERDATA_KEY = 'hqcmd_userData_v4'
+  try {
+    const { data, error } = await supabaseClient
+      .from('notifications')
+      .select('*')
+      .eq('user_id', String(userId))
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    if (error) {
+      console.warn('[Notifications] loadUserNotifications error:', error.message)
+      return
+    }
+
+    const supabaseNotifs = (data || []).map(n => ({
+      id: n.id,
+      type: n.type,
+      text: n.message,
+      message: n.message,
+      link: n.link,
+      read: n.read,
+      time: 'Just now',
+      timestamp: n.created_at,
+    }))
+
+    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+    const uid = String(userId)
+    if (!allData[uid]) allData[uid] = {}
+    if (!Array.isArray(allData[uid].notifications)) allData[uid].notifications = []
+
+    const supabaseIds = new Set(supabaseNotifs.map(n => String(n.id)))
+    const localOnly = allData[uid].notifications.filter(n => !supabaseIds.has(String(n.id)))
+    allData[uid].notifications = [...supabaseNotifs, ...localOnly]
+      .sort((a, b) => new Date(b.timestamp || b.created_at || 0) - new Date(a.timestamp || a.created_at || 0))
+      .slice(0, 50)
+
+    localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+    console.log('[Notifications] Loaded', supabaseNotifs.length, 'from Supabase')
+  } catch (e) {
+    console.error('[Notifications] Load error:', e)
+  }
+}
+
 async function loadSharedProjects(supabaseClient, userId) {
   const USERDATA_KEY = 'hqcmd_userData_v4'
   try {
@@ -583,6 +627,54 @@ export default function App() {
     checkAndAwardAchievements(target, setCurrentUser)
   }
 
+  // ── Real-time notification subscription ──────────────────────────────────
+
+  const notificationChannel = useRef(null)
+
+  useEffect(() => {
+    if (!currentUser?.id || currentUser.isAdmin) return
+
+    if (notificationChannel.current) supabase.removeChannel(notificationChannel.current)
+
+    notificationChannel.current = supabase
+      .channel(`notifications:${currentUser.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${currentUser.id}`,
+      }, payload => {
+        console.log('[Notifications] Real-time:', payload.new)
+        const newNotif = {
+          id: payload.new.id,
+          type: payload.new.type,
+          text: payload.new.message,
+          message: payload.new.message,
+          link: payload.new.link,
+          read: false,
+          time: 'Just now',
+          timestamp: payload.new.created_at,
+        }
+        try {
+          const allData = JSON.parse(localStorage.getItem(STORAGE_KEYS.userData) || '{}')
+          const myId = String(currentUser.id)
+          if (!allData[myId]) allData[myId] = { notifications: [] }
+          if (!Array.isArray(allData[myId].notifications)) allData[myId].notifications = []
+          const alreadyExists = allData[myId].notifications.some(n => String(n.id) === String(newNotif.id))
+          if (!alreadyExists) {
+            allData[myId].notifications.unshift(newNotif)
+            localStorage.setItem(STORAGE_KEYS.userData, JSON.stringify(allData))
+            window.dispatchEvent(new Event('storage'))
+          }
+        } catch {}
+      })
+      .subscribe()
+
+    return () => {
+      if (notificationChannel.current) supabase.removeChannel(notificationChannel.current)
+    }
+  }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Per-user data helpers ─────────────────────────────────────────────────
 
   function getUserData() {
@@ -659,6 +751,9 @@ export default function App() {
         console.log('[Auth] Updated user in hqcmd_users_v3:', user.id)
       }
       localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(localUsers))
+
+      // Load notifications from Supabase and merge into localStorage
+      await loadUserNotifications(supabase, user.id)
 
       // Load owned projects from Supabase and sync to localStorage + React state
       const supabaseProjects = await loadUserProjects(supabase, user.id)
