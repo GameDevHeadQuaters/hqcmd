@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import {
   IconShield, IconUsers, IconLayoutGrid,
   IconSearch, IconTrash, IconCheck, IconX, IconRefresh, IconCopy, IconPlus,
@@ -1881,6 +1882,44 @@ function RoadmapAdminTab() {
 export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) {
   const navigate = useNavigate()
   const [tab, setTab] = useState('users')
+
+  useEffect(() => {
+    async function loadUsers() {
+      const { data: supabaseUsers, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (supabaseUsers?.length > 0) {
+        const localUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+        const superAdmin = localUsers.find(u => u.isSuperAdmin)
+
+        const allUsers = supabaseUsers.map(u => ({
+          id: u.id,
+          email: u.email,
+          name: u.name,
+          role: u.role,
+          skills: u.skills || [],
+          isAdmin: u.is_admin,
+          isSuperAdmin: u.is_super_admin,
+          createdAt: u.created_at,
+          verification: u.verification || {},
+        }))
+
+        if (superAdmin && !allUsers.find(u => u.isSuperAdmin)) {
+          allUsers.unshift(superAdmin)
+        }
+
+        setUsers(allUsers)
+      } else {
+        if (error) console.error('[AdminPanel] Supabase users load error:', error)
+        const localUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+        setUsers(localUsers)
+      }
+    }
+
+    if (currentUser?.isAdmin) loadUsers()
+  }, [currentUser?.isAdmin]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!currentUser?.isAdmin) return null
 

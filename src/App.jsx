@@ -487,22 +487,73 @@ export default function App() {
   }
 
   async function loadUserProfile(authUser) {
-    const existingUser = users.find(u => u.email === authUser.email)
-    if (existingUser) return existingUser
-    const { data: profile } = await getUserProfile(authUser.id)
-    const name = profile?.name || authUser.user_metadata?.name || authUser.email.split('@')[0]
-    const trimmedName = name.trim()
-    const initials = trimmedName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-    return {
-      id: authUser.id,
-      name: trimmedName,
-      email: authUser.email,
-      role: profile?.role || '',
-      bio: profile?.bio || '',
-      skills: profile?.skills || [],
-      initials: profile?.initials || initials,
-      avatarColor: profile?.avatar_color || hashColor(trimmedName),
-      supabaseId: authUser.id,
+    try {
+      setAuthLoading(true)
+      console.log('[Auth] Loading profile for:', authUser.id)
+
+      const { data: profile, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authUser.id)
+        .single()
+
+      if (error || !profile) {
+        console.error('[Auth] Profile not found:', error)
+        setAuthLoading(false)
+        return null
+      }
+
+      const user = {
+        id: profile.id,
+        email: profile.email,
+        name: profile.name,
+        role: profile.role || '',
+        bio: profile.bio || '',
+        skills: profile.skills || [],
+        initials: profile.initials || profile.name?.slice(0, 2).toUpperCase(),
+        avatarColor: profile.avatar_color || '#534AB7',
+        avatarUrl: profile.avatar_url || null,
+        isAdmin: profile.is_admin || false,
+        isSuperAdmin: profile.is_super_admin || false,
+        achievements: profile.achievements || [],
+        verification: profile.verification || {},
+        socialLinks: profile.social_links || {},
+        profileLinksVerified: profile.profile_links_verified || false,
+        portfolioVisibility: profile.portfolio_visibility || 'public',
+      }
+
+      // Save to currentUser localStorage
+      setCurrentUser(user)
+      localStorage.setItem(STORAGE_KEYS.currentUser, JSON.stringify(user))
+
+      // Ensure userData slot exists in localStorage keyed by Supabase UUID
+      const allData = JSON.parse(localStorage.getItem(STORAGE_KEYS.userData) || '{}')
+      if (!allData[user.id]) {
+        console.log('[Auth] Creating localStorage userData slot for:', user.id)
+        allData[user.id] = emptyUserData()
+        localStorage.setItem(STORAGE_KEYS.userData, JSON.stringify(allData))
+      } else {
+        console.log('[Auth] localStorage userData slot already exists for:', user.id)
+      }
+
+      // Keep hqcmd_users_v3 in sync for Admin Panel compatibility
+      const localUsers = JSON.parse(localStorage.getItem(STORAGE_KEYS.users) || '[]')
+      const existingIdx = localUsers.findIndex(u => u.id === user.id || u.email === user.email)
+      if (existingIdx === -1) {
+        localUsers.push(user)
+        console.log('[Auth] Added user to hqcmd_users_v3:', user.id)
+      } else {
+        localUsers[existingIdx] = { ...localUsers[existingIdx], ...user }
+        console.log('[Auth] Updated user in hqcmd_users_v3:', user.id)
+      }
+      localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(localUsers))
+
+      return user
+    } catch (e) {
+      console.error('[Auth] loadUserProfile error:', e)
+      return null
+    } finally {
+      setAuthLoading(false)
     }
   }
 
