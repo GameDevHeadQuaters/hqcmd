@@ -279,6 +279,127 @@ function ensureAdminShadowAccount() {
   return shadowUser
 }
 
+// ── Supabase project helpers ──────────────────────────────────────────────
+
+function convertSupabaseProject(p) {
+  return {
+    id: p.id,
+    title: p.title || 'Untitled Project',
+    description: p.description || '',
+    status: p.status || 'Planning',
+    progress: p.progress || 0,
+    category: p.category || 'Other',
+    visibility: p.visibility || 'Private',
+    compensation: p.compensation || ['Rev Share'],
+    rolesNeeded: p.roles_needed || [],
+    timeline: p.timeline || '',
+    commitment: p.commitment || '',
+    location: p.location || '',
+    ndaRequired: p.nda_required || false,
+    gameJam: p.game_jam || false,
+    endDate: p.end_date || null,
+    createdEndDate: p.created_end_date || null,
+    createdAt: p.created_at || new Date().toISOString(),
+    permanent: p.permanent || false,
+    closed: p.closed || false,
+    closedAt: p.closed_at || null,
+    closureMessage: p.closure_message || null,
+    closureLink: p.closure_link || null,
+    milestones: Array.isArray(p.milestones) ? p.milestones : [],
+    members: [],
+    applications: [],
+    chatMessages: [],
+    todos: [],
+    links: [],
+    calendarEvents: [],
+  }
+}
+
+async function loadUserProjects(supabaseClient, userId) {
+  const USERDATA_KEY = 'hqcmd_userData_v4'
+  try {
+    const { data: projects, error } = await supabaseClient
+      .from('projects')
+      .select('*')
+      .eq('owner_id', String(userId))
+
+    if (error) {
+      console.warn('[Projects] loadUserProjects error:', error.message)
+      return []
+    }
+    if (!projects?.length) return []
+
+    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+    const uid = String(userId)
+    if (!allData[uid]) allData[uid] = emptyUserData()
+    const existing = allData[uid].projects || []
+
+    const converted = projects.map(convertSupabaseProject)
+    const merged = converted.map(sp => {
+      const lp = existing.find(p => String(p.id) === String(sp.id))
+      if (!lp) return sp
+      return {
+        ...sp,
+        applications:   lp.applications   || [],
+        members:        lp.members        || [],
+        chatMessages:   lp.chatMessages   || [],
+        todos:          lp.todos          || [],
+        links:          lp.links          || [],
+        calendarEvents: lp.calendarEvents || [],
+        milestones:     sp.milestones.length ? sp.milestones : (lp.milestones || []),
+        ...(lp.closed ? {
+          closed: lp.closed, closedAt: lp.closedAt,
+          closureMessage: lp.closureMessage, closureLink: lp.closureLink,
+        } : {}),
+      }
+    })
+    existing.forEach(lp => {
+      if (!merged.find(p => String(p.id) === String(lp.id))) merged.push(lp)
+    })
+
+    allData[uid].projects = merged
+    localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+    console.log('[Projects] Loaded', merged.length, 'project(s) from Supabase')
+    return merged
+  } catch (e) {
+    console.error('[Projects] loadUserProjects failed:', e)
+    return []
+  }
+}
+
+async function loadSharedProjects(supabaseClient, userId) {
+  const USERDATA_KEY = 'hqcmd_userData_v4'
+  try {
+    const { data: memberships, error } = await supabaseClient
+      .from('project_members')
+      .select('project_id, role, owner_id')
+      .eq('user_id', String(userId))
+
+    if (error || !memberships?.length) return
+
+    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+    const uid = String(userId)
+    if (!allData[uid]) allData[uid] = emptyUserData()
+    const existingRefs = allData[uid].sharedProjects || []
+
+    const newRefs = memberships.map(m => ({
+      projectId: m.project_id,
+      ownerUserId: m.owner_id,
+      role: m.role || 'Member',
+    }))
+    const merged = [...existingRefs]
+    newRefs.forEach(nr => {
+      if (!merged.find(r => String(r.projectId) === String(nr.projectId))) merged.push(nr)
+    })
+
+    allData[uid].sharedProjects = merged
+    localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+    console.log('[Projects] Loaded', merged.length, 'shared project ref(s) from Supabase')
+  } catch (e) {
+    console.warn('[Projects] loadSharedProjects failed (table may not exist yet):', e.message)
+  }
+}
+
 export default function App() {
   const [users, setUsers] = useState(() => {
     try {
@@ -538,6 +659,26 @@ export default function App() {
         console.log('[Auth] Updated user in hqcmd_users_v3:', user.id)
       }
       localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(localUsers))
+
+      // Load owned projects from Supabase and sync to localStorage + React state
+      const supabaseProjects = await loadUserProjects(supabase, user.id)
+      if (supabaseProjects.length > 0) {
+        setUserData(prev => {
+          const existing = prev[user.id] ?? emptyUserData()
+          return {
+            ...prev,
+            [user.id]: {
+              ...existing,
+              projects: supabaseProjects.map(p => ({
+                ...p,
+                applications: [], members: [], chatMessages: [],
+                todos: [], links: [], calendarEvents: [], milestones: [],
+              })),
+            },
+          }
+        })
+      }
+      await loadSharedProjects(supabase, user.id)
 
       return user
     } catch (e) {

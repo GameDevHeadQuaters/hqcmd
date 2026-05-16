@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { IconPlus, IconUsers, IconFolderOff, IconInbox, IconAlertTriangle, IconFileText, IconShare } from '@tabler/icons-react'
 import ProjectProfile from '../components/ProjectProfile'
 import { PROJECT_TEMPLATES } from '../utils/projectTemplates'
+import { syncProjectToSupabase } from '../utils/projectData'
 import ProfileDropdown from '../components/ProfileDropdown'
 import { calculateProgress, getProjectStatus } from '../utils/progress'
 import OnboardingChecklist from '../components/OnboardingChecklist'
@@ -293,30 +294,29 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
       try { localStorage.setItem('hqcmd_img_' + id, data.coverImage) }
       catch (e) { if (e.name === 'QuotaExceededError') console.warn('localStorage full — cover image not saved') }
     }
-    setProjects(prev => [
-      ...prev,
-      {
-        id,
-        title:          data.title        || 'Untitled Project',
-        description:    data.description  || '',
-        status:         'Planning',
-        progress:       0,
-        members:        [],
-        milestones:     data.milestones || [],
-        category:       data.category     || 'Other',
-        visibility:     data.visibility   || 'Private',
-        compensation:   data.compensation || ['Rev Share'],
-        rolesNeeded:    data.rolesNeeded || data.roles || [],
-        timeline:       data.timeline     || '',
-        commitment:     data.commitment   || '',
-        location:       data.location     || '',
-        ndaRequired:    data.ndaRequired  || false,
-        gameJam:        data.gameJam      || false,
-        endDate:        data.endDate      || null,
-        createdEndDate: data.endDate      || null,
-        createdAt:      new Date().toISOString(),
-      },
-    ])
+    const newProject = {
+      id,
+      title:          data.title        || 'Untitled Project',
+      description:    data.description  || '',
+      status:         'Planning',
+      progress:       0,
+      members:        [],
+      milestones:     data.milestones || [],
+      category:       data.category     || 'Other',
+      visibility:     data.visibility   || 'Private',
+      compensation:   data.compensation || ['Rev Share'],
+      rolesNeeded:    data.rolesNeeded || data.roles || [],
+      timeline:       data.timeline     || '',
+      commitment:     data.commitment   || '',
+      location:       data.location     || '',
+      ndaRequired:    data.ndaRequired  || false,
+      gameJam:        data.gameJam      || false,
+      endDate:        data.endDate      || null,
+      createdEndDate: data.endDate      || null,
+      createdAt:      new Date().toISOString(),
+    }
+    setProjects(prev => [...prev, newProject])
+    if (currentUser?.id) syncProjectToSupabase(newProject, currentUser.id)
     setCreating(false)
   }
 

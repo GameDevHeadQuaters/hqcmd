@@ -67,3 +67,43 @@ export function removeFromProjectArray(projectId, ownerUserId, fieldName, itemId
   )
   writeAllData(allData)
 }
+
+export async function syncProjectToSupabase(project, ownerId) {
+  try {
+    const { supabase } = await import('../lib/supabase')
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+
+    await supabase.from('projects').upsert({
+      id: String(project.id),
+      owner_id: String(ownerId),
+      title: project.title,
+      description: project.description || '',
+      status: project.status || 'Planning',
+      progress: project.progress || 0,
+      category: project.category || 'Other',
+      visibility: project.visibility || 'Private',
+      compensation: project.compensation || [],
+      roles_needed: project.rolesNeeded || [],
+      timeline: project.timeline || '',
+      commitment: project.commitment || '',
+      location: project.location || '',
+      nda_required: project.ndaRequired || false,
+      game_jam: project.gameJam || false,
+      end_date: project.endDate || null,
+      created_end_date: project.createdEndDate || null,
+      created_at: project.createdAt || new Date().toISOString(),
+      permanent: project.permanent || false,
+      closed: project.closed || false,
+      closed_at: project.closedAt || null,
+      closure_message: project.closureMessage || null,
+      closure_link: project.closureLink || null,
+      milestones: project.milestones || [],
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' })
+
+    console.log('[Projects] Synced to Supabase:', project.id)
+  } catch (e) {
+    console.error('[Projects] syncProjectToSupabase failed:', e)
+  }
+}
