@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './lib/supabase'
-import { signIn, signUp as supabaseSignUp, signOut as supabaseSignOut, getUserProfile, onAuthStateChange } from './lib/supabaseAuth'
+import { signIn, signUp as supabaseSignUp, signOut as supabaseSignOut, getUserProfile } from './lib/supabaseAuth'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import TopNav from './components/TopNav'
 import Sidebar from './components/Sidebar'
@@ -753,19 +753,42 @@ export default function App() {
 
   // ── Supabase session bootstrap ────────────────────────────────────────────
 
+  // Safety net — never stay stuck on loading screen
   useEffect(() => {
-    let sub
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user && !localStorage.getItem(STORAGE_KEYS.currentUser)) {
-        const profile = await loadUserProfile(session.user)
-        if (profile) {
-          setCurrentUser(profile)
-          setUserData(prev => prev[String(profile.id)] ? prev : { ...prev, [String(profile.id)]: emptyUserData() })
+    const timeout = setTimeout(() => {
+      setAuthLoading(false)
+      console.log('[Auth] Loading timeout reached — forcing authLoading false')
+    }, 3000)
+    return () => clearTimeout(timeout)
+  }, [])
+
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
+      console.log('[Auth] Initial session:', session?.user?.id, error?.message)
+      try {
+        if (session?.user) {
+          await loadUserProfile(session.user)
+        } else {
+          // Check for superadmin localStorage fallback (no Supabase session)
+          const savedUser = localStorage.getItem(STORAGE_KEYS.currentUser)
+          if (savedUser) {
+            try {
+              const parsed = JSON.parse(savedUser)
+              if (parsed.isSuperAdmin) setCurrentUser(parsed)
+            } catch {}
+          }
         }
+      } catch (e) {
+        console.error('[Auth] Init error:', e)
+      } finally {
+        setAuthLoading(false)
       }
+    }).catch(e => {
+      console.error('[Auth] getSession error:', e)
       setAuthLoading(false)
     })
-    sub = onAuthStateChange(async (event, session) => {
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[App] Auth event:', event, 'user:', session?.user?.id)
 
       if (event === 'SIGNED_OUT') {
@@ -777,16 +800,19 @@ export default function App() {
       }
 
       if (session?.user) {
-        const profile = await loadUserProfile(session.user)
-        if (profile) {
-          setCurrentUser(profile)
-          setUserData(prev => prev[String(profile.id)] ? prev : { ...prev, [String(profile.id)]: emptyUserData() })
+        try {
+          await loadUserProfile(session.user)
+        } catch (e) {
+          console.error('[Auth] onAuthStateChange loadUserProfile error:', e)
+        } finally {
+          setAuthLoading(false)
         }
       } else {
         setAuthLoading(false)
       }
     })
-    return () => sub?.unsubscribe()
+
+    return () => subscription.unsubscribe()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Force re-read from localStorage (call after cross-user writes) ─────────
