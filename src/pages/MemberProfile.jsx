@@ -70,6 +70,7 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
   const [editSocialLinks, setEditSocialLinks] = useState({})
   const [confirmLinksOwnership, setConfirmLinksOwnership] = useState(false)
   const [profileReviews, setProfileReviews] = useState([])
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!isOwnProfile || !currentUser) return
@@ -132,13 +133,14 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
   function startEditing() {
     const users = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
     const freshUser = users.find(u => String(u.id) === String(currentUser.id)) || currentUser
+    console.log('[Profile] Starting edit with:', freshUser.name, freshUser.bio?.length, freshUser.role)
     setEditName(freshUser.name || '')
     setEditBio(freshUser.bio || '')
     setEditRole(freshUser.role || '')
     setEditSkills(freshUser.skills || [])
     setNewSkill('')
     setEditSocialLinks(freshUser.socialLinks || {})
-    setConfirmLinksOwnership(false)
+    setConfirmLinksOwnership(freshUser.profileLinksVerified || false)
     setIsEditing(true)
   }
 
@@ -154,7 +156,10 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
   }
 
   async function saveProfile() {
-    console.log('[Profile] Saving profile for:', currentUser.id)
+    setSaving(true)
+    try {
+    console.log('[Profile] Save started, currentUser:', currentUser?.id)
+    console.log('[Profile] editName:', editName, 'editBio:', editBio?.length, 'editRole:', editRole)
 
     const updates = {
       name: editName?.trim() || currentUser.name,
@@ -227,7 +232,13 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
     // 7. Trigger achievement check
     checkAndAwardAchievements(updatedUser, setCurrentUser)
 
-    console.log('[Profile] ✅ Profile saved successfully')
+    console.log('[Profile] ✅ Done')
+    } catch (e) {
+      console.error('[Profile] Save crashed:', e)
+      alert('Save failed: ' + e.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   function removeSkill(skill) {
@@ -353,10 +364,12 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4 pt-4" style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                  <button onClick={saveProfile}
+                  <button
+                    onClick={async () => { await saveProfile() }}
+                    disabled={saving}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-white transition-opacity hover:opacity-80"
-                    style={{ backgroundColor: ACCENT }}>
-                    <IconCheck size={14} /> Save Profile
+                    style={{ backgroundColor: ACCENT, opacity: saving ? 0.6 : 1 }}>
+                    <IconCheck size={14} /> {saving ? 'Saving...' : 'Save Profile'}
                   </button>
                   <button onClick={cancelEdit}
                     className="px-4 py-2 rounded-full text-sm transition-colors"
@@ -488,12 +501,13 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
           {isEditing && (
             <div className="flex gap-2 mt-4 pt-4" style={{ borderTop: '1px solid var(--border-subtle)' }}>
               <button
-                onClick={saveProfile}
+                onClick={async () => { await saveProfile() }}
+                disabled={saving}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium text-white transition-opacity hover:opacity-80"
-                style={{ backgroundColor: ACCENT }}
+                style={{ backgroundColor: ACCENT, opacity: saving ? 0.6 : 1 }}
               >
                 <IconCheck size={14} />
-                Save Changes
+                {saving ? 'Saving...' : 'Save Changes'}
               </button>
               <button
                 onClick={cancelEdit}
