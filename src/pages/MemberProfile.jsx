@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
 import { IconArrowLeft, IconPencil, IconCheck, IconX, IconPlus, IconFolderOff, IconShieldCheck, IconChevronDown, IconChevronUp, IconLink } from '@tabler/icons-react'
 import { calculateProgress } from '../utils/progress'
 import { PRESET_SKILLS, PRESET_ROLES } from '../utils/skillsList'
@@ -88,6 +89,39 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
     } catch {}
   }, [userId, currentUser?.id])
 
+  useEffect(() => {
+    async function loadFreshProfile() {
+      if (!currentUser?.id || currentUser.isSuperAdmin) return
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', String(currentUser.id))
+          .single()
+        if (data && !error) {
+          const freshUser = {
+            ...currentUser,
+            name: data.name,
+            bio: data.bio || '',
+            role: data.role || '',
+            skills: data.skills || [],
+            initials: data.initials,
+            socialLinks: data.social_links || {},
+            profileLinksVerified: data.profile_links_verified || false,
+            portfolioVisibility: data.portfolio_visibility || 'public',
+          }
+          setCurrentUser(freshUser)
+          localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify(freshUser))
+          setMember(freshUser)
+          setProfileData(freshUser)
+        }
+      } catch (e) {
+        console.error('[Profile] Fresh load error:', e)
+      }
+    }
+    loadFreshProfile()
+  }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const displayProjects = isOwnProfile
     ? (projects ?? [])
     : (() => { try { return (JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')[String(userId)]?.projects ?? []).filter(p => p.visibility?.toLowerCase() === 'public') } catch { return [] } })()
@@ -119,90 +153,81 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
     setConfirmLinksOwnership(false)
   }
 
-  function saveProfile() {
-    const filledLinks = Object.values(editSocialLinks || {}).filter(v => v?.trim()).length
-    const earnedConnectedBadge = filledLinks >= 2 && confirmLinksOwnership
-
-    // Admin path: preserve existing behavior
-    if (currentUser?.isAdmin || currentUser?.id === 'superadmin') {
-      const updates = {
-        name: editName?.trim() || currentUser.name,
-        bio: editBio?.trim() || '',
-        role: editRole?.trim() || '',
-        skills: editSkills || [],
-        socialLinks: editSocialLinks || {},
-        profileLinksVerified: earnedConnectedBadge ? true : (currentUser.profileLinksVerified || false),
-        initials: (editName?.trim() || currentUser.name)
-          .split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2)
-      }
-      try {
-        const adminProfile = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
-        localStorage.setItem('hqcmd_admin_profile', JSON.stringify({ ...adminProfile, ...updates }))
-      } catch {}
-      // Also update the shadow account in the users array so the profile is visible system-wide
-      try {
-        const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
-        localStorage.setItem('hqcmd_users_v3', JSON.stringify(
-          allUsers.map(u => (u.isSuperAdmin === true || String(u.id) === 'superadmin') ? { ...u, ...updates } : u)
-        ))
-      } catch {}
-      const updatedUser = { ...currentUser, ...updates }
-      try { localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify(updatedUser)) } catch {}
-      setCurrentUser(updatedUser)
-      setProfileData(updatedUser)
-      setMember(updatedUser)
-      setIsEditing(false)
-      return
-    }
-
-    const USERS_KEY = 'hqcmd_users_v3'
+  async function saveProfile() {
+    console.log('[Profile] Saving profile for:', currentUser.id)
 
     const updates = {
       name: editName?.trim() || currentUser.name,
       bio: editBio?.trim() || '',
       role: editRole?.trim() || '',
       skills: editSkills || [],
-      socialLinks: editSocialLinks || {},
-      profileLinksVerified: earnedConnectedBadge ? true : (currentUser.profileLinksVerified || false),
       initials: (editName?.trim() || currentUser.name)
         .split(' ')
         .map(w => w[0])
         .join('')
         .toUpperCase()
-        .slice(0, 2)
+        .slice(0, 2),
+      social_links: editSocialLinks || {},
+      profile_links_verified: confirmLinksOwnership && Object.values(editSocialLinks || {}).filter(Boolean).length >= 2,
     }
 
-    console.log('[Profile] Saving updates:', updates)
+    console.log('[Profile] Updates:', updates)
 
-    // 1. Update users array in localStorage
-    const users = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
+    // 1. Save to Supabase (skip for superadmin)
+    if (!currentUser.isSuperAdmin) {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .update({ ...updates, updated_at: new Date().toISOString() })
+          .eq('id', String(currentUser.id))
+          .select()
+          .single()
+        if (error) console.error('[Profile] Supabase save error:', error)
+        else console.log('[Profile] ✅ Saved to Supabase:', data.id)
+      } catch (e) {
+        console.error('[Profile] Supabase error:', e)
+      }
+    }
+
+    const localUpdates = {
+      name: updates.name,
+      bio: updates.bio,
+      role: updates.role,
+      skills: updates.skills,
+      initials: updates.initials,
+      socialLinks: updates.social_links,
+      profileLinksVerified: updates.profile_links_verified,
+    }
+
+    // 2. Save to localStorage users array
+    const users = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
     const updatedUsers = users.map(u =>
-      String(u.id) === String(currentUser.id)
-        ? { ...u, ...updates }
-        : u
+      String(u.id) === String(currentUser.id) ? { ...u, ...localUpdates } : u
     )
-    localStorage.setItem(USERS_KEY, JSON.stringify(updatedUsers))
+    localStorage.setItem('hqcmd_users_v3', JSON.stringify(updatedUsers))
 
-    // 2. Update currentUser in localStorage
-    const updatedUser = { ...currentUser, ...updates }
+    // 3. Update currentUser state and localStorage
+    const updatedUser = { ...currentUser, ...localUpdates }
+    setCurrentUser(updatedUser)
     localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify(updatedUser))
 
-    // 3. Update React state
-    setCurrentUser(updatedUser)
+    // 4. Save admin profile separately if superadmin
+    if (currentUser.isSuperAdmin) {
+      const adminProfile = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
+      localStorage.setItem('hqcmd_admin_profile', JSON.stringify({ ...adminProfile, ...localUpdates }))
+    }
+
+    // 5. Update display state
     setMember(updatedUser)
+    setProfileData(updatedUser)
 
-    // 4. Verify the save worked
-    const verify = JSON.parse(localStorage.getItem(USERS_KEY) || '[]')
-    const saved = verify.find(u => String(u.id) === String(currentUser.id))
-    console.log('[Profile] Verified saved bio:', saved?.bio)
-    console.log('[Profile] Verified saved skills:', saved?.skills)
-    console.log('[Profile] Verified saved role:', saved?.role)
-
-    // 5. Exit edit mode
+    // 6. Exit edit mode
     setIsEditing(false)
 
-    // 6. Trigger achievement check
+    // 7. Trigger achievement check
     checkAndAwardAchievements(updatedUser, setCurrentUser)
+
+    console.log('[Profile] ✅ Profile saved successfully')
   }
 
   function removeSkill(skill) {
