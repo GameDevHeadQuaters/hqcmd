@@ -155,86 +155,86 @@ export default function MemberProfile({ currentUser, setCurrentUser, projects, s
     setConfirmLinksOwnership(false)
   }
 
-  async function saveProfile() {
-    setSaving(true)
-    try {
-    console.log('[Profile] Save started, currentUser:', currentUser?.id)
-    console.log('[Profile] editName:', editName, 'editBio:', editBio?.length, 'editRole:', editRole)
-
-    const updates = {
-      name: editName?.trim() || currentUser.name,
-      bio: editBio?.trim() || '',
-      role: editRole?.trim() || '',
-      skills: editSkills || [],
-      initials: (editName?.trim() || currentUser.name)
-        .split(' ')
-        .map(w => w[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2),
-      social_links: editSocialLinks || {},
-      profile_links_verified: confirmLinksOwnership && Object.values(editSocialLinks || {}).filter(Boolean).length >= 2,
-    }
-
-    console.log('[Profile] Updates:', updates)
-
-    // 1. Save to Supabase (skip for superadmin)
-    if (!currentUser.isSuperAdmin) {
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .update({ ...updates, updated_at: new Date().toISOString() })
-          .eq('id', String(currentUser.id))
-          .select()
-          .single()
-        if (error) console.error('[Profile] Supabase save error:', error)
-        else console.log('[Profile] ✅ Saved to Supabase:', data.id)
-      } catch (e) {
-        console.error('[Profile] Supabase error:', e)
-      }
-    }
-
+  function saveToLocalStorage(updates) {
     const localUpdates = {
-      name: updates.name,
-      bio: updates.bio,
-      role: updates.role,
-      skills: updates.skills,
-      initials: updates.initials,
-      socialLinks: updates.social_links,
-      profileLinksVerified: updates.profile_links_verified,
+      name: updates?.name || editName,
+      bio: updates?.bio || editBio,
+      role: updates?.role || editRole,
+      skills: updates?.skills || editSkills,
+      initials: updates?.initials || currentUser.initials,
+      socialLinks: updates?.social_links || editSocialLinks,
+      profileLinksVerified: updates?.profile_links_verified ?? (currentUser.profileLinksVerified || false),
     }
 
-    // 2. Save to localStorage users array
     const users = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
     const updatedUsers = users.map(u =>
       String(u.id) === String(currentUser.id) ? { ...u, ...localUpdates } : u
     )
     localStorage.setItem('hqcmd_users_v3', JSON.stringify(updatedUsers))
 
-    // 3. Update currentUser state and localStorage
     const updatedUser = { ...currentUser, ...localUpdates }
     setCurrentUser(updatedUser)
     localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify(updatedUser))
 
-    // 4. Save admin profile separately if superadmin
     if (currentUser.isSuperAdmin) {
       const adminProfile = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
       localStorage.setItem('hqcmd_admin_profile', JSON.stringify({ ...adminProfile, ...localUpdates }))
     }
 
-    // 5. Update display state
     setMember(updatedUser)
     setProfileData(updatedUser)
-
-    // 6. Exit edit mode
-    setIsEditing(false)
-
-    // 7. Trigger achievement check
     checkAndAwardAchievements(updatedUser, setCurrentUser)
+  }
 
-    console.log('[Profile] ✅ Done')
+  async function saveProfile() {
+    setSaving(true)
+    try {
+      console.log('[Profile] Save started, currentUser:', currentUser?.id)
+      console.log('[Profile] editName:', editName, 'editBio:', editBio?.length, 'editRole:', editRole)
+
+      // Check session is active
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      console.log('[Profile] Current session:', session?.user?.id, sessionError?.message)
+
+      if (!session && !currentUser?.isSuperAdmin) {
+        console.error('[Profile] No active session — falling back to localStorage only')
+        saveToLocalStorage()
+        setIsEditing(false)
+        return
+      }
+
+      const updates = {
+        name: editName?.trim() || currentUser.name,
+        bio: editBio?.trim() || '',
+        role: editRole?.trim() || '',
+        skills: editSkills || [],
+        initials: (editName?.trim() || currentUser.name)
+          .split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+        social_links: editSocialLinks || {},
+        profile_links_verified: confirmLinksOwnership && Object.values(editSocialLinks || {}).filter(Boolean).length >= 2,
+        updated_at: new Date().toISOString(),
+      }
+
+      console.log('[Profile] Saving to Supabase:', updates)
+
+      if (!currentUser.isSuperAdmin) {
+        const { data, error } = await supabase
+          .from('users')
+          .update(updates)
+          .eq('id', String(currentUser.id))
+          .select()
+          .single()
+
+        console.log('[Profile] Supabase result:', data?.id, error?.message, error?.code)
+        if (error) console.error('[Profile] Supabase update failed:', error)
+        else console.log('[Profile] ✅ Saved to Supabase:', data.id)
+      }
+
+      saveToLocalStorage(updates)
+      setIsEditing(false)
+      console.log('[Profile] ✅ Save complete')
     } catch (e) {
-      console.error('[Profile] Save crashed:', e)
+      console.error('[Profile] Save error:', e)
       alert('Save failed: ' + e.message)
     } finally {
       setSaving(false)
