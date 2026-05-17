@@ -19,15 +19,19 @@ export default function HeroBackground() {
     }
 
     function initParticles() {
-      const count = Math.floor((canvas.width * canvas.height) / 15000)
+      const count = Math.floor((canvas.width * canvas.height) / 12000)
       particlesRef.current = Array.from({ length: count }, () => ({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        size: Math.random() * 1.5 + 0.5,
-        speedX: (Math.random() - 0.5) * 0.3,
-        speedY: (Math.random() - 0.5) * 0.3,
-        opacity: Math.random() * 0.4 + 0.1,
+        size: Math.random() * 1.8 + 0.6,
+        speedX: (Math.random() - 0.5) * 0.25,
+        speedY: (Math.random() - 0.5) * 0.25,
+        opacity: Math.random() * 0.5 + 0.15,
         hue: Math.random() > 0.5 ? '237,39,147' : '83,74,183',
+        springVx: 0,
+        springVy: 0,
+        phase: Math.random() * Math.PI * 2,
+        phaseSpeed: 0.008 + Math.random() * 0.012,
       }))
     }
 
@@ -46,69 +50,117 @@ export default function HeroBackground() {
     function animate() {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      mouseRef.current.x += (targetRef.current.x - mouseRef.current.x) * 0.05
-      mouseRef.current.y += (targetRef.current.y - mouseRef.current.y) * 0.05
+      mouseRef.current.x += (targetRef.current.x - mouseRef.current.x) * 0.08
+      mouseRef.current.y += (targetRef.current.y - mouseRef.current.y) * 0.08
 
       const mx = mouseRef.current.x
       const my = mouseRef.current.y
 
-      const glow1 = ctx.createRadialGradient(mx, my, 0, mx, my, 300)
-      glow1.addColorStop(0, 'rgba(237,39,147,0.08)')
-      glow1.addColorStop(0.5, 'rgba(83,74,183,0.04)')
+      // 3-layer cursor glow
+      const glow1 = ctx.createRadialGradient(mx, my, 0, mx, my, 350)
+      glow1.addColorStop(0, 'rgba(237,39,147,0.10)')
+      glow1.addColorStop(0.5, 'rgba(83,74,183,0.05)')
       glow1.addColorStop(1, 'rgba(0,0,0,0)')
       ctx.fillStyle = glow1
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-      const glow2 = ctx.createRadialGradient(mx, my, 0, mx, my, 120)
-      glow2.addColorStop(0, 'rgba(237,39,147,0.12)')
+      const glow2 = ctx.createRadialGradient(mx, my, 0, mx, my, 140)
+      glow2.addColorStop(0, 'rgba(237,39,147,0.18)')
       glow2.addColorStop(1, 'rgba(0,0,0,0)')
       ctx.fillStyle = glow2
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+      const glow3 = ctx.createRadialGradient(mx, my, 0, mx, my, 50)
+      glow3.addColorStop(0, 'rgba(255,80,180,0.28)')
+      glow3.addColorStop(1, 'rgba(0,0,0,0)')
+      ctx.fillStyle = glow3
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
       particlesRef.current.forEach(p => {
         const dx = mx - p.x
         const dy = my - p.y
         const dist = Math.sqrt(dx * dx + dy * dy)
-        const maxDist = 180
+        const attractRadius = 200
+        const repelRadius = 80
 
-        if (dist < maxDist && dist > 0) {
-          const force = (maxDist - dist) / maxDist * 0.4
-          p.x += dx / dist * force
-          p.y += dy / dist * force
+        p.phase += p.phaseSpeed
+
+        if (dist < repelRadius && dist > 0) {
+          // Repulsion — push away from cursor
+          const force = (repelRadius - dist) / repelRadius * 1.2
+          p.springVx -= (dx / dist) * force
+          p.springVy -= (dy / dist) * force
+        } else if (dist < attractRadius && dist > 0) {
+          // Attraction — pull toward cursor
+          const force = (attractRadius - dist) / attractRadius * 0.6
+          p.springVx += (dx / dist) * force
+          p.springVy += (dy / dist) * force
+        } else {
+          // Idle dancing — sine wave wobble
+          p.springVx += Math.sin(p.phase) * 0.04
+          p.springVy += Math.cos(p.phase * 0.7) * 0.04
         }
 
-        p.x += p.speedX
-        p.y += p.speedY
+        // Damping
+        p.springVx *= 0.88
+        p.springVy *= 0.88
 
+        p.x += p.speedX + p.springVx
+        p.y += p.speedY + p.springVy
+
+        // Wrap-around edges
         if (p.x < 0) p.x = canvas.width
         if (p.x > canvas.width) p.x = 0
         if (p.y < 0) p.y = canvas.height
         if (p.y > canvas.height) p.y = 0
 
-        const proximity = Math.max(0, 1 - dist / maxDist)
-        const opacity = p.opacity + proximity * 0.5
-        const size = p.size + proximity * 1.5
+        const proximity = Math.max(0, 1 - dist / attractRadius)
+        const opacity = p.opacity + proximity * 0.6
+        const size = p.size + proximity * 2.5
+
+        // Outer glow ring when near cursor
+        if (proximity > 0.3) {
+          ctx.beginPath()
+          ctx.arc(p.x, p.y, size + 3, 0, Math.PI * 2)
+          ctx.fillStyle = `rgba(237,39,147,${proximity * 0.15})`
+          ctx.fill()
+        }
 
         ctx.beginPath()
         ctx.arc(p.x, p.y, size, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(${p.hue},${Math.min(opacity, 0.8)})`
+        ctx.fillStyle = `rgba(${p.hue},${Math.min(opacity, 0.95)})`
         ctx.fill()
+      })
 
-        particlesRef.current.forEach(p2 => {
-          if (p === p2) return
+      // Connection lines — drawn after particles to avoid z-order issues
+      const particles = particlesRef.current
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i]
+        for (let j = i + 1; j < particles.length; j++) {
+          const p2 = particles[j]
           const dx2 = p.x - p2.x
           const dy2 = p.y - p2.y
           const d2 = Math.sqrt(dx2 * dx2 + dy2 * dy2)
-          if (d2 < 80) {
+          if (d2 < 100) {
+            // Boost alpha for lines near cursor
+            const midX = (p.x + p2.x) / 2
+            const midY = (p.y + p2.y) / 2
+            const mdx = mx - midX
+            const mdy = my - midY
+            const mouseDist = Math.sqrt(mdx * mdx + mdy * mdy)
+            const mouseBoost = Math.max(0, 1 - mouseDist / 180) * 0.25
+            const baseAlpha = (1 - d2 / 100) * 0.12
+            const alpha = Math.min(baseAlpha + mouseBoost, 0.45)
+            const color = mouseDist < 180 ? '237,39,147' : '83,74,183'
             ctx.beginPath()
             ctx.moveTo(p.x, p.y)
             ctx.lineTo(p2.x, p2.y)
-            ctx.strokeStyle = `rgba(83,74,183,${(1 - d2 / 80) * 0.08})`
-            ctx.lineWidth = 0.5
+            ctx.strokeStyle = `rgba(${color},${alpha})`
+            ctx.lineWidth = mouseDist < 180 ? 0.8 : 0.5
             ctx.stroke()
           }
-        })
-      })
+        }
+      }
 
       animFrameRef.current = requestAnimationFrame(animate)
     }
