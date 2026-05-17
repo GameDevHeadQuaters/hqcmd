@@ -4,6 +4,7 @@ import {
   IconInbox, IconMessageCircle, IconMail, IconFileText,
   IconWritingSign, IconBell, IconCheck, IconUserPlus, IconAddressBook,
   IconArrowRight, IconX, IconBriefcase, IconSend, IconCircleCheck,
+  IconSignature, IconUserCheck,
 } from '@tabler/icons-react'
 import ProfileDropdown from '../components/ProfileDropdown'
 import ContactsTab from '../components/ContactsTab'
@@ -22,29 +23,144 @@ function formatTime(iso) {
   return `${Math.floor(diff / 86400000)}d ago`
 }
 
-function AgreementMessageCard({ dm, onUpdate, navigate, currentUser }) {
-  const [agreementStatus, setAgreementStatus] = useState(null)
-
-  function markRead() {
-    if (!dm.read) onUpdate({ ...dm, read: true })
-  }
-
-  function getAgreementStatus(shareToken) {
-    if (!shareToken) return null
-    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-    const myId = String(currentUser?.id)
-    const myAgreements = (allData[myId] || allData[currentUser?.id] || {}).agreements || []
-    const agreement = myAgreements.find(a => a.shareToken === shareToken)
-    return agreement?.status || null
-  }
+function InlineAgreementSign({ message, currentUser, onSigned }) {
+  const [expanded, setExpanded] = useState(false)
+  const [signerName, setSignerName] = useState(currentUser?.name || '')
+  const [signing, setSigning] = useState(false)
+  const [signed, setSigned] = useState(false)
+  const [agreementContent, setAgreementContent] = useState(null)
 
   useEffect(() => {
-    const update = () => setAgreementStatus(getAgreementStatus(dm.shareToken))
-    update()
-    const interval = setInterval(update, 3000)
-    return () => clearInterval(interval)
-  }, [dm.shareToken, currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const myId = String(currentUser?.id)
+    const myAgreements = allData[myId]?.agreements || []
+    const agreement = myAgreements.find(a => a.shareToken === message.shareToken)
+    if (agreement?.status === 'fully_signed') setSigned(true)
+    if (agreement) setAgreementContent(agreement)
+  }, [message.shareToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function handleSign() {
+    if (!signerName.trim()) return
+    setSigning(true)
+    try {
+      const token = message.shareToken
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const now = new Date().toISOString()
+
+      Object.keys(allData).forEach(uid => {
+        ;(allData[uid]?.agreements || []).forEach((a, idx) => {
+          if (String(a.shareToken) === String(token)) {
+            allData[uid].agreements[idx] = {
+              ...allData[uid].agreements[idx],
+              status: 'fully_signed',
+              counterpartyName: signerName,
+              counterpartyEmail: currentUser.email,
+              counterpartySignedAt: now,
+              signedAt: now,
+            }
+          }
+        })
+      })
+
+      let ownerUserId = null
+      Object.keys(allData).forEach(uid => {
+        ;(allData[uid]?.agreements || []).forEach(a => {
+          if (String(a.shareToken) === String(token) && !a.isReceived) ownerUserId = uid
+        })
+      })
+      if (ownerUserId) {
+        if (!Array.isArray(allData[ownerUserId].notifications)) allData[ownerUserId].notifications = []
+        allData[ownerUserId].notifications.push({
+          id: String(Date.now()) + '_signed',
+          type: 'agreement_signed',
+          message: `✍ ${signerName} signed your agreement — you can now grant them access`,
+          read: false,
+          timestamp: now,
+          link: '/teams',
+        })
+        try {
+          const { supabase: sb } = await import('../lib/supabase')
+          await sb.from('notifications').insert({
+            user_id: ownerUserId,
+            type: 'agreement_signed',
+            message: `✍ ${signerName} signed your agreement — you can now grant them access`,
+            link: '/teams',
+            read: false,
+          })
+          await sb.from('agreements')
+            .update({ status: 'fully_signed', counterparty_name: signerName, counterparty_email: currentUser.email, recipient_signed_at: now })
+            .eq('share_token', token)
+        } catch (e) {
+          console.error('[InlineSign] Supabase update failed:', e)
+        }
+      }
+
+      localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allData))
+      window.dispatchEvent(new Event('storage'))
+      setSigned(true)
+      onSigned?.()
+    } catch (e) {
+      console.error('[InlineSign] Error:', e)
+    } finally {
+      setSigning(false)
+    }
+  }
+
+  if (signed) {
+    return (
+      <div style={{ marginTop: '10px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(34,197,94,0.1)', border: '1px solid #22c55e', fontSize: '12px', color: '#22c55e', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <IconCircleCheck size={14} /> Agreement signed — the project owner has been notified
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ marginTop: '10px' }}>
+      {!expanded ? (
+        <button
+          onClick={() => setExpanded(true)}
+          style={{ padding: '8px 16px', borderRadius: '9999px', border: 'none', background: 'var(--brand-accent)', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '5px' }}
+        >
+          <IconSignature size={13} /> Review &amp; Sign
+        </button>
+      ) : (
+        <div style={{ border: '1px solid var(--border-default)', borderRadius: '10px', overflow: 'hidden' }}>
+          {agreementContent && (
+            <div
+              style={{ maxHeight: '200px', overflowY: 'auto', padding: '14px 16px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-subtle)' }}
+              dangerouslySetInnerHTML={{ __html: agreementContent.content || agreementContent.generatedContent || '<p>Agreement content</p>' }}
+            />
+          )}
+          <div style={{ padding: '14px 16px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 10px' }}>
+              Sign with your full legal name to confirm agreement:
+            </p>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                value={signerName}
+                onChange={e => setSignerName(e.target.value)}
+                placeholder="Your full legal name"
+                style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: '12px' }}
+              />
+              <button
+                onClick={handleSign}
+                disabled={!signerName.trim() || signing}
+                style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: signerName.trim() ? '#22c55e' : 'var(--bg-elevated)', color: signerName.trim() ? 'white' : 'var(--text-tertiary)', cursor: signerName.trim() ? 'pointer' : 'default', fontSize: '12px', fontWeight: '500', whiteSpace: 'nowrap' }}
+              >
+                {signing ? 'Signing...' : '✍ Sign Now'}
+              </button>
+            </div>
+            <p style={{ fontSize: '10px', color: 'var(--text-tertiary)', margin: '6px 0 0' }}>
+              ⚠ Must be your legal name as it appears on official documents
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AgreementMessageCard({ dm, onUpdate, navigate, currentUser }) {
   return (
     <div
       className="rounded-lg overflow-hidden transition-all"
@@ -70,16 +186,18 @@ function AgreementMessageCard({ dm, onUpdate, navigate, currentUser }) {
             </p>
           </div>
         </div>
-        <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--text-secondary)' }}>{dm.message}</p>
-        {agreementStatus === 'fully_signed' ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#22c55e', fontSize: '12px' }}>
-            <IconCircleCheck size={14} /> Agreement signed — awaiting project access
-          </div>
+        <p className="text-sm leading-relaxed mb-1" style={{ color: 'var(--text-secondary)' }}>{dm.message}</p>
+        {dm.shareToken ? (
+          <InlineAgreementSign
+            message={dm}
+            currentUser={currentUser}
+            onSigned={() => onUpdate({ ...dm, read: true })}
+          />
         ) : (
           <button
-            onClick={() => { markRead(); navigate('/sign/' + dm.shareToken) }}
+            onClick={() => { onUpdate({ ...dm, read: true }); navigate('/sign/' + dm.shareToken) }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white transition-colors"
-            style={{ backgroundColor: '#534AB7' }}
+            style={{ backgroundColor: '#534AB7', marginTop: '10px' }}
             onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#3C3489')}
             onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#534AB7')}
           >
@@ -377,6 +495,132 @@ function MessageCard({ dm, onUpdate, navigate, currentUser }) {
         )}
       </div>
     </div>
+  )
+}
+
+function NotificationGrantAccess({ notification, currentUser, onGranted }) {
+  const [granting, setGranting] = useState(false)
+  const [granted, setGranted] = useState(false)
+  const [application, setApplication] = useState(null)
+  const [project, setProject] = useState(null)
+
+  useEffect(() => {
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const myId = String(currentUser?.id)
+    const myProjects = allData[myId]?.projects || []
+    let foundApp = null
+    let foundProject = null
+    myProjects.forEach(p => {
+      if (foundApp) return
+      ;(p.applications || []).forEach(a => {
+        if (foundApp) return
+        if (a.status === 'agreement_sent' || a.status === 'pending_countersign') {
+          const agreements = allData[myId]?.agreements || []
+          const signed = agreements.find(ag =>
+            ag.status === 'fully_signed' &&
+            (ag.counterpartyName === a.applicantName || ag.counterpartyEmail === a.applicantEmail)
+          )
+          if (signed) { foundApp = a; foundProject = p }
+        }
+      })
+    })
+    if (foundApp) { setApplication(foundApp); setProject(foundProject) }
+  }, [notification]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleGrantAccess() {
+    if (!application || !project) return
+    setGranting(true)
+    try {
+      const USERDATA_KEY = 'hqcmd_userData_v4'
+      const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+      const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+      const myId = String(currentUser.id)
+
+      const applicant = allUsers.find(u =>
+        u.email?.toLowerCase() === application.applicantEmail?.toLowerCase() ||
+        u.name === application.applicantName
+      )
+      if (!applicant) { alert('Could not find applicant account'); return }
+
+      const applicantId = String(applicant.id)
+      if (!allData[applicantId]) allData[applicantId] = { projects: [], applications: [], directMessages: [], notifications: [], agreements: [], contacts: [], sharedProjects: [] }
+      if (!Array.isArray(allData[applicantId].sharedProjects)) allData[applicantId].sharedProjects = []
+
+      const alreadyHas = allData[applicantId].sharedProjects.some(sp => String(sp.projectId) === String(project.id))
+      if (!alreadyHas) {
+        allData[applicantId].sharedProjects.push({
+          id: String(Date.now()),
+          projectId: String(project.id),
+          ownerUserId: myId,
+          jobRole: application.role || '',
+          accessRole: 'No Role',
+          role: 'No Role',
+          joinedAt: new Date().toISOString(),
+        })
+      }
+
+      const projectIdx = allData[myId]?.projects?.findIndex(p2 => String(p2.id) === String(project.id))
+      if (projectIdx !== -1) {
+        if (!Array.isArray(allData[myId].projects[projectIdx].members)) allData[myId].projects[projectIdx].members = []
+        const alreadyMember = allData[myId].projects[projectIdx].members.some(m => String(m.userId || m.id) === applicantId)
+        if (!alreadyMember) {
+          allData[myId].projects[projectIdx].members.push({
+            id: applicantId, userId: applicantId,
+            name: applicant.name,
+            jobRole: application.role || '',
+            accessRole: 'No Role',
+            role: 'No Role',
+            initials: applicant.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+            joinedAt: new Date().toISOString(),
+          })
+        }
+        const appIdx = allData[myId].projects[projectIdx].applications?.findIndex(a => a.id === application.id)
+        if (appIdx !== -1) allData[myId].projects[projectIdx].applications[appIdx].status = 'access_granted'
+      }
+
+      if (!Array.isArray(allData[applicantId].notifications)) allData[applicantId].notifications = []
+      allData[applicantId].notifications.push({
+        id: String(Date.now()) + '_access',
+        type: 'access_granted',
+        message: `🎉 You've been granted access to "${project.title}"! Check My Projects.`,
+        read: false,
+        timestamp: new Date().toISOString(),
+        link: '/projects',
+      })
+
+      try {
+        const { supabase: sb } = await import('../lib/supabase')
+        await sb.from('project_members').upsert({ project_id: String(project.id), user_id: applicantId, job_role: application.role || '', access_role: 'No Role' })
+        await sb.from('notifications').insert({ user_id: applicantId, type: 'access_granted', message: `🎉 You've been granted access to "${project.title}"! Check My Projects.`, link: '/projects', read: false })
+      } catch (e) {
+        console.error('[GrantAccess] Supabase error:', e)
+      }
+
+      localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+      window.dispatchEvent(new Event('storage'))
+      setGranted(true)
+      onGranted?.()
+    } catch (e) {
+      console.error('[GrantAccess] Error:', e)
+    } finally {
+      setGranting(false)
+    }
+  }
+
+  if (!application || !project) return null
+
+  return granted ? (
+    <div style={{ marginTop: '8px', fontSize: '12px', color: '#22c55e', display: 'flex', alignItems: 'center', gap: '5px' }}>
+      <IconCheck size={13} /> Access granted to {application.applicantName}
+    </div>
+  ) : (
+    <button
+      onClick={handleGrantAccess}
+      disabled={granting}
+      style={{ marginTop: '8px', padding: '6px 14px', borderRadius: '9999px', border: 'none', background: '#22c55e', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '5px' }}
+    >
+      <IconUserCheck size={13} /> {granting ? 'Granting...' : `Grant Access to ${application.applicantName} →`}
+    </button>
   )
 }
 
@@ -796,7 +1040,16 @@ export default function Inbox({
                 </div>
                 <div className="space-y-2">
                   {(notifications ?? []).slice(0, 10).map(n => (
-                    <NotifCard key={n.id} notif={n} onMarkRead={markNotifRead} navigate={navigate} />
+                    <div key={n.id}>
+                      <NotifCard notif={n} onMarkRead={markNotifRead} navigate={navigate} />
+                      {n.type === 'agreement_signed' && (
+                        <NotificationGrantAccess
+                          notification={n}
+                          currentUser={currentUser}
+                          onGranted={() => markNotifRead(n.id)}
+                        />
+                      )}
+                    </div>
                   ))}
                 </div>
               </>

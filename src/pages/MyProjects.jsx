@@ -289,7 +289,7 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
   }, [currentUser])
 
   function handleSave(data) {
-    const id = String(Date.now())
+    const id = data.id || String(Date.now())
     if (data.coverImage) {
       try { localStorage.setItem('hqcmd_img_' + id, data.coverImage) }
       catch (e) { if (e.name === 'QuotaExceededError') console.warn('localStorage full — cover image not saved') }
@@ -473,6 +473,7 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
           onSave={handleSave}
           onClose={() => setCreating(false)}
           defaults={projectDefaults}
+          currentUser={currentUser}
         />
       )}
 

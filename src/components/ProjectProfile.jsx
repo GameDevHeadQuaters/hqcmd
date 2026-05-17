@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { IconX, IconUpload, IconToggleLeft, IconToggleRight, IconArchive } from '@tabler/icons-react'
 import { PRESET_ROLES } from '../utils/skillsList'
 import TagInput from './TagInput'
@@ -64,6 +65,83 @@ function compressImage(base64, maxWidth = 800, quality = 0.7) {
   })
 }
 
+function ProjectSetupWizard({ project, currentUser, onComplete }) {
+  const navigate = useNavigate()
+  const [step, setStep] = useState(0)
+
+  const steps = [
+    {
+      icon: '🗺️',
+      title: 'Add your first milestones',
+      desc: 'Break your project into stages. Milestones help your team understand the plan and track progress.',
+      cta: 'Add Milestones',
+      action: () => { onComplete(); navigate(`/workstation?projectId=${project.id}&ownerUserId=${currentUser?.id}&tab=milestones`) },
+    },
+    {
+      icon: '🎮',
+      title: 'Start your Game Design Document',
+      desc: 'Capture your vision, core loop and mechanics. Your team will thank you.',
+      cta: 'Open GDD',
+      action: () => { onComplete(); navigate(`/workstation?projectId=${project.id}&ownerUserId=${currentUser?.id}&tab=gdd`) },
+    },
+    {
+      icon: '👥',
+      title: 'Find collaborators',
+      desc: 'Make your project public so talented developers, artists and composers can find and apply to join.',
+      cta: 'Set to Public',
+      action: async () => {
+        const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+        const myId = String(currentUser?.id)
+        const idx = (allData[myId]?.projects || []).findIndex(p => String(p.id) === String(project.id))
+        if (idx !== -1) {
+          allData[myId].projects[idx].visibility = 'Public'
+          localStorage.setItem('hqcmd_userData_v4', JSON.stringify(allData))
+        }
+        onComplete()
+        navigate(`/workstation?projectId=${project.id}&ownerUserId=${currentUser?.id}`)
+      },
+    },
+  ]
+
+  const current = steps[step]
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div style={{ background: 'var(--bg-surface)', borderRadius: '16px', border: '1px solid var(--border-default)', padding: '32px', maxWidth: '440px', width: '90%', textAlign: 'center' }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>{current.icon}</div>
+        <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '0 0 8px' }}>
+          Quick Setup — Step {step + 1} of {steps.length}
+        </p>
+        <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 10px' }}>
+          {current.title}
+        </h3>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, margin: '0 0 28px' }}>
+          {current.desc}
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginBottom: '24px' }}>
+          {steps.map((_, i) => (
+            <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: i === step ? 'var(--brand-accent)' : 'var(--border-default)' }} />
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={() => step < steps.length - 1 ? setStep(step + 1) : onComplete()}
+            style={{ flex: 1, padding: '10px', borderRadius: '9999px', border: '1px solid var(--border-default)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '13px' }}
+          >
+            {step < steps.length - 1 ? 'Skip →' : 'Done'}
+          </button>
+          <button
+            onClick={current.action}
+            style={{ flex: 2, padding: '10px', borderRadius: '9999px', border: 'none', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}
+          >
+            {current.cta}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ProjectProfile({ project, onSave, onClose, currentUser, defaults = {} }) {
   const fileRef = useRef(null)
 
@@ -89,6 +167,8 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
     permanent:    project.permanent    || false,
   })
 
+  const [showSetupWizard,  setShowSetupWizard]  = useState(false)
+  const [savedProjectId,   setSavedProjectId]   = useState(null)
   const [showClosureModal, setShowClosureModal] = useState(false)
   const [closureStatus,   setClosureStatus]   = useState('')
   const [closureMessage,  setClosureMessage]  = useState('')
@@ -177,7 +257,10 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
   }
 
   function save() {
+    const isNew = !project.id
+    const savedId = isNew ? String(Date.now()) : project.id
     onSave({
+      id:           savedId,
       title:        form.title,
       description:  form.overview,
       category:     form.category,
@@ -194,7 +277,12 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
       permanent:    form.permanent,
       milestones:   form.milestones,
     })
-    onClose()
+    if (isNew) {
+      setSavedProjectId(savedId)
+      setShowSetupWizard(true)
+    } else {
+      onClose()
+    }
   }
 
   function handleCloseProject() {
@@ -565,6 +653,14 @@ export default function ProjectProfile({ project, onSave, onClose, currentUser, 
           )}
         </div>
       </div>
+
+      {showSetupWizard && savedProjectId && (
+        <ProjectSetupWizard
+          project={{ ...form, id: savedProjectId }}
+          currentUser={currentUser}
+          onComplete={onClose}
+        />
+      )}
 
       {showClosureModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
