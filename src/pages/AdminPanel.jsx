@@ -2006,10 +2006,37 @@ function AnalyticsTab({ currentUser }) {
     loadStats()
   }, [])
 
+  async function loadProInterests() {
+    const local = JSON.parse(localStorage.getItem('hqcmd_pro_interests') || '[]')
+    try {
+      const { supabase: sb } = await import('../lib/supabase')
+      const { data } = await sb
+        .from('beta_requests')
+        .select('*')
+        .eq('status', 'pro_interest')
+        .order('created_at', { ascending: false })
+
+      if (data?.length > 0) {
+        const supabaseEntries = data.map(d => ({
+          id: d.id,
+          email: d.email,
+          tier: d.reason?.replace('Interested in ', '').replace(' tier', '') || 'unknown',
+          timestamp: d.created_at
+        }))
+        const allEmails = new Set(supabaseEntries.map(e => e.email))
+        const localOnly = local.filter(e => !allEmails.has(e.email))
+        return [...supabaseEntries, ...localOnly]
+          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      }
+    } catch(e) {
+      console.error('[Analytics] Pro interests load failed:', e)
+    }
+    return local
+  }
+
   async function loadStats() {
     const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
     const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
-    const proInterests = JSON.parse(localStorage.getItem('hqcmd_pro_interests') || '[]')
 
     let supabaseStats = {}
     try {
@@ -2033,6 +2060,8 @@ function AnalyticsTab({ currentUser }) {
     } catch(e) {
       console.error('[Analytics] Supabase stats failed:', e)
     }
+
+    const proInterests = await loadProInterests()
 
     let gddCount = 0, storyStudioCount = 0, budgetCount = 0, agreementCount = 0
     Object.keys(allData).forEach(uid => {
@@ -2102,11 +2131,17 @@ function AnalyticsTab({ currentUser }) {
         <StatCard label="Budget Tracker" value={stats.budgetUsage} sublabel="projects with transactions" colour="#22c55e" />
       </div>
 
-      <p style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 10px' }}>Pro Interest ({stats.proInterests.length} total)</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px', marginBottom: '24px' }}>
-        <StatCard label="Indie Tier" value={stats.indieInterests} colour="#ed2793" />
-        <StatCard label="Studio Tier" value={stats.studioInterests} colour="#22c55e" />
-        <StatCard label="Publisher Tier" value={stats.publisherInterests} colour="#f59e0b" />
+      <p style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 10px' }}>Pro Interest</p>
+      <div style={{ padding: '16px', borderRadius: '10px', background: 'linear-gradient(135deg, rgba(237,39,147,0.1), rgba(83,74,183,0.1))', border: '1px solid rgba(237,39,147,0.3)', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <p style={{ fontSize: '24px', fontWeight: '800', color: '#ed2793', margin: 0 }}>{stats.proInterests.length}</p>
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Pro interest registrations</p>
+        </div>
+        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textAlign: 'right' }}>
+          <p style={{ margin: '0 0 2px' }}>💜 Indie: {stats.indieInterests}</p>
+          <p style={{ margin: '0 0 2px' }}>🚀 Studio: {stats.studioInterests}</p>
+          <p style={{ margin: 0 }}>🏢 Publisher: {stats.publisherInterests}</p>
+        </div>
       </div>
 
       {stats.proInterests.length > 0 && (

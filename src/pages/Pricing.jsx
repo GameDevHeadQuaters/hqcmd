@@ -123,46 +123,65 @@ export default function Pricing() {
     if (!interestEmail.trim() || !interestTier) return
     setSubmitting(true)
 
+    const entry = {
+      id: String(Date.now()),
+      email: interestEmail.trim().toLowerCase(),
+      tier: interestTier,
+      timestamp: new Date().toISOString()
+    }
+
+    // Step 1: localStorage — always works, always immediate
     try {
       const interests = JSON.parse(localStorage.getItem('hqcmd_pro_interests') || '[]')
-      interests.push({
-        id: String(Date.now()),
-        email: interestEmail.trim(),
-        tier: interestTier,
-        timestamp: new Date().toISOString()
-      })
-      localStorage.setItem('hqcmd_pro_interests', JSON.stringify(interests))
-
-      try {
-        const { supabase } = await import('../lib/supabase')
-        await supabase.from('beta_requests').upsert({
-          email: interestEmail.trim(),
-          name: `Pro Interest: ${interestTier}`,
-          reason: `Interested in ${interestTier} tier`,
-          status: 'pro_interest'
-        }, { onConflict: 'email' })
-      } catch(e) {
-        console.error('[Pricing] Supabase save failed:', e)
+      const exists = interests.find(i => i.email === entry.email && i.tier === entry.tier)
+      if (!exists) {
+        interests.push(entry)
+        localStorage.setItem('hqcmd_pro_interests', JSON.stringify(interests))
       }
-
-      try {
-        await fetch('/api/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: 'hello@gamedevlocal.com',
-            subject: `HQCMD Pro Interest: ${interestTier} tier`,
-            html: `<p><strong>${interestEmail}</strong> is interested in the <strong>${interestTier}</strong> tier.</p>`
-          })
-        })
-      } catch(e) {}
-
-      setSubmitted(true)
+      console.log('[Pricing] Saved to localStorage')
     } catch(e) {
-      console.error('[Pricing] Interest submit error:', e)
-    } finally {
-      setSubmitting(false)
+      console.error('[Pricing] localStorage save failed:', e)
     }
+
+    // Step 2: Supabase — fire and forget
+    try {
+      const { supabase } = await import('../lib/supabase')
+      supabase.from('beta_requests').upsert({
+        email: entry.email,
+        name: `Pro Interest: ${entry.tier}`,
+        reason: `Interested in ${entry.tier} tier`,
+        status: 'pro_interest'
+      }, { onConflict: 'email' }).then(({ error }) => {
+        if (error) console.error('[Pricing] Supabase save failed:', error)
+        else console.log('[Pricing] Saved to Supabase')
+      })
+    } catch(e) {
+      console.error('[Pricing] Supabase error:', e)
+    }
+
+    // Step 3: Email — fire and forget
+    try {
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: 'hello@gamedevlocal.com',
+          subject: `🎉 HQCMD Pro Interest: ${entry.tier} tier`,
+          html: `
+            <h2>New Pro Interest Registration</h2>
+            <p><strong>Email:</strong> ${entry.email}</p>
+            <p><strong>Tier:</strong> ${entry.tier}</p>
+            <p><strong>Time:</strong> ${new Date(entry.timestamp).toLocaleString('en-GB')}</p>
+          `
+        })
+      }).catch(e => console.error('[Pricing] Email send failed:', e))
+    } catch(e) {
+      console.error('[Pricing] Email error:', e)
+    }
+
+    // Always complete — localStorage is the source of truth
+    setSubmitted(true)
+    setSubmitting(false)
   }
 
   return (
