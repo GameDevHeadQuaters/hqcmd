@@ -319,6 +319,10 @@ function convertSupabaseProject(p) {
 }
 
 async function loadUserProjects(supabaseClient, userId) {
+  if (!userId || userId === 'superadmin') {
+    console.log('[Projects] Skipping Supabase load for superadmin')
+    return []
+  }
   const USERDATA_KEY = 'hqcmd_userData_v4'
   try {
     const { data: projects, error } = await supabaseClient
@@ -371,6 +375,7 @@ async function loadUserProjects(supabaseClient, userId) {
 }
 
 async function loadUserNotifications(supabaseClient, userId) {
+  if (!userId || userId === 'superadmin') return
   const USERDATA_KEY = 'hqcmd_userData_v4'
   try {
     const { data, error } = await supabaseClient
@@ -415,6 +420,10 @@ async function loadUserNotifications(supabaseClient, userId) {
 }
 
 async function loadSharedProjects(supabaseClient, userId) {
+  if (!userId || userId === 'superadmin') {
+    console.log('[SharedProjects] Skipping Supabase load for superadmin')
+    return
+  }
   const USERDATA_KEY = 'hqcmd_userData_v4'
   try {
     const { data: memberships, error } = await supabaseClient
@@ -694,6 +703,10 @@ export default function App() {
   }
 
   async function loadUserProfile(authUser) {
+    if (!authUser?.id || authUser.id === 'superadmin') {
+      setAuthLoading(false)
+      return null
+    }
     try {
       setAuthLoading(true)
       console.log('[Auth] Loading profile for:', authUser.id)
