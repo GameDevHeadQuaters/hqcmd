@@ -400,15 +400,39 @@ export default function TeamsPage({
 
   function getProjectPipeline(project) {
     if (!project.isOwned) return { applied: [], accepted: [], agreement: [], active: [], declined: [] }
-    const apps = project.applications?.length
-      ? project.applications
-      : (applications ?? []).filter(a => String(a.projectId) === String(project.id))
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const ownerId = String(project._ownerUserId || currentUser?.id)
+    const freshProject = allData[ownerId]?.projects?.find(p => String(p.id) === String(project.id))
+    const apps = freshProject?.applications || project.applications || []
     return {
       applied:   apps.filter(a => a.status === 'pending'),
-      accepted:  apps.filter(a => a.status === 'accepted_pending_agreement'),
-      agreement: apps.filter(a => a.status === 'agreement_sent'),
+      accepted:  apps.filter(a => a.status === 'accepted' || a.status === 'accepted_pending_agreement'),
+      agreement: apps.filter(a => ['agreement_sent', 'pending_countersign', 'awaiting_countersign'].includes(a.status)),
       active:    apps.filter(a => a.status === 'access_granted'),
       declined:  apps.filter(a => a.status === 'declined'),
+    }
+  }
+
+  function getApplicationsByStatus(project, status) {
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const ownerId = String(project._ownerUserId || currentUser?.id)
+    const freshProject = allData[ownerId]?.projects?.find(p => String(p.id) === String(project.id))
+    const apps = freshProject?.applications || []
+
+    console.log('[Pipeline] Project:', project.title, 'total apps:', apps.length, 'looking for status:', status)
+    apps.forEach(a => console.log('  -', a.applicantName, 'status:', a.status))
+
+    switch(status) {
+      case 'applied':
+        return apps.filter(a => a.status === 'pending')
+      case 'accepted':
+        return apps.filter(a => a.status === 'accepted' || a.status === 'accepted_pending_agreement')
+      case 'agreement':
+        return apps.filter(a => ['agreement_sent', 'pending_countersign', 'awaiting_countersign'].includes(a.status))
+      case 'active':
+        return apps.filter(a => a.status === 'access_granted')
+      default:
+        return apps
     }
   }
 
@@ -447,10 +471,11 @@ export default function TeamsPage({
   }
 
   function getPipelineTab(projectId) {
-    return pipelineTabs[projectId] ?? 'applied'
+    return sessionStorage.getItem(`hqcmd_pipeline_tab_${projectId}`) || pipelineTabs[projectId] || 'applied'
   }
 
   function setPipelineTab(projectId, tab) {
+    sessionStorage.setItem(`hqcmd_pipeline_tab_${projectId}`, tab)
     setPipelineTabs(prev => ({ ...prev, [projectId]: tab }))
   }
 
@@ -458,39 +483,69 @@ export default function TeamsPage({
     setApplications?.(prev => prev.map(a => a.id === updatedApp.id ? updatedApp : a))
   }
 
-  function acceptApp(app, project) {
-    setActionedIds(prev => [...prev, app.id])
-    updateApp({ ...app, status: 'accepted_pending_agreement', read: true })
-    onAddNotification?.({ type: 'application', text: `You accepted ${app.applicantName} for ${app.role}.`, link: '/teams' })
-    setPipelineTab(project.id, 'accepted')
+  function handleAccept(application, project) {
+    console.log('[Pipeline] Accepting:', application.applicantName, 'for project:', project.id)
 
-    // Notify the applicant directly in localStorage
-    try {
-      const allUD = readAllUD()
-      const applicantUser = (users ?? []).find(u =>
-        (app.applicantId && String(u.id) === String(app.applicantId)) ||
-        (app.applicantUserId && String(u.id) === String(app.applicantUserId)) ||
-        u.email?.toLowerCase() === app.applicantEmail?.toLowerCase() ||
-        u.name?.toLowerCase() === app.applicantName?.toLowerCase()
-      )
-      if (applicantUser) {
-        const apId = String(applicantUser.id)
-        if (!allUD[apId]) allUD[apId] = {}
-        allUD[apId].notifications = [
-          {
-            id: Date.now(),
-            iconType: 'application_accepted',
-            type: 'application_accepted',
-            text: `Your application for ${app.role} on "${project.title || app.projectTitle}" has been accepted! Check your agreements for next steps.`,
-            time: 'Just now',
-            read: false,
-            link: '/agreements',
-          },
-          ...(allUD[apId].notifications || []),
-        ]
-        localStorage.setItem(UD_KEY, JSON.stringify(allUD))
-      }
-    } catch {}
+    const USERDATA_KEY = 'hqcmd_userData_v4'
+    const allData = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
+    const ownerId = String(project._ownerUserId || currentUser?.id)
+
+    const projectIdx = allData[ownerId]?.projects?.findIndex(p => String(p.id) === String(project.id))
+    if (projectIdx === -1 || projectIdx === undefined) {
+      console.error('[Pipeline] Project not found:', project.id)
+      return
+    }
+
+    const appIdx = allData[ownerId].projects[projectIdx].applications?.findIndex(a => a.id === application.id)
+    if (appIdx === -1 || appIdx === undefined) {
+      console.error('[Pipeline] Application not found:', application.id)
+      return
+    }
+
+    allData[ownerId].projects[projectIdx].applications[appIdx].status = 'accepted'
+    allData[ownerId].projects[projectIdx].applications[appIdx].acceptedAt = new Date().toISOString()
+
+    localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+    console.log('[Pipeline] ✅ Status updated to accepted')
+
+    // Notify applicant
+    const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+    const applicant = allUsers.find(u =>
+      u.email === application.applicantEmail ||
+      u.name === application.applicantName ||
+      String(u.id) === String(application.applicantUserId || application.applicantId)
+    )
+    if (applicant) {
+      const applicantId = String(applicant.id)
+      if (!allData[applicantId]) allData[applicantId] = { notifications: [] }
+      if (!Array.isArray(allData[applicantId].notifications)) allData[applicantId].notifications = []
+      allData[applicantId].notifications.push({
+        id: String(Date.now()) + '_accepted',
+        type: 'application_accepted',
+        message: `🎉 Your application for ${application.role} on "${project.title}" was accepted!`,
+        read: false,
+        timestamp: new Date().toISOString(),
+        link: '/inbox?tab=applications'
+      })
+      localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+
+      import('../lib/supabase').then(({ supabase }) => {
+        supabase.from('notifications').insert({
+          user_id: applicantId,
+          type: 'application_accepted',
+          message: `🎉 Your application for ${application.role} on "${project.title}" was accepted!`,
+          link: '/inbox?tab=applications',
+          read: false
+        }).then(({ error }) => {
+          if (error) console.error('[Pipeline] Supabase notify error:', error)
+        })
+      })
+    }
+
+    setActionedIds(prev => [...prev, application.id])
+    window.dispatchEvent(new Event('storage'))
+    loadTeamsData()
+    setPipelineTab(project.id, 'accepted')
   }
 
   function declineApp(app) {
@@ -733,6 +788,10 @@ export default function TeamsPage({
             const pipeline = getProjectPipeline(project)
             const pipelineTab = getPipelineTab(project.id)
             const isManager = canManage(project.userRole)
+            const appliedApps = getApplicationsByStatus(project, 'applied')
+            const acceptedApps = getApplicationsByStatus(project, 'accepted')
+            const agreementApps = getApplicationsByStatus(project, 'agreement')
+            const activeApps = getApplicationsByStatus(project, 'active')
 
             // Active tab: all current team members (direct + sharedProject refs)
             const activeMembers = project.members || []
@@ -763,7 +822,7 @@ export default function TeamsPage({
                 (app.applicantUserId && String(m.userId || m.id) === String(app.applicantUserId))
               )
             )
-            const totalPipelineApps = pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + activeApplications.length
+            const totalPipelineApps = appliedApps.length + acceptedApps.length + agreementApps.length + activeApps.length
 
             return (
               <div key={project.id} className="rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
@@ -984,7 +1043,7 @@ export default function TeamsPage({
                           <IconBriefcase size={16} style={{ color: ACCENT }} />
                           <h4 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Application Pipeline</h4>
                           {(() => {
-                            const total = pipeline.applied.length + pipeline.accepted.length + pipeline.agreement.length + activeApplications.length
+                            const total = appliedApps.length + acceptedApps.length + agreementApps.length + activeApps.length
                             return total > 0 ? (
                               <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '18px', height: '18px', borderRadius: '99px', fontSize: '10px', fontWeight: '700', color: '#fff', background: '#ed2793', boxShadow: '0 0 8px rgba(237,39,147,0.8), 0 0 16px rgba(237,39,147,0.4)', padding: '0 5px' }}>
                                 {total}
@@ -1004,10 +1063,10 @@ export default function TeamsPage({
                         {/* Stepper tabs */}
                         <div className="flex gap-0 mb-5 rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-default)' }}>
                           {[
-                            { id: 'applied',   label: 'Applied',   count: pipeline.applied.length,   icon: IconUserPlus },
-                            { id: 'accepted',  label: 'Accepted',  count: pipeline.accepted.length,  icon: IconCheck },
-                            { id: 'agreement', label: 'Agreement', count: pipeline.agreement.length, icon: IconWritingSign },
-                            { id: 'active',    label: 'Active',    count: activeApplications.length, icon: IconUserCheck },
+                            { id: 'applied',   label: 'Applied',   count: appliedApps.length,   icon: IconUserPlus },
+                            { id: 'accepted',  label: 'Accepted',  count: acceptedApps.length,  icon: IconCheck },
+                            { id: 'agreement', label: 'Agreement', count: agreementApps.length, icon: IconWritingSign },
+                            { id: 'active',    label: 'Active',    count: activeApps.length,    icon: IconUserCheck },
                           ].map((stage, idx, arr) => (
                             <button
                               key={stage.id}
@@ -1050,14 +1109,14 @@ export default function TeamsPage({
 
                         {/* Stage 1: Applied */}
                         {pipelineTab === 'applied' && (
-                          pipeline.applied.length === 0 ? (
+                          appliedApps.length === 0 ? (
                             <div className="rounded-lg p-10 text-center" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
                               <IconUserPlus size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-2" />
                               <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No new applications.</p>
                             </div>
                           ) : (
                             <div className="space-y-3">
-                              {pipeline.applied.map(app => {
+                              {appliedApps.map(app => {
                                 const isActioned = actionedIds.includes(app.id)
                                 return (
                                 <div key={app.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
@@ -1074,26 +1133,28 @@ export default function TeamsPage({
                                         {app.timestamp && <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>{formatDate(app.timestamp)}</p>}
                                       </div>
                                     </div>
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                      <button
-                                        disabled={isActioned}
-                                        onClick={isActioned ? undefined : e => { e.stopPropagation(); acceptApp(app, project) }}
-                                        className="px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-colors"
-                                        style={{ backgroundColor: '#16a34a', opacity: isActioned ? 0.5 : 1, cursor: isActioned ? 'default' : 'pointer' }}
-                                        onMouseEnter={e => { if (!isActioned) e.currentTarget.style.backgroundColor = '#15803d' }}
-                                        onMouseLeave={e => { if (!isActioned) e.currentTarget.style.backgroundColor = '#16a34a' }}>
-                                        Accept
-                                      </button>
-                                      <button
-                                        disabled={isActioned}
-                                        onClick={isActioned ? undefined : e => { e.stopPropagation(); declineApp(app) }}
-                                        className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-                                        style={{ borderColor: '#ed2793', color: '#ed2793', opacity: isActioned ? 0.5 : 1, cursor: isActioned ? 'default' : 'pointer' }}
-                                        onMouseEnter={e => { if (!isActioned) e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)' }}
-                                        onMouseLeave={e => { if (!isActioned) e.currentTarget.style.backgroundColor = '' }}>
-                                        Decline
-                                      </button>
-                                    </div>
+                                    {app.status === 'pending' && (
+                                      <div className="flex items-center gap-2 flex-shrink-0">
+                                        <button
+                                          disabled={isActioned}
+                                          onClick={isActioned ? undefined : e => { e.stopPropagation(); handleAccept(app, project) }}
+                                          className="px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-colors"
+                                          style={{ backgroundColor: '#16a34a', opacity: isActioned ? 0.5 : 1, cursor: isActioned ? 'default' : 'pointer' }}
+                                          onMouseEnter={e => { if (!isActioned) e.currentTarget.style.backgroundColor = '#15803d' }}
+                                          onMouseLeave={e => { if (!isActioned) e.currentTarget.style.backgroundColor = '#16a34a' }}>
+                                          Accept
+                                        </button>
+                                        <button
+                                          disabled={isActioned}
+                                          onClick={isActioned ? undefined : e => { e.stopPropagation(); declineApp(app) }}
+                                          className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+                                          style={{ borderColor: '#ed2793', color: '#ed2793', opacity: isActioned ? 0.5 : 1, cursor: isActioned ? 'default' : 'pointer' }}
+                                          onMouseEnter={e => { if (!isActioned) e.currentTarget.style.backgroundColor = 'rgba(237,39,147,0.1)' }}
+                                          onMouseLeave={e => { if (!isActioned) e.currentTarget.style.backgroundColor = '' }}>
+                                          Decline
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
                                   {app.message && (
                                     <p className="text-sm leading-relaxed pl-12" style={{ color: 'var(--text-secondary)' }}>{app.message}</p>
@@ -1107,14 +1168,14 @@ export default function TeamsPage({
 
                         {/* Stage 2: Accepted */}
                         {pipelineTab === 'accepted' && (
-                          pipeline.accepted.length === 0 ? (
+                          acceptedApps.length === 0 ? (
                             <div className="rounded-lg p-10 text-center" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
                               <IconCheck size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-2" />
                               <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No accepted applicants awaiting agreement.</p>
                             </div>
                           ) : (
                             <div className="space-y-3">
-                              {pipeline.accepted.map(app => (
+                              {acceptedApps.map(app => (
                                 <div key={app.id} className="rounded-lg p-5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
                                   <div className="flex items-center gap-3 mb-3">
                                     <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0" style={{ backgroundColor: '#16a34a' }}>
@@ -1148,14 +1209,14 @@ export default function TeamsPage({
 
                         {/* Stage 3: Agreement */}
                         {pipelineTab === 'agreement' && (
-                          pipeline.agreement.length === 0 ? (
+                          agreementApps.length === 0 ? (
                             <div className="rounded-lg p-10 text-center" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}>
                               <IconWritingSign size={32} style={{ color: 'var(--text-tertiary)' }} className="mx-auto mb-2" />
                               <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No agreements awaiting signature.</p>
                             </div>
                           ) : (
                             <div className="space-y-3">
-                              {pipeline.agreement.map(app => {
+                              {agreementApps.map(app => {
                                 const agStatus = getAgreementStatus(app)
                                 const canGrant = agStatus === 'signed'
                                 const isGranted = app.status === 'access_granted' || grantedIds.includes(app.id)
