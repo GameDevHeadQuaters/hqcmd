@@ -2016,35 +2016,41 @@ function AnalyticsTab({ currentUser }) {
     })
   }
 
-  async function deleteInterest(interest) {
+  function deleteInterest(interest) {
+    console.log('[Analytics] Deleting interest:', interest.email, interest.tier)
+
+    // Remove from localStorage
     const raw = JSON.parse(localStorage.getItem('hqcmd_pro_interests') || '[]')
     const updated = raw.filter(i =>
-      !(i.email.toLowerCase() === interest.email.toLowerCase() && i.tier === interest.tier)
+      !(i.email?.toLowerCase() === interest.email?.toLowerCase() &&
+        i.tier === interest.tier)
     )
     localStorage.setItem('hqcmd_pro_interests', JSON.stringify(updated))
+    console.log('[Analytics] Removed from localStorage, remaining:', updated.length)
 
+    // Update state immediately — rebuild all counts
+    const newInterests = updated
+    setStats(prev => ({
+      ...prev,
+      proInterests: newInterests,
+      indieInterests: newInterests.filter(i => i.tier === 'indie').length,
+      studioInterests: newInterests.filter(i => i.tier === 'studio').length,
+      publisherInterests: newInterests.filter(i => i.tier === 'publisher').length,
+    }))
+
+    // Try Supabase delete in background
     try {
-      await supabase
+      supabase
         .from('beta_requests')
         .delete()
-        .eq('email', interest.email.toLowerCase())
-        .eq('status', 'pro_interest')
+        .eq('email', interest.email?.toLowerCase())
+        .then(({ error }) => {
+          if (error) console.error('[Analytics] Supabase delete error:', error)
+          else console.log('[Analytics] Deleted from Supabase')
+        })
     } catch(e) {
       console.error('[Analytics] Supabase delete failed:', e)
     }
-
-    setStats(prev => {
-      const next = prev.proInterests.filter(i =>
-        !(i.email.toLowerCase() === interest.email.toLowerCase() && i.tier === interest.tier)
-      )
-      return {
-        ...prev,
-        proInterests: next,
-        indieInterests: next.filter(i => i.tier === 'indie').length,
-        studioInterests: next.filter(i => i.tier === 'studio').length,
-        publisherInterests: next.filter(i => i.tier === 'publisher').length,
-      }
-    })
   }
 
   async function loadStats() {
@@ -2197,13 +2203,26 @@ function AnalyticsTab({ currentUser }) {
             <button
               onClick={() => {
                 const raw = JSON.parse(localStorage.getItem('hqcmd_pro_interests') || '[]')
-                const deduped = deduplicateInterests(raw)
+                const seen = new Set()
+                const deduped = raw.filter(i => {
+                  const key = `${i.email?.toLowerCase()}_${i.tier}`
+                  if (seen.has(key)) return false
+                  seen.add(key)
+                  return true
+                })
                 localStorage.setItem('hqcmd_pro_interests', JSON.stringify(deduped))
-                loadStats()
+                setStats(prev => ({
+                  ...prev,
+                  proInterests: deduped,
+                  indieInterests: deduped.filter(i => i.tier === 'indie').length,
+                  studioInterests: deduped.filter(i => i.tier === 'studio').length,
+                  publisherInterests: deduped.filter(i => i.tier === 'publisher').length,
+                }))
+                console.log('[Analytics] Duplicates cleared, remaining:', deduped.length)
               }}
-              style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}
+              style={{ fontSize: '11px', padding: '4px 12px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}
             >
-              Remove duplicates
+              🧹 Remove duplicates
             </button>
           </div>
           <div style={{ border: '1px solid var(--border-default)', borderRadius: '8px', overflow: 'hidden' }}>
@@ -2213,13 +2232,28 @@ function AnalyticsTab({ currentUser }) {
                 <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '99px', background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>{interest.tier}</span>
                 <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{new Date(interest.timestamp).toLocaleDateString('en-GB')}</span>
                 <button
-                  onClick={() => deleteInterest(interest)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}
-                  onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = 'rgba(239,68,68,0.1)' }}
-                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'none' }}
-                  title="Delete registration"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    console.log('[Analytics] Delete clicked for:', interest.email)
+                    deleteInterest(interest)
+                  }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--text-tertiary)', padding: '4px 8px',
+                    borderRadius: '4px', fontSize: '12px',
+                    display: 'flex', alignItems: 'center'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.color = '#ef4444'
+                    e.currentTarget.style.background = 'rgba(239,68,68,0.1)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.color = 'var(--text-tertiary)'
+                    e.currentTarget.style.background = 'none'
+                  }}
                 >
-                  <IconTrash size={12} />
+                  🗑
                 </button>
               </div>
             ))}
