@@ -3,8 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import Footer from '../components/Footer'
 import {
   IconSearch, IconX, IconUsers, IconZoom,
-  IconCheck, IconSend, IconArrowRight, IconInbox, IconGlobe, IconFileText,
-  IconCrown, IconClock,
+  IconCheck, IconSend, IconInbox, IconGlobe, IconFileText,
+  IconClock, IconMessage, IconHome,
 } from '@tabler/icons-react'
 import ProfileDropdown from '../components/ProfileDropdown'
 import { debugLog } from '../utils/debugLogger'
@@ -52,8 +52,8 @@ function checkProfileComplete(user) {
   )
 }
 
-function ApplyModal({ project, currentUser, onClose, onSubmitApplication }) {
-  const [role, setRole] = useState(project.roles[0] || '')
+function ApplyModal({ project, currentUser, onClose, onSubmitApplication, initialRole }) {
+  const [role, setRole] = useState(initialRole || project.roles[0] || '')
   const [name, setName] = useState(currentUser?.name ?? '')
   const [message, setMessage] = useState('')
   const [sent, setSent] = useState(false)
@@ -292,7 +292,7 @@ function ProjectBadges({ project, style = {} }) {
   )
 }
 
-function ProjectCard({ project, onApply, onMessage, borderColor, isOwnProject, alreadyApplied, alreadyMember }) {
+function ProjectCard({ project, onApply, onMessage, onRoleClick, borderColor, isOwnProject, alreadyApplied, alreadyMember }) {
   const compColor = project.compensation === 'Paid'
     ? { bg: 'rgba(34,197,94,0.12)', text: 'var(--status-success)' }
     : project.compensation === 'Rev Share'
@@ -335,9 +335,27 @@ function ProjectCard({ project, onApply, onMessage, borderColor, isOwnProject, a
             <div>
               <p className="text-xs font-medium mb-1.5" style={{ color: 'var(--text-tertiary)' }}>ROLES NEEDED</p>
               <div className="flex flex-wrap gap-1.5">
-                {project.roles.map(r => (
-                  <span key={r} className="text-xs px-2 py-0.5 rounded-full border" style={{ borderColor: '#805da8', color: '#805da8' }}>{r}</span>
-                ))}
+                {project.roles.map(r => {
+                  const chipDisabled = isOwnProject || alreadyMember || alreadyApplied
+                  return (
+                    <button
+                      key={r}
+                      onClick={() => !chipDisabled && onRoleClick(r)}
+                      disabled={chipDisabled}
+                      className="text-xs px-2 py-0.5 rounded-full border transition-colors"
+                      style={{
+                        borderColor: chipDisabled ? 'var(--border-subtle)' : '#805da8',
+                        color: chipDisabled ? 'var(--text-tertiary)' : '#805da8',
+                        cursor: chipDisabled ? 'default' : 'pointer',
+                        background: 'transparent',
+                      }}
+                      onMouseEnter={e => { if (!chipDisabled) e.currentTarget.style.backgroundColor = 'rgba(128,93,168,0.15)' }}
+                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent' }}
+                    >
+                      {chipDisabled ? r : `+ ${r}`}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -349,41 +367,28 @@ function ProjectCard({ project, onApply, onMessage, borderColor, isOwnProject, a
             </div>
             {isOwnProject ? (
               <div className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full" style={{ backgroundColor: 'var(--brand-accent-glow)', color: ACCENT }}>
-                <IconCrown size={12} />
+                <IconHome size={12} />
                 Your project
               </div>
             ) : alreadyMember ? (
               <div style={{ fontSize: '12px', color: 'var(--status-success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <IconCheck size={14} /> Team Member
               </div>
-            ) : (
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={onMessage}
-                  className="text-xs font-medium px-3 py-1.5 rounded-full border transition-colors"
-                  style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)' }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = ACCENT; e.currentTarget.style.color = ACCENT }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
-                >
-                  Message
-                </button>
-                {alreadyApplied ? (
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '9999px', border: '1px solid var(--border-default)' }}>
-                    <IconClock size={14} /> Application Pending
-                  </div>
-                ) : (
-                  <button
-                    onClick={onApply}
-                    className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-full text-white transition-colors"
-                    style={{ backgroundColor: PINK }}
-                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = PINK_DARK)}
-                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = PINK)}
-                  >
-                    Apply
-                    <IconArrowRight size={12} />
-                  </button>
-                )}
+            ) : alreadyApplied ? (
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderRadius: '9999px', border: '1px solid var(--border-default)' }}>
+                <IconClock size={14} /> Application Pending
               </div>
+            ) : (
+              <button
+                onClick={onMessage}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors"
+                style={{ backgroundColor: 'var(--brand-accent-glow)', color: ACCENT, border: '1px solid rgba(83,74,183,0.3)' }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = ACCENT; e.currentTarget.style.color = 'white' }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--brand-accent-glow)'; e.currentTarget.style.color = ACCENT }}
+              >
+                <IconMessage size={13} />
+                Message
+              </button>
             )}
           </div>
         </div>
@@ -427,6 +432,7 @@ export default function BrowseProjects({
   const [comp, setComp]         = useState('All')
   const [gameJamOnly, setGameJamOnly] = useState(false)
   const [applyProject, setApplyProject] = useState(null)
+  const [applyRole,    setApplyRole]    = useState(null)
   const [msgProject,   setMsgProject]   = useState(null)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
   const [applyAlert, setApplyAlert] = useState(null) // { type: 'incomplete' | 'skill_mismatch' }
@@ -522,7 +528,7 @@ export default function BrowseProjects({
     return true
   }
 
-  function handleApply(project) {
+  function handleApply(project, role = null) {
     requireAuth(() => {
       if (!checkProfileComplete(currentUser)) {
         setApplyAlert({ type: 'incomplete' })
@@ -535,8 +541,13 @@ export default function BrowseProjects({
         setApplyAlert({ type: 'skill_mismatch' })
         return
       }
+      setApplyRole(role)
       setApplyProject(project)
     })
+  }
+
+  function handleRoleClick(project, role) {
+    handleApply(project, role)
   }
 
   function hasAlreadyApplied(project) {
@@ -789,6 +800,7 @@ export default function BrowseProjects({
                 alreadyApplied={hasAlreadyApplied(p)}
                 alreadyMember={isAlreadyMember(p)}
                 onApply={() => handleApply(p)}
+                onRoleClick={(role) => handleRoleClick(p, role)}
                 onMessage={() => requireAuth(() => setMsgProject(p))}
               />
             ))}
@@ -833,7 +845,8 @@ export default function BrowseProjects({
         <ApplyModal
           project={applyProject}
           currentUser={currentUser}
-          onClose={() => setApplyProject(null)}
+          initialRole={applyRole}
+          onClose={() => { setApplyProject(null); setApplyRole(null) }}
           onSubmitApplication={(role, message) => {
             const result = submitApplication(applyProject, role, message)
             if (result) {
