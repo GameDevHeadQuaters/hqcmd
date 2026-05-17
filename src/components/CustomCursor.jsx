@@ -8,13 +8,18 @@ export default function CustomCursor() {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    if (window.matchMedia('(hover: none)').matches) return
+    try {
+      if (window.matchMedia('(hover: none)').matches) return
 
-    document.documentElement.style.cursor = 'none'
-    const style = document.createElement('style')
-    style.id = 'custom-cursor-style'
-    style.textContent = '* { cursor: none !important; }'
-    document.head.appendChild(style)
+      document.documentElement.style.cursor = 'none'
+      const style = document.createElement('style')
+      style.id = 'custom-cursor-style'
+      style.textContent = '* { cursor: none !important; }'
+      document.head.appendChild(style)
+    } catch(e) {
+      console.error('[CustomCursor] Init error:', e)
+      return
+    }
 
     function handleMouseMove(e) {
       setPos({ x: e.clientX, y: e.clientY })

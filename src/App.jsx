@@ -1021,6 +1021,19 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[App] Auth event:', event, 'user:', session?.user?.id)
 
+      // Don't interfere with superadmin — they bypass Supabase auth entirely
+      try {
+        const savedUser = localStorage.getItem('hqcmd_currentUser_v3')
+        if (savedUser) {
+          const parsed = JSON.parse(savedUser)
+          if (parsed.isSuperAdmin) {
+            console.log('[App] Superadmin session detected — skipping Supabase auth handler')
+            setAuthLoading(false)
+            return
+          }
+        }
+      } catch(e) {}
+
       if (event === 'SIGNED_OUT') {
         console.log('[App] Supabase SIGNED_OUT event received')
         setCurrentUser(null)
@@ -1290,13 +1303,19 @@ export default function App() {
 
     // Super admin — localStorage-only flow
     if (SUPER_ADMIN.email && SUPER_ADMIN.password && normalEmail === SUPER_ADMIN.email && password === SUPER_ADMIN.password) {
-      const shadowAccount = ensureAdminShadowAccount()
-      const adminProfile  = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
-      const adminUser     = { ...shadowAccount, ...adminProfile, isAdmin: true, isSuperAdmin: true }
-      setCurrentUser(adminUser)
-      localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify(adminUser))
-      setActiveProjectId(null)
-      debugLog('Auth', 'Admin login success', { userId: 'superadmin', isAdmin: true }, 'success')
+      try {
+        const shadowAccount = ensureAdminShadowAccount()
+        const adminProfile  = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
+        const adminUser     = { ...shadowAccount, ...adminProfile, isAdmin: true, isSuperAdmin: true }
+        setCurrentUser(adminUser)
+        localStorage.setItem('hqcmd_currentUser_v3', JSON.stringify(adminUser))
+        setActiveProjectId(null)
+        debugLog('Auth', 'Admin login success', { userId: 'superadmin', isAdmin: true }, 'success')
+      } catch(e) {
+        console.error('[Admin Login] Error:', e)
+      } finally {
+        setAuthLoading(false)
+      }
       return null
     }
 
