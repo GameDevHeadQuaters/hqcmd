@@ -46,6 +46,9 @@ export default function HeroBackground() {
 
     function handleClick(e) {
       const rect = canvas.getBoundingClientRect()
+      if (e.clientX < rect.left || e.clientX > rect.right ||
+          e.clientY < rect.top || e.clientY > rect.bottom) return
+
       const clickX = e.clientX - rect.left
       const clickY = e.clientY - rect.top
 
@@ -74,7 +77,6 @@ export default function HeroBackground() {
     }
 
     canvas.addEventListener('click', handleClick)
-    window.addEventListener('click', handleClick)
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('resize', resize)
     resize()
@@ -230,7 +232,6 @@ export default function HeroBackground() {
       cancelAnimationFrame(animFrameRef.current)
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('resize', resize)
-      window.removeEventListener('click', handleClick)
       canvas.removeEventListener('click', handleClick)
     }
   }, [])
@@ -243,7 +244,7 @@ export default function HeroBackground() {
         top: 0, left: 0,
         width: '100%',
         height: '100%',
-        pointerEvents: 'none',
+        pointerEvents: 'auto',
         zIndex: 0,
       }}
     />
