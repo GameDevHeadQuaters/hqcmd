@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   IconUsers, IconChevronDown, IconChevronUp,
@@ -144,6 +144,7 @@ export default function TeamsPage({
     navigate('/agreements?action=new')
   }
 
+  const [teamsProjects, setTeamsProjects] = useState([])
   const [collapsed, setCollapsed] = useState(new Set())
   const [sendTarget, setSendTarget] = useState(null)
   const [removeTarget, setRemoveTarget] = useState(null)
@@ -157,39 +158,114 @@ export default function TeamsPage({
   const [highlightedMember, setHighlightedMember] = useState({})
   const [editingRoles, setEditingRoles] = useState({})
 
-  // ── Build combined owned + shared project list ────────────────────────────
-  const ownEntries = (projects ?? []).map(p => ({
-    ...p,
-    userRole: 'Owner',
-    isOwned: true,
-    _ownerUserId: String(currentUser?.id),
-  }))
-
-  const allUD = readAllUD()
-  const sharedEntries = []
-  Object.entries(allUD).forEach(([uid, data]) => {
-    if (String(uid) === String(currentUser?.id)) return
-    const ownerUser = (users ?? []).find(u => String(u.id) === uid)
-    if (!ownerUser) return
-    ;(data.projects ?? []).forEach(p => {
-      const memberEntry = (p.members ?? []).find(m =>
-        (m.userId && String(m.userId) === String(currentUser?.id)) ||
-        m.name?.toLowerCase() === currentUser?.name?.toLowerCase()
-      )
-      if (memberEntry) {
-        sharedEntries.push({
-          ...p,
-          ownerUserId: uid,
-          ownerName: ownerUser.name,
-          userRole: memberEntry.position ?? 'Member',
-          isOwned: false,
-          _ownerUserId: uid,
-        })
+  function buildMembersList(project, allData, allUsers, ownerId) {
+    const memberMap = new Map()
+    const ownerUser = allUsers.find(u => String(u.id) === String(ownerId))
+    if (ownerUser) {
+      memberMap.set(String(ownerId), {
+        id: String(ownerId), userId: String(ownerId),
+        name: ownerUser.name,
+        jobRole: ownerUser.role || '',
+        accessRole: 'Owner', role: 'Owner',
+        initials: ownerUser.initials || ownerUser.name?.slice(0,2).toUpperCase(),
+        isOwner: true
+      })
+    }
+    ;(project.members || []).forEach(m => {
+      const uid = String(m.userId || m.id)
+      if (memberMap.has(uid)) return
+      const user = allUsers.find(u => String(u.id) === uid)
+      memberMap.set(uid, {
+        id: uid, userId: uid,
+        name: m.name || user?.name || 'Unknown',
+        jobRole: m.jobRole || m.role || '',
+        accessRole: m.accessRole || m.role || 'No Role',
+        role: m.accessRole || m.role || 'No Role',
+        initials: (m.name || user?.name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2),
+        joinedAt: m.joinedAt
+      })
+    })
+    Object.keys(allData).forEach(uid => {
+      if (memberMap.has(uid)) return
+      const refs = allData[uid]?.sharedProjects || []
+      const ref = refs.find(sp => String(sp.projectId) === String(project.id))
+      if (ref) {
+        const user = allUsers.find(u => String(u.id) === uid)
+        if (user) {
+          memberMap.set(uid, {
+            id: uid, userId: uid,
+            name: user.name,
+            jobRole: ref.jobRole || '',
+            accessRole: ref.accessRole || ref.role || 'No Role',
+            role: ref.accessRole || ref.role || 'No Role',
+            initials: user.initials || user.name?.slice(0,2).toUpperCase(),
+            joinedAt: ref.joinedAt
+          })
+        }
       }
     })
-  })
+    return Array.from(memberMap.values())
+  }
 
-  const allEntries = [...ownEntries, ...sharedEntries]
+  function loadTeamsData() {
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+    const myId = String(currentUser?.id)
+
+    const projectsWithData = []
+
+    const myProjects = allData[myId]?.projects || []
+    console.log('[Teams] Loading', myProjects.length, 'projects for:', myId)
+
+    myProjects.forEach(project => {
+      const membersList = buildMembersList(project, allData, allUsers, myId)
+      const applicationsList = project.applications || []
+      console.log('[Teams] Project:', project.title, 'applications:', applicationsList.length)
+      projectsWithData.push({
+        ...project,
+        _ownerUserId: myId,
+        _role: 'Owner',
+        userRole: 'Owner',
+        isOwned: true,
+        _membersList: membersList,
+        applications: applicationsList,
+      })
+    })
+
+    const sharedRefs = allData[myId]?.sharedProjects || []
+    sharedRefs.forEach(ref => {
+      const ownerId = String(ref.ownerUserId)
+      const ownerProjects = allData[ownerId]?.projects || []
+      const project = ownerProjects.find(p => String(p.id) === String(ref.projectId))
+      if (!project) return
+      const membersList = buildMembersList(project, allData, allUsers, ownerId)
+      projectsWithData.push({
+        ...project,
+        _ownerUserId: ownerId,
+        _role: ref.accessRole || ref.role || 'Member',
+        userRole: ref.accessRole || ref.role || 'Member',
+        isOwned: false,
+        _membersList: membersList,
+        applications: project.applications || [],
+      })
+    })
+
+    console.log('[Teams] Total projects:', projectsWithData.length)
+    setTeamsProjects(projectsWithData)
+  }
+
+  useEffect(() => {
+    loadTeamsData()
+    const interval = setInterval(loadTeamsData, 10000)
+    window.addEventListener('storage', loadTeamsData)
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('storage', loadTeamsData)
+    }
+  }, [currentUser])
+
+  const allUD = readAllUD()
+  const allEntries = teamsProjects
 
   // ── Stats ─────────────────────────────────────────────────────────────────
   const totalProjects = allEntries.length
@@ -302,7 +378,9 @@ export default function TeamsPage({
 
   function getProjectPipeline(project) {
     if (!project.isOwned) return { applied: [], accepted: [], agreement: [], active: [], declined: [] }
-    const apps = (applications ?? []).filter(a => String(a.projectId) === String(project.id))
+    const apps = project.applications?.length
+      ? project.applications
+      : (applications ?? []).filter(a => String(a.projectId) === String(project.id))
     return {
       applied:   apps.filter(a => a.status === 'pending'),
       accepted:  apps.filter(a => a.status === 'accepted_pending_agreement'),

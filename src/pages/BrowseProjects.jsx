@@ -525,6 +525,26 @@ export default function BrowseProjects({
     }
 
     debugLog('Application', 'Application saved to owner project', { ownerUserId, projectId, role, applicantName }, 'success')
+
+    if (currentUser?.id) {
+      ;(async () => {
+        try {
+          const { supabase } = await import('../lib/supabase')
+          const { error } = await supabase.from('applications').insert({
+            project_id: String(project.originalId ?? project.id),
+            applicant_id: String(currentUser.id),
+            role,
+            message,
+            status: 'pending'
+          })
+          if (error) console.error('[Apply] Supabase insert error:', error)
+          else console.log('[Apply] ✅ Saved to Supabase')
+        } catch(e) {
+          console.error('[Apply] Supabase failed:', e)
+        }
+      })()
+    }
+
     return true
   }
 
