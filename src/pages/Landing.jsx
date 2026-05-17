@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { IconChevronDown } from '@tabler/icons-react'
+import HeroBackground from '../components/HeroBackground'
 
 const PAIN_POINTS = [
   { icon: '😩', problem: 'Posting on Discord and Reddit, getting no replies', solution: 'Browse active projects with open roles that match your skills' },
@@ -26,55 +27,58 @@ export default function Landing() {
       {/* ── Hero ── */}
       <section style={{
         position: 'relative',
-        minHeight: '85vh', display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-        padding: '60px 24px 48px',
+        overflow: 'hidden',
+        minHeight: '85vh',
         background: 'radial-gradient(ellipse at 50% 0%, rgba(83,74,183,0.3) 0%, rgba(237,39,147,0.1) 40%, transparent 70%), var(--bg-base)',
       }}>
-        <img
-          src="/logos/logo-hero.png"
-          alt="HQ COMMAND"
-          style={{ height: '80px', mixBlendMode: 'screen', marginBottom: '32px' }}
-          onError={e => { e.target.style.display = 'none' }}
-        />
-        <h1 style={{ fontSize: 'clamp(36px, 6vw, 72px)', fontWeight: '800', color: 'white', lineHeight: 1.1, margin: '0 0 20px', maxWidth: '800px' }}>
-          Mission Control for<br />
-          <span style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Indie Game Developers
-          </span>
-        </h1>
-        <p style={{ fontSize: 'clamp(16px, 2vw, 20px)', color: 'rgba(255,255,255,0.7)', maxWidth: '600px', lineHeight: 1.7, margin: '0 0 40px' }}>
-          Find collaborators, manage your team, protect your IP with agreements, and ship your game — all in one place built for indie devs.
-        </p>
-        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Link to="/signup" style={{ padding: '14px 32px', borderRadius: '9999px', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white', textDecoration: 'none', fontWeight: '700', fontSize: '16px', boxShadow: '0 0 32px rgba(237,39,147,0.4)' }}>
-            Start for Free →
-          </Link>
-          <Link to="/browse" style={{ padding: '14px 32px', borderRadius: '9999px', border: '1px solid rgba(255,255,255,0.2)', color: 'white', textDecoration: 'none', fontWeight: '500', fontSize: '16px' }}>
-            Browse Projects
-          </Link>
-        </div>
-        <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginTop: '16px' }}>Free during beta · No credit card required</p>
+        <HeroBackground />
 
-        {/* Scroll indicator */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '24px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '4px',
-            animation: 'bounce 2s infinite',
-            cursor: 'pointer',
-            opacity: 0.5,
-          }}
-          onClick={() => window.scrollBy({ top: window.innerHeight * 0.7, behavior: 'smooth' })}
-        >
-          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Scroll</span>
-          <IconChevronDown size={16} style={{ color: 'var(--text-tertiary)' }} />
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '85vh', padding: '60px 24px 48px', textAlign: 'center' }}>
+          <img
+            src="/logos/logo-hero.png"
+            alt="HQ COMMAND"
+            style={{ height: '80px', mixBlendMode: 'screen', marginBottom: '32px' }}
+            onError={e => { e.target.style.display = 'none' }}
+          />
+          <h1 style={{ fontSize: 'clamp(36px, 6vw, 72px)', fontWeight: '800', color: 'white', lineHeight: 1.1, margin: '0 0 20px', maxWidth: '800px' }}>
+            Mission Control for<br />
+            <span style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              Indie Game Developers
+            </span>
+          </h1>
+          <p style={{ fontSize: 'clamp(16px, 2vw, 20px)', color: 'rgba(255,255,255,0.7)', maxWidth: '600px', lineHeight: 1.7, margin: '0 0 40px' }}>
+            Find collaborators, manage your team, protect your IP with agreements, and ship your game — all in one place built for indie devs.
+          </p>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <Link to="/signup" style={{ padding: '14px 32px', borderRadius: '9999px', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white', textDecoration: 'none', fontWeight: '700', fontSize: '16px', boxShadow: '0 0 32px rgba(237,39,147,0.4)' }}>
+              Start for Free →
+            </Link>
+            <Link to="/browse" style={{ padding: '14px 32px', borderRadius: '9999px', border: '1px solid rgba(255,255,255,0.2)', color: 'white', textDecoration: 'none', fontWeight: '500', fontSize: '16px' }}>
+              Browse Projects
+            </Link>
+          </div>
+          <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginTop: '16px' }}>Free during beta · No credit card required</p>
+
+          {/* Scroll indicator */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '24px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '4px',
+              animation: 'bounce 2s infinite',
+              cursor: 'pointer',
+              opacity: 0.5,
+            }}
+            onClick={() => window.scrollBy({ top: window.innerHeight * 0.7, behavior: 'smooth' })}
+          >
+            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Scroll</span>
+            <IconChevronDown size={16} style={{ color: 'var(--text-tertiary)' }} />
+          </div>
         </div>
       </section>
 
