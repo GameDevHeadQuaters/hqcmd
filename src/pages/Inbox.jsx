@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   IconInbox, IconMessageCircle, IconMail, IconFileText,
   IconWritingSign, IconBell, IconCheck, IconUserPlus, IconAddressBook,
@@ -516,6 +516,7 @@ export default function Inbox({
   onAddNotificationForUser, onAddDirectMessageForUser,
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [tab, setTab] = useState('messages')
   const [profileDropOpen, setProfileDropOpen] = useState(false)
   const [newContactsCount, setNewContactsCount] = useState(() => {
@@ -572,6 +573,25 @@ export default function Inbox({
     const interval = setInterval(loadMessages, 10000)
     return () => clearInterval(interval)
   }, [currentUser?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Switch tab based on ?tab= URL param (e.g. /inbox?tab=notifications from sidebar)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const t = params.get('tab')
+    if (t === 'notifications') setTab('notifications')
+    else if (t === 'messages') setTab('messages')
+    else if (t === 'applications') setTab('applications')
+    else if (t === 'contacts') setTab('contacts')
+  }, [location.search])
+
+  // Auto-mark all notifications as read after 3s of viewing the tab
+  useEffect(() => {
+    if (tab !== 'notifications') return
+    const timer = setTimeout(() => {
+      setNotifications?.(prev => prev.map(n => ({ ...n, read: true })))
+    }, 3000)
+    return () => clearTimeout(timer)
+  }, [tab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (tab === 'messages') {

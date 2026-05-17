@@ -95,12 +95,14 @@ export default function Sidebar({
   setCollapsed,
 }) {
   const navigate = useNavigate()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const { theme, setTheme } = useTheme()
   const isDark = theme === 'dark'
   const [projectDropOpen, setProjectDropOpen] = useState(false)
   const [unsignedReceived, setUnsignedReceived] = useState(0)
   const [adminBadgeCount, setAdminBadgeCount] = useState(0)
+  const [unreadMsgCount, setUnreadMsgCount] = useState(0)
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
 
   useEffect(() => {
     function refresh() {
@@ -116,6 +118,22 @@ export default function Sidebar({
     refresh()
     const interval = setInterval(refresh, 5000)
     return () => clearInterval(interval)
+  }, [currentUser?.id])
+
+  useEffect(() => {
+    function loadUnreadCounts() {
+      try {
+        const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+        const myId = String(currentUser?.id)
+        const slot = allData[myId] || {}
+        setUnreadMsgCount((slot.directMessages || []).filter(m => !m.read).length)
+        setUnreadNotificationCount((slot.notifications || []).filter(n => !n.read).length)
+      } catch {}
+    }
+    loadUnreadCounts()
+    const interval = setInterval(loadUnreadCounts, 5000)
+    window.addEventListener('storage', loadUnreadCounts)
+    return () => { clearInterval(interval); window.removeEventListener('storage', loadUnreadCounts) }
   }, [currentUser?.id])
 
   useEffect(() => {
@@ -145,6 +163,10 @@ export default function Sidebar({
   function is(path) {
     if (path === '/workstation') return pathname === '/workstation'
     return pathname === path || pathname.startsWith(path + '/')
+  }
+
+  function isNotificationsTab() {
+    return is('/inbox') && new URLSearchParams(search).get('tab') === 'notifications'
   }
 
   function handleSignOut() {
@@ -311,7 +333,8 @@ export default function Sidebar({
         <NavItem icon={IconCompass}       label="Browse Projects" path="/browse"      active={is('/browse')}      collapsed={collapsed} id="sidebar-browse" />
         <NavItem icon={IconAddressBook}   label="Directory"       path="/directory"   active={is('/directory')}   collapsed={collapsed} />
         <NavItem icon={IconUsers}         label="My Teams"        path="/teams"       active={is('/teams')}       collapsed={collapsed} id="sidebar-teams" />
-        <NavItem icon={IconInbox}         label="Inbox"           path="/inbox"       active={is('/inbox')}       collapsed={collapsed} badge={unreadInboxCount} id="sidebar-inbox" />
+        <NavItem icon={IconInbox}         label="Inbox"           path="/inbox"                  active={is('/inbox') && !isNotificationsTab()} collapsed={collapsed} badge={unreadMsgCount}          id="sidebar-inbox" />
+        <NavItem icon={IconBell}          label="Notifications"   path="/inbox?tab=notifications" active={isNotificationsTab()}                  collapsed={collapsed} badge={unreadNotificationCount} id="sidebar-notifications" />
         <NavItem icon={IconMap}           label="Roadmap"         path="/roadmap"     active={is('/roadmap')}     collapsed={collapsed} id="sidebar-roadmap" />
 
         <SectionLabel label="Manage" collapsed={collapsed} />
@@ -323,33 +346,8 @@ export default function Sidebar({
       {/* ── Bottom section ── */}
       <div style={{ flexShrink: 0, padding: collapsed ? '8px' : '8px 12px', borderTop: '1px solid var(--border-subtle)' }}>
 
-        {/* Theme + Bell row */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', gap: '4px', marginBottom: '4px' }}>
-          <button
-            onClick={() => navigate('/inbox')}
-            title="Inbox"
-            style={{
-              position: 'relative', width: '32px', height: '32px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderRadius: '8px', border: 'none', backgroundColor: 'transparent',
-              color: unreadInboxCount > 0 ? '#ed2793' : 'var(--text-tertiary)',
-              cursor: 'pointer',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-          >
-            <IconBell size={17} />
-            {unreadInboxCount > 0 && (
-              <span style={{
-                position: 'absolute', top: '2px', right: '2px',
-                width: '14px', height: '14px', borderRadius: '50%',
-                backgroundColor: '#ed2793', color: 'white',
-                fontSize: '8px', fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>{unreadInboxCount > 9 ? '9+' : unreadInboxCount}</span>
-            )}
-          </button>
-
+        {/* Theme toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-end', marginBottom: '4px' }}>
           <button
             onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
             title={isDark ? 'Light mode' : 'Dark mode'}
