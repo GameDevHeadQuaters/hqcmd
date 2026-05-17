@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   IconInbox, IconFileText, IconFileOff,
   IconPlus, IconSearch, IconClock, IconCircleCheck, IconWritingSign,
@@ -68,12 +68,14 @@ export default function Agreements({
   onAddDirectMessageForUser,
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [tab, setTab] = useState('my-agreements')
   const [search, setSearch] = useState('')
   const [builderTemplate, setBuilderTemplate] = useState(null)
   const [builderOpen, setBuilderOpen] = useState(false)
   const [viewerAgreement, setViewerAgreement] = useState(null)
   const [profileDropOpen, setProfileDropOpen] = useState(false)
+  const [agreementPrefill, setAgreementPrefill] = useState(null)
 
   // Poll localStorage every 2s so cross-user agreement deliveries appear without a reload
   const [myAgreements, setMyAgreements] = useState([])
@@ -123,6 +125,23 @@ export default function Agreements({
     window.addEventListener('storage', loadAgreements)
     return () => window.removeEventListener('storage', loadAgreements)
   }, [loadAgreements])
+
+  // Handle pre-fill from Teams pipeline
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('action') === 'new') {
+      const prefill = sessionStorage.getItem('hqcmd_agreement_prefill')
+      if (prefill) {
+        try {
+          const data = JSON.parse(prefill)
+          sessionStorage.removeItem('hqcmd_agreement_prefill')
+          setAgreementPrefill(data)
+          setBuilderTemplate(null)
+          setBuilderOpen(true)
+        } catch {}
+      }
+    }
+  }, [location.search])
 
   const myOwnAgreements = myAgreements
 
@@ -407,11 +426,12 @@ export default function Agreements({
       {builderOpen && (
         <AgreementBuilder
           initialTemplate={builderTemplate}
-          projectId={null}
-          projectTitle={null}
+          projectId={agreementPrefill?.projectId ?? null}
+          projectTitle={agreementPrefill?.projectTitle ?? null}
+          prefill={agreementPrefill}
           currentUser={currentUser}
           onSave={handleSave}
-          onClose={() => setBuilderOpen(false)}
+          onClose={() => { setBuilderOpen(false); setAgreementPrefill(null) }}
         />
       )}
 

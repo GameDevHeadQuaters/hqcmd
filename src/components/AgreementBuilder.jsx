@@ -55,6 +55,7 @@ export default function AgreementBuilder({
   initialTemplate,
   projectId,
   projectTitle,
+  prefill,
   currentUser,
   onSave,
   onClose,
@@ -63,8 +64,14 @@ export default function AgreementBuilder({
   const startStep = initialTemplate ? 1 : 0
   const [step, setStep] = useState(startStep)
 
+  const prefillFields = prefill ? {
+    collaboratorName: prefill.recipientName || '',
+    contractorName:   prefill.recipientName || '',
+    artistName:       prefill.recipientName || '',
+  } : {}
+
   const [disclaimerChecked, setDisclaimerChecked] = useState(false)
-  const [fields, setFields] = useState({})
+  const [fields, setFields] = useState(prefill && initialTemplate ? prefillFields : {})
   const [signerName,  setSignerName]  = useState(currentUser?.name  ?? '')
   const [signerEmail, setSignerEmail] = useState(currentUser?.email ?? '')
   const [signChecked, setSignChecked] = useState(false)
@@ -82,7 +89,7 @@ export default function AgreementBuilder({
 
   function selectTemplate(t) {
     setTemplate(t)
-    setFields({})
+    setFields(prefill ? prefillFields : {})
     setStep(1)
   }
 
@@ -207,6 +214,11 @@ export default function AgreementBuilder({
           {/* Step 2: Fields + live preview */}
           {step === 2 && template && (
             <div>
+              {prefill && (
+                <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(83,74,183,0.1)', border: '1px solid rgba(83,74,183,0.35)', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5', marginBottom: '16px' }}>
+                  📄 Sending agreement to <strong style={{ color: 'var(--text-primary)' }}>{prefill.recipientName}</strong> for <strong style={{ color: 'var(--text-primary)' }}>{prefill.role}</strong> on <strong style={{ color: 'var(--text-primary)' }}>{prefill.projectTitle}</strong>
+                </div>
+              )}
               <div className="space-y-4 mb-8">
                 {template.fields.map(f => (
                   <div key={f.id}>

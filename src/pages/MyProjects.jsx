@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { IconPlus, IconUsers, IconFolderOff, IconInbox, IconAlertTriangle, IconFileText, IconShare } from '@tabler/icons-react'
 import ProjectProfile from '../components/ProjectProfile'
 import { PROJECT_TEMPLATES } from '../utils/projectTemplates'
@@ -223,11 +223,13 @@ function SharedProjectCard({ project, ref_, topBorder, onOpen }) {
 
 export default function MyProjects({ projects, setProjects, setActiveProjectId, setActiveOwnerUserId, applications, onboarding, onUpdateOnboarding, unreadInboxCount, currentUser, onSignOut, getProjectImage }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [creating, setCreating] = useState(false)
   const [showTemplatePicker, setShowTemplatePicker] = useState(false)
   const [projectDefaults, setProjectDefaults] = useState({})
   const [profileDropOpen, setProfileDropOpen] = useState(false)
   const [showLimitModal, setShowLimitModal] = useState(false)
+  const [newlyJoinedProject, setNewlyJoinedProject] = useState(null)
 
   const [sharedProjects, setSharedProjects] = useState([])
 
@@ -287,6 +289,21 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
     window.addEventListener('storage', handleStorage)
     return () => window.removeEventListener('storage', handleStorage)
   }, [currentUser])
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('new_project') && currentUser) {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const myId = String(currentUser.id)
+      const sharedRefs = allData[myId]?.sharedProjects || []
+      const newest = sharedRefs.sort((a, b) => new Date(b.joinedAt) - new Date(a.joinedAt))[0]
+      if (newest) {
+        const ownerData = allData[String(newest.ownerUserId)]
+        const project = ownerData?.projects?.find(p => String(p.id) === String(newest.projectId))
+        if (project) setNewlyJoinedProject({ ...project, ...newest })
+      }
+    }
+  }, [location.search, currentUser])
 
   function handleSave(data) {
     const id = data.id || String(Date.now())
@@ -385,6 +402,21 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
           currentUser={currentUser}
           getProjectImage={getProjectImage}
         />
+
+        {newlyJoinedProject && (
+          <div style={{ padding: '20px 24px', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(83,74,183,0.15), rgba(237,39,147,0.1))', border: '1px solid var(--brand-accent)', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+            <div>
+              <p style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 4px' }}>🎉 Welcome to the team!</p>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+                You've joined <strong>{newlyJoinedProject.title}</strong> as <strong>{newlyJoinedProject.jobRole || 'a collaborator'}</strong>. Head to the workstation to meet the team.
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => setNewlyJoinedProject(null)} style={{ padding: '8px 14px', borderRadius: '9999px', border: '1px solid var(--border-default)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '12px' }}>Dismiss</button>
+              <button onClick={() => { setNewlyJoinedProject(null); navigate(`/workstation?projectId=${newlyJoinedProject.projectId}&ownerUserId=${newlyJoinedProject.ownerUserId}`) }} style={{ padding: '8px 16px', borderRadius: '9999px', border: 'none', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>Open Workstation →</button>
+            </div>
+          </div>
+        )}
 
         {/* ── My Projects (owned) ── */}
         {projects.length === 0 && sharedProjects.length === 0 ? (

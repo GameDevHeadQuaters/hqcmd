@@ -585,13 +585,13 @@ function NotificationGrantAccess({ notification, currentUser, onGranted }) {
         message: `🎉 You've been granted access to "${project.title}"! Check My Projects.`,
         read: false,
         timestamp: new Date().toISOString(),
-        link: '/projects',
+        link: '/projects?new_project=true',
       })
 
       try {
         const { supabase: sb } = await import('../lib/supabase')
         await sb.from('project_members').upsert({ project_id: String(project.id), user_id: applicantId, job_role: application.role || '', access_role: 'No Role' })
-        await sb.from('notifications').insert({ user_id: applicantId, type: 'access_granted', message: `🎉 You've been granted access to "${project.title}"! Check My Projects.`, link: '/projects', read: false })
+        await sb.from('notifications').insert({ user_id: applicantId, type: 'access_granted', message: `🎉 You've been granted access to "${project.title}"! Check My Projects.`, link: '/projects?new_project=true', read: false })
       } catch (e) {
         console.error('[GrantAccess] Supabase error:', e)
       }
@@ -635,7 +635,7 @@ function NotifCard({ notif, onMarkRead, navigate }) {
       application_accepted: '/agreements',
       agreement:            '/agreements',
       agreement_signed:     '/teams',
-      access_granted:       '/projects',
+      access_granted:       '/projects?new_project=true',
       project_invite:       '/browse',
       achievement:          '/profile',
       message:              '/inbox',

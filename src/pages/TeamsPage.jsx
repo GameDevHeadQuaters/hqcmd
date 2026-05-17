@@ -132,6 +132,18 @@ export default function TeamsPage({
 }) {
   const navigate = useNavigate()
 
+  function handleSendAgreement(application, project) {
+    sessionStorage.setItem('hqcmd_agreement_prefill', JSON.stringify({
+      recipientName: application.applicantName,
+      recipientEmail: application.applicantEmail,
+      projectTitle: project.title,
+      projectId: String(project.id),
+      role: application.role,
+      fromTeams: true,
+    }))
+    navigate('/agreements?action=new')
+  }
+
   const [collapsed, setCollapsed] = useState(new Set())
   const [sendTarget, setSendTarget] = useState(null)
   const [removeTarget, setRemoveTarget] = useState(null)
@@ -1020,13 +1032,12 @@ export default function TeamsPage({
                                   <div className="pl-12">
                                     <p className="text-xs mb-3" style={{ color: 'var(--text-tertiary)' }}>Send a signed agreement before granting project access.</p>
                                     <button
-                                      onClick={e => { e.stopPropagation(); setSendTarget({ member: { name: app.applicantName, userId: app.applicantId, initials: initials(app.applicantName) }, project, app }) }}
-                                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full text-white transition-colors"
-                                      style={{ backgroundColor: ACCENT }}
-                                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#3C3489')}
-                                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = ACCENT)}>
-                                      <IconWritingSign size={12} />
-                                      Send Agreement
+                                      onClick={e => { e.stopPropagation(); handleSendAgreement(app, project) }}
+                                      style={{ padding: '5px 12px', borderRadius: '99px', border: '1px solid var(--brand-accent)', background: 'var(--brand-accent-glow)', color: 'var(--brand-accent)', cursor: 'pointer', fontSize: '11px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '5px' }}
+                                      onMouseEnter={e => { e.currentTarget.style.background = ACCENT; e.currentTarget.style.color = 'white' }}
+                                      onMouseLeave={e => { e.currentTarget.style.background = 'var(--brand-accent-glow)'; e.currentTarget.style.color = 'var(--brand-accent)' }}
+                                    >
+                                      📄 Send Agreement
                                     </button>
                                   </div>
                                 </div>

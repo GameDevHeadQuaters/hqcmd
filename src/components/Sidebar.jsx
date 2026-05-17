@@ -5,7 +5,7 @@ import {
   IconWritingSign, IconCurrencyDollar, IconUser, IconSettings, IconShield,
   IconLogout, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand,
   IconChevronDown, IconBell, IconSun, IconMoon, IconAddressBook, IconPresentation,
-  IconMap,
+  IconMap, IconHistory,
 } from '@tabler/icons-react'
 import { useTheme } from '../context/ThemeContext'
 
@@ -99,10 +99,25 @@ export default function Sidebar({
   const { theme, setTheme } = useTheme()
   const isDark = theme === 'dark'
   const [projectDropOpen, setProjectDropOpen] = useState(false)
+  const [lastProject, setLastProject] = useState(null)
   const [unsignedReceived, setUnsignedReceived] = useState(0)
   const [adminBadgeCount, setAdminBadgeCount] = useState(0)
   const [unreadMsgCount, setUnreadMsgCount] = useState(0)
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
+
+  useEffect(() => {
+    function loadLastProject() {
+      const last = localStorage.getItem('hqcmd_last_project')
+      if (!last) return
+      try {
+        const { projectId, ownerUserId, title, coverImageId } = JSON.parse(last)
+        setLastProject({ projectId, ownerUserId, title, coverImageId })
+      } catch {}
+    }
+    loadLastProject()
+    window.addEventListener('storage', loadLastProject)
+    return () => window.removeEventListener('storage', loadLastProject)
+  }, [currentUser])
 
   useEffect(() => {
     function refresh() {
@@ -328,6 +343,19 @@ export default function Sidebar({
         <SectionLabel label="Workspace" collapsed={collapsed} />
         <NavItem icon={IconLayoutDashboard} label="My Projects"  path="/projects"     active={is('/projects')}     collapsed={collapsed} id="sidebar-my-projects" />
         <NavItem icon={IconDeviceDesktop}   label="Workstation"  path="/workstation"  active={is('/workstation')}  collapsed={collapsed} />
+        {!collapsed && lastProject && (
+          <div
+            onClick={() => navigate(`/workstation?projectId=${lastProject.projectId}&ownerUserId=${lastProject.ownerUserId}`)}
+            style={{ margin: '2px 8px 4px 32px', padding: '6px 10px', borderRadius: '8px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '7px' }}
+            onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--brand-accent)')}
+            onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-subtle)')}
+          >
+            <IconHistory size={11} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+            <span style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {lastProject.title}
+            </span>
+          </div>
+        )}
 
         <SectionLabel label="Collaborate" collapsed={collapsed} />
         <NavItem icon={IconCompass}       label="Browse Projects" path="/browse"      active={is('/browse')}      collapsed={collapsed} id="sidebar-browse" />
