@@ -19,6 +19,7 @@ export default function Footer() {
       <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
         {[
           { label: 'Browse Projects', path: '/browse' },
+          { label: 'Pricing', path: '/pricing' },
           { label: 'Roadmap', path: '/roadmap' },
           { label: 'Contact Us', path: '/contact' },
         ].map(({ label, path }) => (

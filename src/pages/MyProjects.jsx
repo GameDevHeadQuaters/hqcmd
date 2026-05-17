@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { IconPlus, IconUsers, IconFolderOff, IconInbox, IconAlertTriangle, IconFileText, IconShare } from '@tabler/icons-react'
 import ProjectProfile from '../components/ProjectProfile'
 import { PROJECT_TEMPLATES } from '../utils/projectTemplates'
@@ -550,6 +550,12 @@ export default function MyProjects({ projects, setProjects, setActiveProjectId, 
             <h3 style={{ color: 'var(--text-primary)', marginBottom: '8px' }}>Beta Project Limit Reached</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.6', marginBottom: '20px' }}>
               Beta accounts are limited to <strong>3 projects</strong>. This helps us keep things stable while we're getting started. Full launch accounts will have no limit.
+            </p>
+            <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: '12px 0 0', textAlign: 'center' }}>
+              Want more projects?{' '}
+              <Link to="/pricing" style={{ color: '#ed2793', textDecoration: 'none', fontWeight: '500' }}>
+                See upcoming Pro plans →
+              </Link>
             </p>
             <button
               onClick={() => setShowLimitModal(false)}

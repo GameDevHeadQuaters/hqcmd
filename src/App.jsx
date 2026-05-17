@@ -32,6 +32,7 @@ import Contact from './pages/Contact'
 import GoogleAuthSuccess from './pages/GoogleAuthSuccess'
 import AuthCallback from './pages/AuthCallback'
 import Roadmap from './pages/Roadmap'
+import Pricing from './pages/Pricing'
 import DebugPanel from './components/DebugPanel'
 import QuickStartTour from './components/QuickStartTour'
 import ScrollToTop from './components/ScrollToTop'
@@ -1651,6 +1652,7 @@ export default function App() {
         } />
         <Route path="/portfolio/:userId" element={<Portfolio currentUser={currentUser} />} />
         <Route path="/roadmap" element={<Roadmap currentUser={currentUser} />} />
+        <Route path="/pricing" element={<Pricing />} />
       </Routes>
       {currentUser && !currentUser.isAdmin && localStorage.getItem('hqcmd_tour_' + currentUser.id) !== 'done' && (
         <QuickStartTour key={tourTick} currentUser={currentUser} onComplete={() => setTourTick(t => t + 1)} />

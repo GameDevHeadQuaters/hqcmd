@@ -5,7 +5,7 @@ import {
   IconShield, IconUsers, IconLayoutGrid,
   IconSearch, IconTrash, IconCheck, IconX, IconRefresh, IconCopy, IconPlus,
   IconEye, IconEyeOff, IconHeartbeat, IconBug, IconAlertTriangle, IconShieldCheck,
-  IconStar, IconMap, IconExternalLink,
+  IconStar, IconMap, IconExternalLink, IconChartBar,
 } from '@tabler/icons-react'
 import { runIntegrityCheck, migrateUserIds, REQUIRED_ARRAYS } from '../utils/dataIntegrity'
 import { isDebugMode, setDebugMode, debugLog } from '../utils/debugLogger'
@@ -1997,6 +1997,140 @@ function RoadmapAdminTab() {
   )
 }
 
+// ── Analytics Tab ─────────────────────────────────────────────────────────────
+
+function AnalyticsTab({ currentUser }) {
+  const [stats, setStats] = useState(null)
+
+  useEffect(() => {
+    loadStats()
+  }, [])
+
+  async function loadStats() {
+    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+    const proInterests = JSON.parse(localStorage.getItem('hqcmd_pro_interests') || '[]')
+
+    let supabaseStats = {}
+    try {
+      const { supabase: sb } = await import('../lib/supabase')
+      const [
+        { count: userCount },
+        { count: projectCount },
+        { count: applicationCount },
+        { count: messageCount },
+        { count: chatCount },
+        { count: notifCount }
+      ] = await Promise.all([
+        sb.from('users').select('*', { count: 'exact', head: true }),
+        sb.from('projects').select('*', { count: 'exact', head: true }),
+        sb.from('applications').select('*', { count: 'exact', head: true }),
+        sb.from('messages').select('*', { count: 'exact', head: true }),
+        sb.from('chat_messages').select('*', { count: 'exact', head: true }),
+        sb.from('notifications').select('*', { count: 'exact', head: true })
+      ])
+      supabaseStats = { userCount, projectCount, applicationCount, messageCount, chatCount, notifCount }
+    } catch(e) {
+      console.error('[Analytics] Supabase stats failed:', e)
+    }
+
+    let gddCount = 0, storyStudioCount = 0, budgetCount = 0, agreementCount = 0
+    Object.keys(allData).forEach(uid => {
+      ;(allData[uid]?.projects || []).forEach(p => {
+        if (Object.keys(p.gdd || {}).length > 0) gddCount++
+        if (Object.keys(p.storyStudio || {}).length > 0) storyStudioCount++
+        if ((p.budget?.transactions?.length || 0) > 0) budgetCount++
+      })
+      agreementCount += (allData[uid]?.agreements || []).length
+    })
+
+    setStats({
+      totalUsers: supabaseStats.userCount || allUsers.length,
+      localUsers: allUsers.length,
+      totalProjects: supabaseStats.projectCount || Object.values(allData).reduce((sum, d) => sum + (d.projects?.length || 0), 0),
+      publicProjects: Object.values(allData).reduce((sum, d) => sum + (d.projects?.filter(p => p.visibility?.toLowerCase() === 'public').length || 0), 0),
+      totalApplications: supabaseStats.applicationCount || 0,
+      totalMessages: supabaseStats.messageCount || 0,
+      totalChats: supabaseStats.chatCount || 0,
+      totalNotifications: supabaseStats.notifCount || 0,
+      totalAgreements: agreementCount,
+      gddUsage: gddCount,
+      storyStudioUsage: storyStudioCount,
+      budgetUsage: budgetCount,
+      proInterests,
+      indieInterests: proInterests.filter(i => i.tier === 'indie').length,
+      studioInterests: proInterests.filter(i => i.tier === 'studio').length,
+      publisherInterests: proInterests.filter(i => i.tier === 'publisher').length,
+    })
+  }
+
+  if (!stats) return <div style={{ padding: '20px', color: 'var(--text-tertiary)', fontSize: '13px' }}>Loading analytics...</div>
+
+  function StatCard({ label, value, sublabel, colour = 'var(--brand-accent)' }) {
+    return (
+      <div style={{ padding: '16px', borderRadius: '10px', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)' }}>
+        <p style={{ fontSize: '28px', fontWeight: '800', color: colour, margin: '0 0 4px' }}>{value}</p>
+        <p style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 2px' }}>{label}</p>
+        {sublabel && <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: 0 }}>{sublabel}</p>}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <h3 style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '16px' }}>Platform Overview</h3>
+
+      <p style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 10px' }}>Users</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px', marginBottom: '24px' }}>
+        <StatCard label="Total Users" value={stats.totalUsers} sublabel="Supabase Auth" colour="#534AB7" />
+        <StatCard label="Total Projects" value={stats.totalProjects} colour="#534AB7" />
+        <StatCard label="Public Projects" value={stats.publicProjects} colour="#534AB7" />
+      </div>
+
+      <p style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 10px' }}>Activity</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px', marginBottom: '24px' }}>
+        <StatCard label="Applications" value={stats.totalApplications} colour="#ed2793" />
+        <StatCard label="Messages" value={stats.totalMessages} colour="#ed2793" />
+        <StatCard label="Chat Messages" value={stats.totalChats} colour="#ed2793" />
+        <StatCard label="Agreements" value={stats.totalAgreements} colour="#ed2793" />
+      </div>
+
+      <p style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 10px' }}>Feature Usage</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px', marginBottom: '24px' }}>
+        <StatCard label="GDD Used" value={stats.gddUsage} sublabel="projects with GDD" colour="#22c55e" />
+        <StatCard label="Story Studio" value={stats.storyStudioUsage} sublabel="projects with story data" colour="#22c55e" />
+        <StatCard label="Budget Tracker" value={stats.budgetUsage} sublabel="projects with transactions" colour="#22c55e" />
+      </div>
+
+      <p style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 10px' }}>Pro Interest ({stats.proInterests.length} total)</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px', marginBottom: '24px' }}>
+        <StatCard label="Indie Tier" value={stats.indieInterests} colour="#ed2793" />
+        <StatCard label="Studio Tier" value={stats.studioInterests} colour="#22c55e" />
+        <StatCard label="Publisher Tier" value={stats.publisherInterests} colour="#f59e0b" />
+      </div>
+
+      {stats.proInterests.length > 0 && (
+        <div>
+          <p style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 10px' }}>Interest Registrations</p>
+          <div style={{ border: '1px solid var(--border-default)', borderRadius: '8px', overflow: 'hidden' }}>
+            {stats.proInterests.map((interest, i) => (
+              <div key={interest.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderBottom: i < stats.proInterests.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-primary)', flex: 1 }}>{interest.email}</span>
+                <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '99px', background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>{interest.tier}</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{new Date(interest.timestamp).toLocaleDateString('en-GB')}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button onClick={loadStats} style={{ marginTop: '16px', padding: '8px 16px', borderRadius: '9999px', border: '1px solid var(--border-default)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '12px' }}>
+        Refresh Stats
+      </button>
+    </div>
+  )
+}
+
 // ── Main AdminPanel ───────────────────────────────────────────────────────────
 
 export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) {
@@ -2053,6 +2187,7 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
     { id: 'roadmap',      label: 'Roadmap',         Icon: IconMap,          count: null },
     { id: 'integrity',    label: 'Data Integrity',  Icon: IconHeartbeat,    count: null },
     { id: 'debug',        label: 'System Debug',    Icon: IconBug,          count: null },
+    { id: 'analytics',    label: 'Analytics',       Icon: IconChartBar,     count: null },
   ]
 
   return (
@@ -2102,6 +2237,7 @@ export default function AdminPanel({ currentUser, users, setUsers, onSignOut }) 
         {tab === 'roadmap'      && <RoadmapAdminTab />}
         {tab === 'integrity'    && <DataIntegrityTab />}
         {tab === 'debug'        && <SystemDebugTab />}
+        {tab === 'analytics'    && <AnalyticsTab currentUser={currentUser} />}
       </div>
     </div>
   )

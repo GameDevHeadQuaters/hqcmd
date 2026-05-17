@@ -5,7 +5,7 @@ import {
   IconWritingSign, IconCurrencyDollar, IconUser, IconSettings, IconShield,
   IconLogout, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand,
   IconChevronDown, IconBell, IconSun, IconMoon, IconAddressBook, IconPresentation,
-  IconMap, IconHistory,
+  IconMap, IconHistory, IconCreditCard,
 } from '@tabler/icons-react'
 import { useTheme } from '../context/ThemeContext'
 
@@ -391,6 +391,8 @@ export default function Sidebar({
             {isDark ? <IconSun size={17} /> : <IconMoon size={17} />}
           </button>
         </div>
+
+        <NavItem icon={IconCreditCard} label="Pricing" path="/pricing" active={is('/pricing')} collapsed={collapsed} />
 
         <SectionLabel label="Account" collapsed={collapsed} />
 
