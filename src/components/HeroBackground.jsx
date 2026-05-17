@@ -6,6 +6,7 @@ export default function HeroBackground() {
   const targetRef = useRef({ x: -1000, y: -1000 })
   const particlesRef = useRef([])
   const animFrameRef = useRef(null)
+  const flashRef = useRef(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -43,12 +44,70 @@ export default function HeroBackground() {
       }
     }
 
+    function handleClick(e) {
+      const rect = canvas.getBoundingClientRect()
+      const clickX = e.clientX - rect.left
+      const clickY = e.clientY - rect.top
+
+      particlesRef.current.forEach(p => {
+        const dx = p.x - clickX
+        const dy = p.y - clickY
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        const maxScatterRadius = 400
+
+        if (dist < maxScatterRadius) {
+          const force = (1 - dist / maxScatterRadius) * 18
+          const angle = Math.atan2(dy, dx)
+
+          p.springVx += Math.cos(angle) * force
+          p.springVy += Math.sin(angle) * force
+
+          if (dist < 5) {
+            const randomAngle = Math.random() * Math.PI * 2
+            p.springVx += Math.cos(randomAngle) * force
+            p.springVy += Math.sin(randomAngle) * force
+          }
+        }
+      })
+
+      flashRef.current = { x: clickX, y: clickY, opacity: 1, time: Date.now() }
+    }
+
+    canvas.addEventListener('click', handleClick)
+    window.addEventListener('click', handleClick)
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('resize', resize)
     resize()
 
     function animate() {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      // Draw click flash/ripple
+      if (flashRef.current) {
+        const flash = flashRef.current
+        const elapsed = Date.now() - flash.time
+        const duration = 400
+
+        if (elapsed < duration) {
+          const progress = elapsed / duration
+          const radius = progress * 120
+          const opacity = (1 - progress) * 0.6
+
+          ctx.beginPath()
+          ctx.arc(flash.x, flash.y, radius, 0, Math.PI * 2)
+          ctx.strokeStyle = `rgba(237,39,147,${opacity})`
+          ctx.lineWidth = 2 * (1 - progress)
+          ctx.stroke()
+
+          const innerGlow = ctx.createRadialGradient(flash.x, flash.y, 0, flash.x, flash.y, radius * 0.5)
+          innerGlow.addColorStop(0, `rgba(255,255,255,${opacity * 0.3})`)
+          innerGlow.addColorStop(1, 'rgba(0,0,0,0)')
+          ctx.fillStyle = innerGlow
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+        } else {
+          flashRef.current = null
+        }
+      }
 
       mouseRef.current.x += (targetRef.current.x - mouseRef.current.x) * 0.08
       mouseRef.current.y += (targetRef.current.y - mouseRef.current.y) * 0.08
@@ -171,6 +230,8 @@ export default function HeroBackground() {
       cancelAnimationFrame(animFrameRef.current)
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('resize', resize)
+      window.removeEventListener('click', handleClick)
+      canvas.removeEventListener('click', handleClick)
     }
   }, [])
 
