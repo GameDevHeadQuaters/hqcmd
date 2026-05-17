@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { IconCheck, IconLock, IconSparkles, IconBuildingSkyscraper, IconRocket, IconUser } from '@tabler/icons-react'
+import { IconCheck, IconLock, IconSparkles, IconBuildingSkyscraper, IconRocket, IconUser, IconArrowLeft } from '@tabler/icons-react'
 
 const TIERS = [
   {
@@ -109,6 +109,11 @@ export default function Pricing() {
   const [submitting, setSubmitting] = useState(false)
   const navigate = useNavigate()
 
+  const currentUser = (() => {
+    try { return JSON.parse(localStorage.getItem('hqcmd_currentUser_v3') || 'null') }
+    catch { return null }
+  })()
+
   async function handleInterest(tierId) {
     setInterestTier(tierId)
     document.getElementById('interest-form')?.scrollIntoView({ behavior: 'smooth' })
@@ -162,6 +167,52 @@ export default function Pricing() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
+      {/* Nav bar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '16px 24px',
+        borderBottom: '1px solid var(--border-subtle)',
+        position: 'sticky', top: 0, zIndex: 100,
+        background: 'rgba(10,10,15,0.9)',
+        backdropFilter: 'blur(12px)'
+      }}>
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+          <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '24px', mixBlendMode: 'screen' }} />
+        </Link>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <Link to="/browse" style={{ fontSize: '13px', color: 'var(--text-secondary)', textDecoration: 'none' }}>Browse Projects</Link>
+          <Link to="/roadmap" style={{ fontSize: '13px', color: 'var(--text-secondary)', textDecoration: 'none' }}>Roadmap</Link>
+          {currentUser ? (
+            <>
+              <Link to="/projects" style={{ fontSize: '13px', color: 'var(--text-secondary)', textDecoration: 'none' }}>My Projects</Link>
+              <Link to="/projects" style={{ padding: '7px 16px', borderRadius: '9999px', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white', textDecoration: 'none', fontSize: '13px', fontWeight: '600' }}>
+                Go to Dashboard →
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link to="/login" style={{ fontSize: '13px', color: 'var(--text-secondary)', textDecoration: 'none' }}>Log In</Link>
+              <Link to="/signup" style={{ padding: '7px 16px', borderRadius: '9999px', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white', textDecoration: 'none', fontSize: '13px', fontWeight: '600' }}>
+                Get Started Free
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Back link */}
+      <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '16px 24px 0' }}>
+        <Link
+          to="/"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-tertiary)', textDecoration: 'none' }}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-tertiary)'}
+        >
+          <IconArrowLeft size={14} /> Back to home
+        </Link>
+      </div>
+
       {/* Header */}
       <div style={{ textAlign: 'center', padding: '64px 24px 40px', background: 'radial-gradient(ellipse at 50% 0%, rgba(83,74,183,0.2) 0%, transparent 60%)' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '99px', background: 'rgba(237,39,147,0.15)', border: '1px solid rgba(237,39,147,0.3)', marginBottom: '16px' }}>
