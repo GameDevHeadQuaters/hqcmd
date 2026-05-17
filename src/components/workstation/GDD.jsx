@@ -1,7 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
-import { IconPencil, IconTrash, IconPlus, IconDownload, IconBulb } from '@tabler/icons-react'
+import { IconPencil, IconTrash, IconPlus, IconDownload, IconBulb, IconX } from '@tabler/icons-react'
 import { hasPermission } from '../../utils/permissions'
 import { appendToProjectArray } from '../../utils/projectData'
+import {
+  exportMechanicsCSV, exportMechanicsMarkdown, exportMechanicsJira,
+  exportCharactersMarkdown, exportCharactersCSV,
+  exportWorldMarkdown, exportArcsMarkdown,
+  exportDialogueYarn, exportDialogueInk, exportDialogueCSV,
+  exportDialogueFountain, exportDialoguePlainText,
+  exportFullGDDPDF, exportFullGDDMarkdown,
+  downloadFile, htmlToMarkdown,
+} from '../../utils/gddExports'
 
 const ACCENT = '#534AB7'
 
@@ -69,6 +78,139 @@ function exportGDD(projectTitle, gdd) {
   win.document.write(html)
   win.document.close()
   setTimeout(() => win.print(), 500)
+}
+
+// ── Section Export Button ─────────────────────────────────────────────────
+
+function SectionExportButton({ options }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handleOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    if (open) document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [open])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ padding: '5px 10px', borderRadius: '99px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}
+        onMouseEnter={e => (e.currentTarget.style.borderColor = ACCENT)}
+        onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-default)')}
+      >
+        <IconDownload size={11} /> Export
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 4px)', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', borderRadius: '8px', padding: '4px', zIndex: 50, minWidth: '150px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+          {options.map(opt => (
+            <button
+              key={opt.label}
+              onClick={() => { opt.action(); setOpen(false) }}
+              style={{ display: 'block', width: '100%', padding: '7px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'left', borderRadius: '4px' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--text-primary)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── GDD Export Hub ────────────────────────────────────────────────────────
+
+function GDDExportHub({ projectTitle, gdd, getStudio, onClose }) {
+  const categories = [
+    {
+      id: 'dialogue', label: '💬 Dialogue',
+      items: [
+        { label: 'Yarn Spinner', ext: '.yarn', action: () => exportDialogueYarn(getStudio()?.dialogue || [], projectTitle) },
+        { label: 'Ink', ext: '.ink', action: () => exportDialogueInk(getStudio()?.dialogue || [], projectTitle) },
+        { label: 'CSV', ext: '.csv', action: () => exportDialogueCSV(getStudio()?.dialogue || [], projectTitle) },
+        { label: 'Fountain', ext: '.fountain', action: () => exportDialogueFountain(getStudio()?.dialogue || [], projectTitle) },
+        { label: 'Plain Text', ext: '.txt', action: () => exportDialoguePlainText(getStudio()?.dialogue || [], projectTitle) },
+      ],
+    },
+    {
+      id: 'mechanics', label: '⚙️ Mechanics',
+      items: [
+        { label: 'CSV', ext: '.csv', action: () => exportMechanicsCSV(gdd?.sections?.mechanics || [], projectTitle) },
+        { label: 'Markdown', ext: '.md', action: () => exportMechanicsMarkdown(gdd?.sections?.mechanics || [], projectTitle) },
+        { label: 'Jira JSON', ext: '.json', action: () => exportMechanicsJira(gdd?.sections?.mechanics || [], projectTitle) },
+      ],
+    },
+    {
+      id: 'characters', label: '👤 Characters',
+      items: [
+        { label: 'Markdown', ext: '.md', action: () => exportCharactersMarkdown(getStudio()?.characters || [], projectTitle) },
+        { label: 'CSV', ext: '.csv', action: () => exportCharactersCSV(getStudio()?.characters || [], projectTitle) },
+      ],
+    },
+    {
+      id: 'world', label: '🌍 World Building',
+      items: [
+        { label: 'Markdown', ext: '.md', action: () => exportWorldMarkdown(getStudio()?.world || {}, projectTitle) },
+      ],
+    },
+    {
+      id: 'arcs', label: '🗺️ Story Arcs',
+      items: [
+        { label: 'Markdown', ext: '.md', action: () => exportArcsMarkdown(getStudio()?.arcs || [], projectTitle) },
+      ],
+    },
+    {
+      id: 'full', label: '📄 Full GDD',
+      items: [
+        { label: 'PDF (Print)', ext: '.pdf', action: () => exportFullGDDPDF({ title: projectTitle }, gdd, getStudio()) },
+        { label: 'Markdown', ext: '.md', action: () => exportFullGDDMarkdown({ title: projectTitle }, gdd, getStudio()) },
+      ],
+    },
+  ]
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div style={{ background: 'var(--bg-surface)', borderRadius: '16px', border: '1px solid var(--border-default)', width: '560px', maxWidth: '90vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <div>
+            <p style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 2px' }}>📦 Export Hub</p>
+            <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: 0 }}>Export GDD content in various formats</p>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '4px', display: 'flex', alignItems: 'center' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-primary)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-tertiary)')}>
+            <IconX size={16} />
+          </button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {categories.map(cat => (
+            <div key={cat.id}>
+              <p style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-tertiary)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{cat.label}</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {cat.items.map(item => (
+                  <button
+                    key={item.label}
+                    onClick={item.action}
+                    style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid var(--border-default)', background: 'var(--bg-elevated)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1px', minWidth: '90px' }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = ACCENT)}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-default)')}
+                  >
+                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{item.label}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>{item.ext}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ── Rich Text Editor ──────────────────────────────────────────────────────
@@ -252,7 +394,7 @@ function SuggestChangeForm({ onSubmit, onCancel }) {
 
 // ── Text Section ──────────────────────────────────────────────────────────
 
-function TextSection({ section, gdd, canEdit, canSuggest, suggestions, onSave, onSuggest, onDismissSuggestion, onApplySuggestion, onOpenStoryStudio }) {
+function TextSection({ section, gdd, canEdit, canSuggest, suggestions, onSave, onSuggest, onDismissSuggestion, onApplySuggestion, onOpenStoryStudio, exportButton }) {
   const [editing, setEditing] = useState(false)
   const [localContent, setLocalContent] = useState('')
   const [showSuggestForm, setShowSuggestForm] = useState(false)
@@ -283,6 +425,7 @@ function TextSection({ section, gdd, canEdit, canSuggest, suggestions, onSave, o
           )}
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
+          {!editing && exportButton}
           {canEdit && !editing && (
             <button
               onClick={startEditing}
@@ -459,7 +602,7 @@ function MechanicCard({ mechanic, canEdit, onUpdate, onDelete }) {
 
 // ── Mechanics Section ─────────────────────────────────────────────────────
 
-function MechanicsSection({ gdd, canEdit, canSuggest, suggestions, onSaveMechanics, onSuggest, onDismissSuggestion, onApplySuggestion }) {
+function MechanicsSection({ gdd, canEdit, canSuggest, suggestions, onSaveMechanics, onSuggest, onDismissSuggestion, onApplySuggestion, exportButton }) {
   const mechanics = gdd?.sections?.mechanics || []
   const activeMechanics = mechanics.filter(m => m.status !== 'Cut')
 
@@ -498,6 +641,7 @@ function MechanicsSection({ gdd, canEdit, canSuggest, suggestions, onSaveMechani
           </p>
         </div>
         <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+          {exportButton}
           {canSuggest && !showSuggestForm && (
             <button
               onClick={() => setShowSuggestForm(true)}
@@ -651,6 +795,7 @@ export default function GDD({ projectId, ownerUserId, currentUser, userRole, onA
   const [gdd, setGdd] = useState(null)
   const [projectTitle, setProjectTitle] = useState('')
   const [suggestions, setSuggestions] = useState([])
+  const [showExportHub, setShowExportHub] = useState(false)
 
   const canEdit    = hasPermission(userRole, 'EDIT_PROJECT_PROFILE')
   const canSuggest = !canEdit && hasPermission(userRole, 'ADD_CONTENT')
@@ -670,6 +815,14 @@ export default function GDD({ projectId, ownerUserId, currentUser, userRole, onA
       const proj = allData[String(ownerUserId)]?.projects?.find(p => String(p.id) === String(projectId))
       setSuggestions(proj?.gddSuggestions || [])
     } catch {}
+  }
+
+  function getStudio() {
+    try {
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const proj = allData[String(ownerUserId)]?.projects?.find(p => String(p.id) === String(projectId))
+      return proj?.storyStudio || null
+    } catch { return null }
   }
 
   useEffect(() => {
@@ -803,6 +956,13 @@ export default function GDD({ projectId, ownerUserId, currentUser, userRole, onA
           onSuggest={submitSuggestion}
           onDismissSuggestion={dismissSuggestion}
           onApplySuggestion={applySuggestion}
+          exportButton={
+            <SectionExportButton options={[
+              { label: 'CSV (.csv)', action: () => exportMechanicsCSV(gdd?.sections?.mechanics || [], projectTitle) },
+              { label: 'Markdown (.md)', action: () => exportMechanicsMarkdown(gdd?.sections?.mechanics || [], projectTitle) },
+              { label: 'Jira JSON (.json)', action: () => exportMechanicsJira(gdd?.sections?.mechanics || [], projectTitle) },
+            ]} />
+          }
         />
       )
     }
@@ -830,6 +990,11 @@ export default function GDD({ projectId, ownerUserId, currentUser, userRole, onA
         onDismissSuggestion={dismissSuggestion}
         onApplySuggestion={applySuggestion}
         onOpenStoryStudio={onOpenStoryStudio}
+        exportButton={activeSection === 'story' ? (
+          <SectionExportButton options={[
+            { label: 'Markdown (.md)', action: () => downloadFile(`${projectTitle}_story.md`, `# ${projectTitle} — Story & Setting\n\n${htmlToMarkdown(gdd?.sections?.story?.content || '')}`) },
+          ]} />
+        ) : undefined}
       />
     )
   }
@@ -856,6 +1021,12 @@ export default function GDD({ projectId, ownerUserId, currentUser, userRole, onA
         }}>
           GDD {health}% complete
         </span>
+        <button
+          onClick={() => setShowExportHub(true)}
+          style={{ padding: '5px 12px', borderRadius: '99px', border: 'none', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '500' }}
+        >
+          <IconDownload size={12} /> Export Hub
+        </button>
         <button
           onClick={() => exportGDD(projectTitle, gdd)}
           style={{ padding: '5px 12px', borderRadius: '99px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}
@@ -899,6 +1070,15 @@ export default function GDD({ projectId, ownerUserId, currentUser, userRole, onA
           {renderSection()}
         </div>
       </div>
+
+      {showExportHub && (
+        <GDDExportHub
+          projectTitle={projectTitle}
+          gdd={gdd}
+          getStudio={getStudio}
+          onClose={() => setShowExportHub(false)}
+        />
+      )}
     </div>
   )
 }

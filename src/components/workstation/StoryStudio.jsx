@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
-import { IconArrowLeft, IconPencil, IconTrash, IconPlus, IconX, IconChevronUp, IconChevronDown } from '@tabler/icons-react'
+import { IconArrowLeft, IconPencil, IconTrash, IconPlus, IconX, IconChevronUp, IconChevronDown, IconDownload } from '@tabler/icons-react'
 import { hasPermission } from '../../utils/permissions'
+import {
+  exportDialogueYarn, exportDialogueInk, exportDialogueCSV,
+  exportDialogueFountain, exportDialoguePlainText,
+} from '../../utils/gddExports'
 
 const ACCENT = '#534AB7'
 
@@ -776,7 +780,27 @@ export default function StoryStudio({ projectId, ownerUserId, currentUser, userR
     }
 
     return (
-      <div style={{ display: 'flex', gap: '0', height: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {scripts.length > 0 && (
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
+            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginRight: '2px' }}>Export all scenes:</span>
+            {[
+              { label: 'Yarn', action: () => exportDialogueYarn(scripts, projectTitle) },
+              { label: 'Ink', action: () => exportDialogueInk(scripts, projectTitle) },
+              { label: 'CSV', action: () => exportDialogueCSV(scripts, projectTitle) },
+              { label: 'Fountain', action: () => exportDialogueFountain(scripts, projectTitle) },
+              { label: 'Plain Text', action: () => exportDialoguePlainText(scripts, projectTitle) },
+            ].map(({ label, action }) => (
+              <button key={label} onClick={action}
+                style={{ padding: '4px 10px', borderRadius: '99px', border: '1px solid var(--border-default)', background: 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '3px' }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = ACCENT)}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border-default)')}>
+                <IconDownload size={10} /> {label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: '0', flex: 1, overflow: 'hidden' }}>
         {/* Script list */}
         <div style={{ width: '200px', borderRight: '1px solid var(--border-subtle)', flexShrink: 0, display: 'flex', flexDirection: 'column' }}>
           {canEdit && <button onClick={addScript}
@@ -886,6 +910,7 @@ export default function StoryStudio({ projectId, ownerUserId, currentUser, userR
               <datalist id="script-chars">{charNames.map(n => <option key={n} value={n} />)}</datalist>
             </div>
           )}
+        </div>
         </div>
       </div>
     )
