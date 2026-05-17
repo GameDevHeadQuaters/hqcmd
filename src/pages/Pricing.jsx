@@ -123,9 +123,22 @@ export default function Pricing() {
     if (!interestEmail.trim() || !interestTier) return
     setSubmitting(true)
 
+    const email = interestEmail.trim().toLowerCase()
+
+    // Check for existing registration — show success silently, no duplicates
+    const existing = JSON.parse(localStorage.getItem('hqcmd_pro_interests') || '[]')
+    const alreadyRegistered = existing.find(i =>
+      i.email.toLowerCase() === email && i.tier === interestTier
+    )
+    if (alreadyRegistered) {
+      setSubmitted(true)
+      setSubmitting(false)
+      return
+    }
+
     const entry = {
       id: String(Date.now()),
-      email: interestEmail.trim().toLowerCase(),
+      email,
       tier: interestTier,
       timestamp: new Date().toISOString()
     }

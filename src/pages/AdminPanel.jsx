@@ -2006,6 +2006,47 @@ function AnalyticsTab({ currentUser }) {
     loadStats()
   }, [])
 
+  function deduplicateInterests(interests) {
+    const seen = new Set()
+    return interests.filter(i => {
+      const key = `${i.email.toLowerCase()}_${i.tier}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }
+
+  async function deleteInterest(interest) {
+    const raw = JSON.parse(localStorage.getItem('hqcmd_pro_interests') || '[]')
+    const updated = raw.filter(i =>
+      !(i.email.toLowerCase() === interest.email.toLowerCase() && i.tier === interest.tier)
+    )
+    localStorage.setItem('hqcmd_pro_interests', JSON.stringify(updated))
+
+    try {
+      await supabase
+        .from('beta_requests')
+        .delete()
+        .eq('email', interest.email.toLowerCase())
+        .eq('status', 'pro_interest')
+    } catch(e) {
+      console.error('[Analytics] Supabase delete failed:', e)
+    }
+
+    setStats(prev => {
+      const next = prev.proInterests.filter(i =>
+        !(i.email.toLowerCase() === interest.email.toLowerCase() && i.tier === interest.tier)
+      )
+      return {
+        ...prev,
+        proInterests: next,
+        indieInterests: next.filter(i => i.tier === 'indie').length,
+        studioInterests: next.filter(i => i.tier === 'studio').length,
+        publisherInterests: next.filter(i => i.tier === 'publisher').length,
+      }
+    })
+  }
+
   async function loadStats() {
     try {
       console.log('[Analytics] Loading stats...')
@@ -2013,7 +2054,10 @@ function AnalyticsTab({ currentUser }) {
       // Always load from localStorage first — this always works
       const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
       const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
-      const proInterests = JSON.parse(localStorage.getItem('hqcmd_pro_interests') || '[]')
+      const raw = JSON.parse(localStorage.getItem('hqcmd_pro_interests') || '[]')
+      const proInterests = deduplicateInterests(raw)
+      // Persist deduped list back
+      localStorage.setItem('hqcmd_pro_interests', JSON.stringify(proInterests))
 
       let totalProjects = 0, publicProjects = 0, totalAgreements = 0
       let gddCount = 0, storyStudioCount = 0, budgetCount = 0
@@ -2148,13 +2192,35 @@ function AnalyticsTab({ currentUser }) {
 
       {stats.proInterests.length > 0 && (
         <div>
-          <p style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 10px' }}>Interest Registrations</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <p style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0 }}>Interest Registrations</p>
+            <button
+              onClick={() => {
+                const raw = JSON.parse(localStorage.getItem('hqcmd_pro_interests') || '[]')
+                const deduped = deduplicateInterests(raw)
+                localStorage.setItem('hqcmd_pro_interests', JSON.stringify(deduped))
+                loadStats()
+              }}
+              style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border-default)', background: 'none', color: 'var(--text-tertiary)', cursor: 'pointer' }}
+            >
+              Remove duplicates
+            </button>
+          </div>
           <div style={{ border: '1px solid var(--border-default)', borderRadius: '8px', overflow: 'hidden' }}>
             {stats.proInterests.map((interest, i) => (
-              <div key={interest.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderBottom: i < stats.proInterests.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+              <div key={interest.id || i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderBottom: i < stats.proInterests.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
                 <span style={{ fontSize: '12px', color: 'var(--text-primary)', flex: 1 }}>{interest.email}</span>
                 <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '99px', background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>{interest.tier}</span>
                 <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{new Date(interest.timestamp).toLocaleDateString('en-GB')}</span>
+                <button
+                  onClick={() => deleteInterest(interest)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '2px 6px', borderRadius: '4px', fontSize: '12px' }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = 'rgba(239,68,68,0.1)' }}
+                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.background = 'none' }}
+                  title="Delete registration"
+                >
+                  <IconTrash size={12} />
+                </button>
               </div>
             ))}
           </div>
