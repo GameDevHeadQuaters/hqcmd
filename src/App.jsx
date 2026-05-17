@@ -996,79 +996,114 @@ export default function App() {
 
   // ── Supabase session bootstrap ────────────────────────────────────────────
 
-  // Safety net — never stay stuck on loading screen
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setAuthLoading(false)
-      console.log('[Auth] Loading timeout reached — forcing authLoading false')
-    }, 3000)
-    return () => clearTimeout(timeout)
-  }, [])
+    let mounted = true
 
-  useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
-      console.log('[Auth] Initial session:', session?.user?.id, error?.message)
+    async function initAuth() {
+      console.log('[Auth] Initialising...')
+
       try {
-        if (session?.user) {
-          await loadUserProfile(session.user)
-        } else {
-          // Check for superadmin localStorage fallback (no Supabase session)
-          const savedUser = localStorage.getItem(STORAGE_KEYS.currentUser)
-          if (savedUser) {
-            try {
-              const parsed = JSON.parse(savedUser)
-              if (parsed.isSuperAdmin) setCurrentUser(parsed)
-            } catch {}
-          }
+        // Step 1: Check localStorage for superadmin first
+        const savedUserRaw = localStorage.getItem('hqcmd_currentUser_v3')
+        if (savedUserRaw) {
+          try {
+            const savedUser = JSON.parse(savedUserRaw)
+            if (savedUser?.isSuperAdmin) {
+              console.log('[Auth] Restoring superadmin from localStorage')
+              if (mounted) {
+                setCurrentUser(savedUser)
+                setAuthLoading(false)
+              }
+              return // superadmin restored — done
+            }
+          } catch(e) {}
         }
-      } catch (e) {
+
+        // Step 2: Check Supabase session for regular users
+        const { data: { session }, error } = await supabase.auth.getSession()
+        console.log('[Auth] Supabase session:', session?.user?.id, error?.message)
+
+        if (session?.user && mounted) {
+          await loadUserProfile(session.user)
+          return
+        }
+
+        // Step 3: No session found — check if there's a non-admin localStorage user
+        if (savedUserRaw && mounted) {
+          try {
+            const savedUser = JSON.parse(savedUserRaw)
+            if (savedUser?.id && !savedUser.isSuperAdmin) {
+              console.log('[Auth] Found localStorage user but no Supabase session — clearing')
+              localStorage.removeItem('hqcmd_currentUser_v3')
+            }
+          } catch(e) {}
+        }
+
+      } catch(e) {
         console.error('[Auth] Init error:', e)
       } finally {
-        setAuthLoading(false)
+        if (mounted) setAuthLoading(false)
       }
-    }).catch(e => {
-      console.error('[Auth] getSession error:', e)
-      setAuthLoading(false)
-    })
+    }
 
+    initAuth()
+
+    // Listen for Supabase auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[App] Auth event:', event, 'user:', session?.user?.id)
+      console.log('[Auth] Event:', event, session?.user?.id)
 
-      // Don't interfere with superadmin — they bypass Supabase auth entirely
+      // Never interfere with superadmin
       try {
-        const savedUser = localStorage.getItem('hqcmd_currentUser_v3')
-        if (savedUser) {
-          const parsed = JSON.parse(savedUser)
-          if (parsed.isSuperAdmin) {
-            console.log('[App] Superadmin session detected — skipping Supabase auth handler')
-            setAuthLoading(false)
+        const saved = localStorage.getItem('hqcmd_currentUser_v3')
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          if (parsed?.isSuperAdmin) {
+            console.log('[Auth] Ignoring auth event for superadmin')
+            if (mounted) setAuthLoading(false)
             return
           }
         }
       } catch(e) {}
 
       if (event === 'SIGNED_OUT') {
-        console.log('[App] Supabase SIGNED_OUT event received')
-        setCurrentUser(null)
-        setUserData({})
-        localStorage.removeItem(STORAGE_KEYS.currentUser)
+        if (mounted) {
+          setCurrentUser(null)
+          setUserData({})
+          localStorage.removeItem('hqcmd_currentUser_v3')
+          localStorage.removeItem('hqcmd_last_project')
+        }
         return
       }
 
-      if (session?.user) {
-        try {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session?.user && mounted) {
           await loadUserProfile(session.user)
-        } catch (e) {
-          console.error('[Auth] onAuthStateChange loadUserProfile error:', e)
-        } finally {
+        }
+        return
+      }
+
+      if (event === 'INITIAL_SESSION') {
+        if (session?.user && mounted) {
+          await loadUserProfile(session.user)
+        } else if (mounted) {
           setAuthLoading(false)
         }
-      } else {
-        setAuthLoading(false)
       }
     })
 
-    return () => subscription.unsubscribe()
+    // Safety timeout — never stay loading more than 4 seconds
+    const timeout = setTimeout(() => {
+      if (mounted) {
+        console.log('[Auth] Timeout — forcing authLoading false')
+        setAuthLoading(false)
+      }
+    }, 4000)
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Force re-read from localStorage (call after cross-user writes) ─────────
@@ -1372,26 +1407,26 @@ export default function App() {
   }
 
   function handleSignOut() {
-    console.log('[Logout] Starting signout...')
+    console.log('[Logout] Starting...')
 
-    // Clear local state IMMEDIATELY — don't wait for Supabase
+    // Clear all local state first
     setCurrentUser(null)
     setUserData({})
     setActiveProjectId(null)
     setActiveOwnerUserId(null)
     setCalendarEvents([])
+
+    // Clear localStorage
     localStorage.removeItem(STORAGE_KEYS.currentUser)
     localStorage.removeItem('hqcmd_last_project')
+    const achievementKeys = Object.keys(localStorage).filter(k => k.startsWith('hqcmd_ach_checked_'))
+    achievementKeys.forEach(k => localStorage.removeItem(k))
 
-    // Navigate away immediately
+    // Navigate immediately
     window.location.replace('/')
 
-    // Then try Supabase signout in background — don't await
-    supabase.auth.signOut().then(() => {
-      console.log('[Logout] Supabase signout complete')
-    }).catch(e => {
-      console.error('[Logout] Supabase signout error (ignored):', e)
-    })
+    // Supabase signout in background
+    supabase.auth.signOut().catch(e => console.error('[Logout] Supabase error:', e))
   }
 
   // ── Derived data for current user ─────────────────────────────────────────
