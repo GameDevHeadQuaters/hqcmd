@@ -158,12 +158,33 @@ export default function TeamsPage({
   const [highlightedMember, setHighlightedMember] = useState({})
   const [editingRoles, setEditingRoles] = useState({})
 
+  function getOwnerName(ownerId, allUsers) {
+    if (String(ownerId) === 'superadmin') {
+      const adminProfile = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
+      return adminProfile.name || 'HQCMD Admin'
+    }
+    const user = allUsers.find(u => String(u.id) === String(ownerId))
+    return user?.name || 'Unknown'
+  }
+
   function buildMembersList(project, allData, allUsers, ownerId) {
     const memberMap = new Map()
-    const ownerUser = allUsers.find(u => String(u.id) === String(ownerId))
+    const ownerIdStr = String(ownerId)
+
+    let ownerUser = allUsers.find(u => String(u.id) === ownerIdStr)
+    if (!ownerUser && ownerIdStr === 'superadmin') {
+      const adminProfile = JSON.parse(localStorage.getItem('hqcmd_admin_profile') || '{}')
+      ownerUser = {
+        id: 'superadmin',
+        name: adminProfile.name || 'HQCMD Admin',
+        initials: adminProfile.initials || 'HA',
+        role: adminProfile.role || 'Platform Administrator'
+      }
+    }
+
     if (ownerUser) {
-      memberMap.set(String(ownerId), {
-        id: String(ownerId), userId: String(ownerId),
+      memberMap.set(ownerIdStr, {
+        id: ownerIdStr, userId: ownerIdStr,
         name: ownerUser.name,
         jobRole: ownerUser.role || '',
         accessRole: 'Owner', role: 'Owner',
@@ -215,12 +236,13 @@ export default function TeamsPage({
     const projectsWithData = []
 
     const myProjects = allData[myId]?.projects || []
-    console.log('[Teams] Loading', myProjects.length, 'projects for:', myId)
+    console.log('[Teams] currentUser.id:', myId)
+    console.log('[Teams] myProjects count:', myProjects.length)
+    myProjects.forEach(p => console.log('[Teams] Project:', p.title, 'apps:', p.applications?.length))
 
     myProjects.forEach(project => {
       const membersList = buildMembersList(project, allData, allUsers, myId)
       const applicationsList = project.applications || []
-      console.log('[Teams] Project:', project.title, 'applications:', applicationsList.length)
       projectsWithData.push({
         ...project,
         _ownerUserId: myId,
