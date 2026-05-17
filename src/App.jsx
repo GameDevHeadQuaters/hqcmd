@@ -1381,6 +1381,7 @@ export default function App() {
     setActiveOwnerUserId(null)
     setCalendarEvents([])
     localStorage.removeItem(STORAGE_KEYS.currentUser)
+    localStorage.removeItem('hqcmd_last_project')
 
     // Navigate away immediately
     window.location.replace('/')

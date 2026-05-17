@@ -21,60 +21,80 @@ export default function TeamChat({ projectId, ownerUserId, currentUser, userRole
 
   async function loadChatMessages() {
     try {
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select('*, users(name, initials, avatar_color)')
-        .eq('project_id', String(projectId))
-        .order('created_at', { ascending: true })
-        .limit(100)
+      if (supabase && projectId) {
+        const { data, error } = await supabase
+          .from('chat_messages')
+          .select('*, users(name, initials, avatar_color)')
+          .eq('project_id', String(projectId))
+          .order('created_at', { ascending: true })
+          .limit(100)
 
-      if (error) throw error
-      setMessages((data || []).map(m => ({
-        id: m.id,
-        author: m.users?.name || m.sender_name || 'Unknown',
-        initials: m.users?.initials || (m.sender_name || 'U').slice(0, 2).toUpperCase(),
-        text: m.text,
-        time: new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-        senderId: m.sender_id,
-      })))
+        if (data && !error) {
+          setMessages(data.map(m => ({
+            id: m.id,
+            author: m.users?.name || m.sender_name || 'Unknown',
+            initials: m.users?.initials || (m.sender_name || 'U').slice(0, 2).toUpperCase(),
+            text: m.text,
+            time: new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+            senderId: m.sender_id,
+          })))
+          return
+        }
+      }
     } catch (e) {
-      console.error('[Chat] Load error:', e)
-      // Fall back to localStorage
-      const proj = readProject(projectId, ownerUserId)
-      setMessages(proj?.chatMessages || [])
+      console.error('[Chat] Supabase load failed:', e)
     }
+
+    // Fallback to localStorage
+    const proj = readProject(projectId, ownerUserId)
+    setMessages(proj?.chatMessages || [])
   }
 
   useEffect(() => {
     console.log('[TeamChat] projectId:', projectId, 'ownerUserId:', ownerUserId)
     loadChatMessages()
 
-    channelRef.current = supabase
-      .channel(`chat:${projectId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'chat_messages',
-        filter: `project_id=eq.${projectId}`,
-      }, payload => {
-        console.log('[Chat] Real-time message:', payload.new)
-        const m = payload.new
-        setMessages(prev => {
-          if (prev.some(msg => String(msg.id) === String(m.id))) return prev
-          return [...prev, {
-            id: m.id,
-            author: m.sender_name || 'Unknown',
-            initials: (m.sender_name || 'U').slice(0, 2).toUpperCase(),
-            text: m.text,
-            time: new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-            senderId: m.sender_id,
-          }]
-        })
-      })
-      .subscribe()
+    // Try real-time subscription
+    try {
+      if (supabase && projectId) {
+        channelRef.current = supabase
+          .channel(`chat:${projectId}`)
+          .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'chat_messages',
+            filter: `project_id=eq.${projectId}`,
+          }, payload => {
+            console.log('[Chat] Real-time message:', payload.new)
+            const m = payload.new
+            setMessages(prev => {
+              if (prev.some(msg => String(msg.id) === String(m.id))) return prev
+              return [...prev, {
+                id: m.id,
+                author: m.sender_name || 'Unknown',
+                initials: (m.sender_name || 'U').slice(0, 2).toUpperCase(),
+                text: m.text,
+                time: new Date(m.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+                senderId: m.sender_id,
+              }]
+            })
+          })
+          .subscribe(status => {
+            console.log('[Chat] Subscription status:', status)
+          })
+      }
+    } catch(e) {
+      console.error('[Chat] Realtime subscription failed:', e)
+    }
+
+    // Fallback polling
+    const interval = setInterval(loadChatMessages, 5000)
 
     return () => {
-      if (channelRef.current) supabase.removeChannel(channelRef.current)
+      clearInterval(interval)
+      try {
+        if (channelRef.current && supabase) supabase.removeChannel(channelRef.current)
+      } catch(e) {}
     }
   }, [projectId, ownerUserId]) // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -86,8 +86,16 @@ export default function Workstation({
 
   // Save last opened project for sidebar shortcut
   useEffect(() => {
-    if (!effectiveProjectId || !effectiveOwnerUserId) return
+    if (!effectiveProjectId || !effectiveOwnerUserId || !currentUser) return
+
     const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+    const myId = String(currentUser.id)
+    const isOwner = effectiveOwnerUserId === myId
+    const isMember = (allData[myId]?.sharedProjects || []).some(sp =>
+      String(sp.projectId) === String(effectiveProjectId)
+    )
+    if (!isOwner && !isMember) return
+
     const project = (allData[effectiveOwnerUserId]?.projects || []).find(p => String(p.id) === String(effectiveProjectId))
     if (project) {
       localStorage.setItem('hqcmd_last_project', JSON.stringify({
@@ -95,9 +103,10 @@ export default function Workstation({
         ownerUserId: effectiveOwnerUserId,
         title: project.title,
         coverImageId: project.id,
+        savedBy: myId,
       }))
     }
-  }, [effectiveProjectId, effectiveOwnerUserId])
+  }, [effectiveProjectId, effectiveOwnerUserId, currentUser])
 
   // Seed calendarEvents from localStorage on first mount and keep in sync with TodoList writes
   useEffect(() => {

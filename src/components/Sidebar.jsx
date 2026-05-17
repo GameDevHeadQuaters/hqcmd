@@ -110,9 +110,16 @@ export default function Sidebar({
       const last = localStorage.getItem('hqcmd_last_project')
       if (!last) return
       try {
-        const { projectId, ownerUserId, title, coverImageId } = JSON.parse(last)
+        const data = JSON.parse(last)
+        if (data.savedBy && String(data.savedBy) !== String(currentUser?.id)) {
+          setLastProject(null)
+          return
+        }
+        const { projectId, ownerUserId, title, coverImageId } = data
         setLastProject({ projectId, ownerUserId, title, coverImageId })
-      } catch {}
+      } catch {
+        setLastProject(null)
+      }
     }
     loadLastProject()
     window.addEventListener('storage', loadLastProject)
