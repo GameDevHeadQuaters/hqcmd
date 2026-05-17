@@ -8,6 +8,7 @@ import {
 } from '@tabler/icons-react'
 import ProfileDropdown from '../components/ProfileDropdown'
 import { debugLog } from '../utils/debugLogger'
+import { syncApplication, syncNotification } from '../lib/dataSync'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -526,24 +527,12 @@ export default function BrowseProjects({
 
     debugLog('Application', 'Application saved to owner project', { ownerUserId, projectId, role, applicantName }, 'success')
 
-    if (currentUser?.id) {
-      ;(async () => {
-        try {
-          const { supabase } = await import('../lib/supabase')
-          const { error } = await supabase.from('applications').insert({
-            project_id: String(project.originalId ?? project.id),
-            applicant_id: String(currentUser.id),
-            role,
-            message,
-            status: 'pending'
-          })
-          if (error) console.error('[Apply] Supabase insert error:', error)
-          else console.log('[Apply] ✅ Saved to Supabase')
-        } catch(e) {
-          console.error('[Apply] Supabase failed:', e)
-        }
-      })()
-    }
+    syncApplication(application, project.originalId ?? project.id, ownerUserId)
+    syncNotification(ownerUserId, {
+      type: 'application',
+      message: `New application from ${applicantName} for ${role} on "${project.title}"`,
+      link: '/teams'
+    })
 
     return true
   }

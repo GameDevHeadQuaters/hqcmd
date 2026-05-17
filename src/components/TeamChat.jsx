@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { IconSend, IconMessages } from '@tabler/icons-react'
 import { hasPermission } from '../utils/permissions'
 import { readProject, appendToProjectArray } from '../utils/projectData'
-import { supabase } from '../lib/supabase'
+import { syncChatMessage } from '../lib/dataSync'
 
 const ACCENT = '#534AB7'
 const AVATAR_COLORS = ['#534AB7', '#7c3aed', '#0891b2', '#059669', '#d97706']
@@ -95,13 +95,7 @@ export default function TeamChat({ projectId, ownerUserId, currentUser, userRole
     setInput('')
 
     try {
-      const { error } = await supabase.from('chat_messages').insert({
-        project_id: String(projectId),
-        sender_id: String(currentUser?.id),
-        sender_name: currentUser?.name || 'Unknown',
-        text,
-      })
-      if (error) throw error
+      await syncChatMessage(String(projectId), String(currentUser?.id), currentUser?.name || 'Unknown', text)
       console.log('[Chat] ✅ Message sent via Supabase')
     } catch (e) {
       console.error('[Chat] Send error — falling back to localStorage:', e)

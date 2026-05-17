@@ -7,6 +7,7 @@ import {
   IconWritingSign, IconPrinter,
 } from '@tabler/icons-react'
 import { debugLog } from '../utils/debugLogger'
+import { updateAgreementStatus, syncNotification } from '../lib/dataSync'
 
 const ACCENT = '#534AB7'
 const ACCENT_DARK = '#3C3489'
@@ -212,6 +213,20 @@ export default function SignAgreement({ userData, onCountersign, onNotifyOwner }
 
     // Single atomic save
     localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
+
+    // Supabase sync
+    updateAgreementStatus(token, 'fully_signed', {
+      counterparty_name: signerName.trim(),
+      counterparty_email: signerEmail.trim(),
+      recipient_signed_at: now
+    })
+    if (ownerUserId) {
+      syncNotification(ownerUserId, {
+        type: 'agreement_signed',
+        message: `${signerName.trim()} has signed your agreement`,
+        link: '/teams'
+      })
+    }
 
     // Verify
     const verify = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')

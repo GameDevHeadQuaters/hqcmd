@@ -10,6 +10,7 @@ import AgreementSendModal from '../components/AgreementSendModal'
 import { sendEmail, accessGrantedEmail } from '../utils/sendEmail'
 import { debugLog } from '../utils/debugLogger'
 import { canManageMember } from '../utils/permissions'
+import { updateApplicationStatus, syncNotification, syncProjectMember } from '../lib/dataSync'
 
 const ACCENT = '#534AB7'
 const UD_KEY = 'hqcmd_userData_v4'
@@ -529,19 +530,14 @@ export default function TeamsPage({
       })
       localStorage.setItem(USERDATA_KEY, JSON.stringify(allData))
 
-      import('../lib/supabase').then(({ supabase }) => {
-        supabase.from('notifications').insert({
-          user_id: applicantId,
-          type: 'application_accepted',
-          message: `🎉 Your application for ${application.role} on "${project.title}" was accepted!`,
-          link: '/inbox?tab=applications',
-          read: false
-        }).then(({ error }) => {
-          if (error) console.error('[Pipeline] Supabase notify error:', error)
-        })
+      syncNotification(applicantId, {
+        type: 'application_accepted',
+        message: `🎉 Your application for ${application.role} on "${project.title}" was accepted!`,
+        link: '/inbox?tab=applications'
       })
     }
 
+    updateApplicationStatus(application.id, project.id, 'accepted')
     setActionedIds(prev => [...prev, application.id])
     window.dispatchEvent(new Event('storage'))
     loadTeamsData()
@@ -704,6 +700,13 @@ export default function TeamsPage({
     const verify = JSON.parse(localStorage.getItem(USERDATA_KEY) || '{}')
     console.log('[GrantAccess] Verification - applicant sharedProjects:', verify[applicantId]?.sharedProjects)
     console.log('[GrantAccess] Verification - project members:', verify[String(currentUser.id)]?.projects?.find(p => String(p.id) === String(project.id))?.members)
+
+    syncProjectMember(project.id, applicantId, grantedJobRole, 'No Role')
+    syncNotification(applicantId, {
+      type: 'access_granted',
+      message: `You've been granted access to "${project.title}"${grantedJobRole ? ` as ${grantedJobRole}` : ''}`,
+      link: '/projects?new_project=true'
+    })
 
     if (applicant.email) {
       const { subject, html } = accessGrantedEmail(applicant.name, project.title, currentUser.name)
