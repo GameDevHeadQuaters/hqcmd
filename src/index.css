@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+* { cursor: none !important; }
+
 /* ── Theme tokens ─────────────────────────────────────────────────────────── */
 :root[data-theme="dark"] {
   --bg-base:           #0f0f13;

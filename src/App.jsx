@@ -38,6 +38,7 @@ import QuickStartTour from './components/QuickStartTour'
 import ScrollToTop from './components/ScrollToTop'
 import { debugLog } from './utils/debugLogger'
 import LoadingScreen from './components/LoadingScreen'
+import CustomCursor from './components/CustomCursor'
 
 if (!import.meta.env.VITE_ADMIN_PASSWORD) {
   console.warn('hqcmd: VITE_ADMIN_PASSWORD not set in .env — admin login disabled')
@@ -1409,6 +1410,8 @@ export default function App() {
   }
 
   return (
+    <>
+    <CustomCursor />
     <BrowserRouter>
       <ScrollToTop />
       {(currentUser?.isAdmin === true || currentUser?.isSuperAdmin === true || currentUser?.id === 'superadmin') && <DebugPanel />}
@@ -1659,6 +1662,7 @@ export default function App() {
       )}
       </AppLayout>
     </BrowserRouter>
+    </>
   )
 }
 
