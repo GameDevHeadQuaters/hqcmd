@@ -2006,91 +2006,93 @@ function AnalyticsTab({ currentUser }) {
     loadStats()
   }, [])
 
-  async function loadProInterests() {
-    const local = JSON.parse(localStorage.getItem('hqcmd_pro_interests') || '[]')
-    try {
-      const { supabase: sb } = await import('../lib/supabase')
-      const { data } = await sb
-        .from('beta_requests')
-        .select('*')
-        .eq('status', 'pro_interest')
-        .order('created_at', { ascending: false })
-
-      if (data?.length > 0) {
-        const supabaseEntries = data.map(d => ({
-          id: d.id,
-          email: d.email,
-          tier: d.reason?.replace('Interested in ', '').replace(' tier', '') || 'unknown',
-          timestamp: d.created_at
-        }))
-        const allEmails = new Set(supabaseEntries.map(e => e.email))
-        const localOnly = local.filter(e => !allEmails.has(e.email))
-        return [...supabaseEntries, ...localOnly]
-          .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-      }
-    } catch(e) {
-      console.error('[Analytics] Pro interests load failed:', e)
-    }
-    return local
-  }
-
   async function loadStats() {
-    const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-    const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
-
-    let supabaseStats = {}
     try {
-      const { supabase: sb } = await import('../lib/supabase')
-      const [
-        { count: userCount },
-        { count: projectCount },
-        { count: applicationCount },
-        { count: messageCount },
-        { count: chatCount },
-        { count: notifCount }
-      ] = await Promise.all([
-        sb.from('users').select('*', { count: 'exact', head: true }),
-        sb.from('projects').select('*', { count: 'exact', head: true }),
-        sb.from('applications').select('*', { count: 'exact', head: true }),
-        sb.from('messages').select('*', { count: 'exact', head: true }),
-        sb.from('chat_messages').select('*', { count: 'exact', head: true }),
-        sb.from('notifications').select('*', { count: 'exact', head: true })
-      ])
-      supabaseStats = { userCount, projectCount, applicationCount, messageCount, chatCount, notifCount }
-    } catch(e) {
-      console.error('[Analytics] Supabase stats failed:', e)
-    }
+      console.log('[Analytics] Loading stats...')
 
-    const proInterests = await loadProInterests()
+      // Always load from localStorage first — this always works
+      const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
+      const allUsers = JSON.parse(localStorage.getItem('hqcmd_users_v3') || '[]')
+      const proInterests = JSON.parse(localStorage.getItem('hqcmd_pro_interests') || '[]')
 
-    let gddCount = 0, storyStudioCount = 0, budgetCount = 0, agreementCount = 0
-    Object.keys(allData).forEach(uid => {
-      ;(allData[uid]?.projects || []).forEach(p => {
-        if (Object.keys(p.gdd || {}).length > 0) gddCount++
-        if (Object.keys(p.storyStudio || {}).length > 0) storyStudioCount++
-        if ((p.budget?.transactions?.length || 0) > 0) budgetCount++
+      let totalProjects = 0, publicProjects = 0, totalAgreements = 0
+      let gddCount = 0, storyStudioCount = 0, budgetCount = 0
+
+      Object.keys(allData).forEach(uid => {
+        const projects = allData[uid]?.projects || []
+        totalProjects += projects.length
+        projects.forEach(p => {
+          if (p.visibility?.toLowerCase() === 'public') publicProjects++
+          if (Object.keys(p.gdd || {}).length > 0) gddCount++
+          if (Object.keys(p.storyStudio || {}).length > 0) storyStudioCount++
+          if ((p.budget?.transactions?.length || 0) > 0) budgetCount++
+        })
+        totalAgreements += (allData[uid]?.agreements || []).length
       })
-      agreementCount += (allData[uid]?.agreements || []).length
-    })
 
-    setStats({
-      totalUsers: supabaseStats.userCount || allUsers.length,
-      localUsers: allUsers.length,
-      totalProjects: supabaseStats.projectCount || Object.values(allData).reduce((sum, d) => sum + (d.projects?.length || 0), 0),
-      publicProjects: Object.values(allData).reduce((sum, d) => sum + (d.projects?.filter(p => p.visibility?.toLowerCase() === 'public').length || 0), 0),
-      totalApplications: supabaseStats.applicationCount || 0,
-      totalMessages: supabaseStats.messageCount || 0,
-      totalChats: supabaseStats.chatCount || 0,
-      totalNotifications: supabaseStats.notifCount || 0,
-      totalAgreements: agreementCount,
-      gddUsage: gddCount,
-      storyStudioUsage: storyStudioCount,
-      budgetUsage: budgetCount,
-      proInterests,
-      indieInterests: proInterests.filter(i => i.tier === 'indie').length,
-      studioInterests: proInterests.filter(i => i.tier === 'studio').length,
-      publisherInterests: proInterests.filter(i => i.tier === 'publisher').length,
-    })
+      // Set immediately so UI shows something
+      const baseStats = {
+        totalUsers: allUsers.length,
+        totalProjects,
+        publicProjects,
+        totalAgreements,
+        gddUsage: gddCount,
+        storyStudioUsage: storyStudioCount,
+        budgetUsage: budgetCount,
+        totalApplications: 0,
+        totalMessages: 0,
+        totalChats: 0,
+        totalNotifications: 0,
+        proInterests,
+        indieInterests: proInterests.filter(i => i.tier === 'indie').length,
+        studioInterests: proInterests.filter(i => i.tier === 'studio').length,
+        publisherInterests: proInterests.filter(i => i.tier === 'publisher').length,
+      }
+      setStats(baseStats)
+      console.log('[Analytics] Base stats loaded from localStorage')
+
+      // Enrich with Supabase — allSettled so one timeout can't block the rest
+      try {
+        const [
+          usersResult,
+          projectsResult,
+          applicationsResult,
+          messagesResult,
+          chatResult,
+          notifsResult
+        ] = await Promise.allSettled([
+          supabase.from('users').select('*', { count: 'exact', head: true }),
+          supabase.from('projects').select('*', { count: 'exact', head: true }),
+          supabase.from('applications').select('*', { count: 'exact', head: true }),
+          supabase.from('messages').select('*', { count: 'exact', head: true }),
+          supabase.from('chat_messages').select('*', { count: 'exact', head: true }),
+          supabase.from('notifications').select('*', { count: 'exact', head: true }),
+        ])
+
+        setStats(prev => ({
+          ...prev,
+          totalUsers: usersResult.status === 'fulfilled' ? (usersResult.value.count || prev.totalUsers) : prev.totalUsers,
+          totalProjects: projectsResult.status === 'fulfilled' ? (projectsResult.value.count || prev.totalProjects) : prev.totalProjects,
+          totalApplications: applicationsResult.status === 'fulfilled' ? (applicationsResult.value.count || 0) : 0,
+          totalMessages: messagesResult.status === 'fulfilled' ? (messagesResult.value.count || 0) : 0,
+          totalChats: chatResult.status === 'fulfilled' ? (chatResult.value.count || 0) : 0,
+          totalNotifications: notifsResult.status === 'fulfilled' ? (notifsResult.value.count || 0) : 0,
+        }))
+        console.log('[Analytics] Supabase stats enriched')
+      } catch(e) {
+        console.error('[Analytics] Supabase enrichment failed:', e)
+      }
+
+    } catch(e) {
+      console.error('[Analytics] loadStats crashed:', e)
+      setStats({
+        totalUsers: 0, totalProjects: 0, publicProjects: 0,
+        totalAgreements: 0, totalApplications: 0, totalMessages: 0,
+        totalChats: 0, totalNotifications: 0, gddUsage: 0,
+        storyStudioUsage: 0, budgetUsage: 0,
+        proInterests: [], indieInterests: 0, studioInterests: 0, publisherInterests: 0,
+      })
+    }
   }
 
   if (!stats) return <div style={{ padding: '20px', color: 'var(--text-tertiary)', fontSize: '13px' }}>Loading analytics...</div>
