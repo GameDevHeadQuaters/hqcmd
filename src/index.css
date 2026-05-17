@@ -183,6 +183,12 @@ body {
   50% { opacity: 0.6; }
 }
 
+/* ── Landing scroll indicator bounce ────────────────────────────────────── */
+@keyframes bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(6px); }
+}
+
 /* ── GDD rich text editor placeholder ───────────────────────────────────── */
 [contenteditable][data-placeholder]:empty:before { content: attr(data-placeholder); color: var(--text-tertiary); pointer-events: none; font-style: italic; }
 [contenteditable] ul { list-style-type: disc; padding-left: 20px; margin: 8px 0; }

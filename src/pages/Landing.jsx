@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { IconChevronDown } from '@tabler/icons-react'
 
 const PAIN_POINTS = [
   { icon: '😩', problem: 'Posting on Discord and Reddit, getting no replies', solution: 'Browse active projects with open roles that match your skills' },
@@ -24,9 +25,10 @@ export default function Landing() {
 
       {/* ── Hero ── */}
       <section style={{
-        minHeight: '100vh', display: 'flex', flexDirection: 'column',
+        position: 'relative',
+        minHeight: '85vh', display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-        padding: '80px 24px',
+        padding: '60px 24px 48px',
         background: 'radial-gradient(ellipse at 50% 0%, rgba(83,74,183,0.3) 0%, rgba(237,39,147,0.1) 40%, transparent 70%), var(--bg-base)',
       }}>
         <img
@@ -53,14 +55,35 @@ export default function Landing() {
           </Link>
         </div>
         <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginTop: '16px' }}>Free during beta · No credit card required</p>
+
+        {/* Scroll indicator */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '24px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '4px',
+            animation: 'bounce 2s infinite',
+            cursor: 'pointer',
+            opacity: 0.5,
+          }}
+          onClick={() => window.scrollBy({ top: window.innerHeight * 0.7, behavior: 'smooth' })}
+        >
+          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Scroll</span>
+          <IconChevronDown size={16} style={{ color: 'var(--text-tertiary)' }} />
+        </div>
       </section>
 
       {/* ── Problem / Solution ── */}
-      <section style={{ padding: '80px 24px', maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
+      <section style={{ padding: '48px 24px', background: 'var(--bg-base)', maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
         <h2 style={{ fontSize: '32px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '16px' }}>
           Making games is hard enough.<br />Finding the right team shouldn't be.
         </h2>
-        <p style={{ fontSize: '16px', color: 'var(--text-secondary)', lineHeight: 1.7, maxWidth: '600px', margin: '0 auto 48px' }}>
+        <p style={{ fontSize: '16px', color: 'var(--text-secondary)', lineHeight: 1.7, maxWidth: '600px', margin: '0 auto 36px' }}>
           HQCMD is built specifically for indie game developers — whether you're a solo dev looking for collaborators, or a studio building your next team.
         </p>
 
@@ -68,7 +91,7 @@ export default function Landing() {
           {PAIN_POINTS.map(item => (
             <div key={item.icon} style={{ padding: '20px', borderRadius: '12px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
               <div style={{ fontSize: '28px', marginBottom: '10px' }}>{item.icon}</div>
-              <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '8px', textDecoration: 'line-through', margin: '0 0 8px' }}>{item.problem}</p>
+              <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', textDecoration: 'line-through', margin: '0 0 8px' }}>{item.problem}</p>
               <p style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: '500', margin: 0 }}>✓ {item.solution}</p>
             </div>
           ))}
@@ -76,18 +99,18 @@ export default function Landing() {
       </section>
 
       {/* ── Features ── */}
-      <section style={{ padding: '80px 24px', background: 'var(--bg-surface)' }}>
+      <section style={{ padding: '48px 24px', background: 'var(--bg-surface)' }}>
         <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-          <h2 style={{ fontSize: '32px', fontWeight: '700', color: 'var(--text-primary)', textAlign: 'center', marginBottom: '48px' }}>
+          <h2 style={{ fontSize: '32px', fontWeight: '700', color: 'var(--text-primary)', textAlign: 'center', marginBottom: '32px' }}>
             Everything your indie team needs
           </h2>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
             {FEATURES.map(feature => (
-              <div key={feature.title} style={{ padding: '24px', borderRadius: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)' }}>
-                <div style={{ fontSize: '32px', marginBottom: '12px' }}>{feature.icon}</div>
-                <h3 style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 8px' }}>{feature.title}</h3>
-                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>{feature.desc}</p>
+              <div key={feature.title} style={{ padding: '18px', borderRadius: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)' }}>
+                <div style={{ fontSize: '24px', marginBottom: '8px' }}>{feature.icon}</div>
+                <h3 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 6px' }}>{feature.title}</h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>{feature.desc}</p>
               </div>
             ))}
           </div>
@@ -95,13 +118,13 @@ export default function Landing() {
       </section>
 
       {/* ── Beta CTA ── */}
-      <section style={{ padding: '80px 24px', textAlign: 'center' }}>
+      <section style={{ padding: '48px 24px', background: 'var(--bg-base)', textAlign: 'center' }}>
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🧪</div>
+          <div style={{ fontSize: '40px', marginBottom: '12px' }}>🧪</div>
           <h2 style={{ fontSize: '28px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px' }}>
             Now in Open Beta
           </h2>
-          <p style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: '32px' }}>
+          <p style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: '28px' }}>
             HQCMD is free during beta. We're building alongside our community — your feedback shapes what comes next. Join early and help define the platform for indie game developers everywhere.
           </p>
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
