@@ -72,11 +72,11 @@ export default function CustomCursor() {
 
   if (typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches) return null
 
-  const spread = clicking ? 4 : hovering ? 16 : 8
-  const armLen = clicking ? 8 : hovering ? 12 : 10
+  const spread = clicking ? 2 : hovering ? 8 : 4
+  const armLen = clicking ? 4 : hovering ? 6 : 5
   const colour = clicking ? '#ffffff' : '#ed2793'
-  const thickness = hovering ? 2.5 : 2
-  const glowSize = hovering ? 40 : clicking ? 20 : 0
+  const thickness = hovering ? 1.5 : 1
+  const glowSize = hovering ? 20 : clicking ? 10 : 0
 
   return (
     <div
@@ -108,8 +108,8 @@ export default function CustomCursor() {
       {/* Centre dot */}
       <div style={{
         position: 'absolute',
-        width: clicking ? '3px' : '5px',
-        height: clicking ? '3px' : '5px',
+        width: clicking ? '2px' : '3px',
+        height: clicking ? '2px' : '3px',
         borderRadius: '50%',
         background: colour,
         transform: 'translate(-50%, -50%)',
