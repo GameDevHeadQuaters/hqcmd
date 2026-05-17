@@ -1,295 +1,136 @@
-import { useNavigate } from 'react-router-dom'
-import {
-  IconArrowRight,
-  IconLayoutDashboard, IconMessages, IconFlag, IconCurrencyDollar,
-  IconLayoutGrid,
-} from '@tabler/icons-react'
-import { useTheme } from '../context/ThemeContext'
+import { Link } from 'react-router-dom'
 
-const ACCENT = '#534AB7'
-const CARD_BORDERS = ['#534AB7', '#805da8', '#ed2793', '#534AB7']
-
-const FEATURES = [
-  {
-    icon: IconLayoutDashboard,
-    title: 'Project Management',
-    desc: 'Organise your game dev workflow with milestones, to-dos, and real-time progress tracking.',
-  },
-  {
-    icon: IconMessages,
-    title: 'Team Chat',
-    desc: 'Built-in messaging keeps your whole crew in sync — no extra apps or context switching.',
-  },
-  {
-    icon: IconFlag,
-    title: 'Milestone Tracking',
-    desc: 'Set clear milestones from prototype to launch and never lose sight of your timeline.',
-  },
-  {
-    icon: IconCurrencyDollar,
-    title: 'Budget Tracking',
-    desc: 'Track project spend in multiple currencies and keep your finances under control.',
-  },
+const PAIN_POINTS = [
+  { icon: '😩', problem: 'Posting on Discord and Reddit, getting no replies', solution: 'Browse active projects with open roles that match your skills' },
+  { icon: '📄', problem: 'Handshake agreements that fall apart', solution: 'Professional digital agreements with countersignature' },
+  { icon: '💬', problem: 'Managing teams across 5 different apps', solution: 'Chat, todos, budget, milestones — all in one workstation' },
+  { icon: '🎮', problem: 'Your GDD lives in a Google Doc nobody reads', solution: 'A living GDD built into your project, with team suggestions' },
 ]
 
-function getPublicProjects() {
-  const allData = JSON.parse(localStorage.getItem('hqcmd_userData_v4') || '{}')
-  const all = []
-  for (const data of Object.values(allData)) {
-    for (const p of (data.projects ?? [])) {
-      if (
-        p.visibility?.toLowerCase() === 'public' &&
-        (p.rolesNeeded || p.roles || []).length > 0
-      ) {
-        all.push(p)
-      }
-    }
-  }
-  return all
-    .sort((a, b) => new Date(b.createdAt ?? 0) - new Date(a.createdAt ?? 0))
-    .slice(0, 3)
-}
+const FEATURES = [
+  { icon: '🔍', title: 'Find Collaborators', desc: 'Browse projects by role, skill, compensation and game jam. Apply in seconds. Get matched with projects that need your skills.' },
+  { icon: '📋', title: 'Project Workstation', desc: 'Team chat, todo lists, calendar, links, budget tracking and milestones — your whole project in one place.' },
+  { icon: '📄', title: 'Legal Agreements', desc: '8 professional templates including NDA, Revenue Share, Volunteer and Co-founder agreements. Countersign digitally.' },
+  { icon: '🎮', title: 'Game Design Document', desc: 'A living GDD with rich text editing, mechanics tracking, and exports to Yarn Spinner, Ink, CSV and more.' },
+  { icon: '📚', title: 'Story & Setting Studio', desc: 'Character sheets, world building, dialogue scripts in screenplay format, story arcs and timeline tools.' },
+  { icon: '👥', title: 'Team Management', desc: 'Application pipeline, role permissions, onboarding flow, agreements and team workstation access — all managed.' },
+  { icon: '🏆', title: 'Achievements & Profiles', desc: 'Build your reputation. Earn achievements, get verified, collect testimonials and showcase your portfolio.' },
+  { icon: '🗺️', title: 'Public Roadmap', desc: "We build in public. See what's coming, upvote features and request what you need." },
+]
 
-function FeaturedProjectCard({ project, onCardClick }) {
-  const coverImage = localStorage.getItem('hqcmd_img_' + project.id)
-  const roles = project.rolesNeeded || project.roles || []
-  const compensation = (project.compensation ?? [])[0] ?? null
-
+export default function Landing() {
   return (
-    <button
-      onClick={onCardClick}
-      className="flex-1 min-w-0 rounded-lg overflow-hidden text-left transition-all"
-      style={{
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-      }}
-      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
-    >
-      {/* Cover */}
-      {coverImage ? (
+    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', color: 'var(--text-primary)', backgroundColor: 'var(--bg-base)', minHeight: '100vh' }}>
+
+      {/* ── Hero ── */}
+      <section style={{
+        minHeight: '100vh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+        padding: '80px 24px',
+        background: 'radial-gradient(ellipse at 50% 0%, rgba(83,74,183,0.3) 0%, rgba(237,39,147,0.1) 40%, transparent 70%), var(--bg-base)',
+      }}>
         <img
-          src={coverImage}
-          alt={project.title}
-          style={{ width: '100%', height: '80px', objectFit: 'cover', borderRadius: '8px 8px 0 0', display: 'block' }}
+          src="/logos/logo-hero.png"
+          alt="HQ COMMAND"
+          style={{ height: '80px', mixBlendMode: 'screen', marginBottom: '32px' }}
+          onError={e => { e.target.style.display = 'none' }}
         />
-      ) : (
-        <div style={{ width: '100%', height: '80px', background: 'linear-gradient(135deg, #534AB7, #805da8, #ed2793)', borderRadius: '8px 8px 0 0' }} />
-      )}
-      {/* Body */}
-      <div className="px-3 pt-2.5 pb-3">
-        <p className="text-sm font-semibold truncate mb-1.5" style={{ color: 'rgba(255,255,255,0.9)' }}>
-          {project.title}
-        </p>
-        <div className="flex flex-wrap gap-1 mb-2">
-          {roles.slice(0, 3).map((r, i) => (
-            <span
-              key={i}
-              className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-              style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}
-            >
-              {r}
-            </span>
-          ))}
-          {roles.length > 3 && (
-            <span
-              className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-              style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.45)' }}
-            >
-              +{roles.length - 3} more
-            </span>
-          )}
-        </div>
-        {compensation && (
-          <span
-            className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: 'rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.85)' }}
-          >
-            {compensation}
+        <h1 style={{ fontSize: 'clamp(36px, 6vw, 72px)', fontWeight: '800', color: 'white', lineHeight: 1.1, margin: '0 0 20px', maxWidth: '800px' }}>
+          Mission Control for<br />
+          <span style={{ background: 'linear-gradient(135deg, #534AB7, #ed2793)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            Indie Game Developers
           </span>
-        )}
-        {(project.gameJam || project.ndaRequired) && (
-          <div className="flex gap-1 flex-wrap mt-1.5">
-            {project.gameJam && (
-              <span style={{ fontSize: '9px', fontWeight: '700', padding: '2px 6px', borderRadius: '99px', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white' }}>🏁 Game Jam</span>
-            )}
-            {project.ndaRequired && (
-              <span style={{ fontSize: '9px', fontWeight: '700', padding: '2px 6px', borderRadius: '99px', background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.8)', border: '1px solid rgba(255,255,255,0.25)' }}>🔒 NDA</span>
-            )}
-          </div>
-        )}
-      </div>
-    </button>
-  )
-}
-
-export default function Landing({ userData, currentUser, getProjectImage }) {
-  const navigate = useNavigate()
-  const { theme } = useTheme()
-  const isDark = theme === 'dark'
-  const publicProjects = getPublicProjects()
-
-  function handleProjectClick() {
-    navigate(currentUser ? '/browse' : '/login')
-  }
-
-  const heroStyle = isDark
-    ? { position: 'relative', overflow: 'hidden' }
-    : { background: 'linear-gradient(135deg, #534AB7 0%, #805da8 50%, #ed2793 100%)' }
-
-  return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{ fontFamily: 'system-ui, -apple-system, sans-serif', color: 'var(--text-primary)', backgroundColor: 'var(--bg-base)' }}
-    >
-      {/* Hero */}
-      <section className="px-6 py-16" style={heroStyle}>
-        {/* Dark mode layered glow background */}
-        {isDark && (
-          <>
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: 'linear-gradient(135deg, #0f0f13 0%, #1a1524 40%, #24183a 100%)',
-            }} />
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: 'radial-gradient(ellipse at 70% 50%, rgba(237,39,147,0.15) 0%, transparent 60%), radial-gradient(ellipse at 30% 50%, rgba(83,74,183,0.20) 0%, transparent 60%)',
-            }} />
-          </>
-        )}
-
-        {/* Content */}
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div className="flex flex-col items-center text-center max-w-2xl mx-auto">
-            <div className="flex items-center gap-2 mb-5">
-              <div
-                className="inline-flex items-center text-xs font-semibold px-3 py-1.5 rounded-full"
-                style={{ backgroundColor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.9)' }}
-              >
-                Built for indie game dev teams
-              </div>
-            </div>
-
-            <img
-              src="/logos/logo-hero.png"
-              alt="Head Quarters Command"
-              style={{ height: '120px', width: 'auto', marginBottom: '24px' }}
-              onError={e => { e.target.style.display = 'none' }}
-            />
-
-            <p className="text-lg max-w-lg mb-7 leading-relaxed" style={{ color: isDark ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.85)' }}>
-              HQ COMMAND is the all-in-one workstation for indie developers and small studios —
-              project management, team chat, milestones, and budgets in one place.
-            </p>
-
-            <button
-              onClick={() => navigate('/signup')}
-              className="flex items-center gap-2 text-sm font-semibold px-6 py-3 rounded-full transition-all"
-              style={{ backgroundColor: ACCENT, color: 'white' }}
-              onMouseEnter={e => {
-                e.currentTarget.style.backgroundColor = '#3C3489'
-                e.currentTarget.style.boxShadow = '0 0 20px rgba(83,74,183,0.5)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.backgroundColor = ACCENT
-                e.currentTarget.style.boxShadow = 'none'
-              }}
-            >
-              Get Started Free
-              <IconArrowRight size={16} />
-            </button>
-            <p className="text-xs mt-2.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
-              No credit card required
-            </p>
-            <button
-              onClick={() => navigate('/browse?gamejam=true')}
-              className="text-xs font-medium mt-3 transition-colors"
-              style={{ color: 'rgba(255,255,255,0.55)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.9)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.55)')}
-            >
-              🏁 Browse Game Jams →
-            </button>
-          </div>
-
-          {/* Featured projects strip */}
-          <div
-            className="max-w-4xl mx-auto mt-10 pt-6"
-            style={{ borderTop: '1px solid rgba(255,255,255,0.12)' }}
-          >
-            <p
-              className="text-xs font-medium uppercase tracking-widest mb-4"
-              style={{ color: 'rgba(255,255,255,0.5)' }}
-            >
-              Open Projects
-            </p>
-
-            {publicProjects.length === 0 ? (
-              <div className="flex items-center gap-3">
-                <IconLayoutGrid size={22} style={{ color: 'rgba(255,255,255,0.3)', flexShrink: 0 }} />
-                <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                  No open projects yet — be the first to post one
-                </p>
-              </div>
-            ) : (
-              <div className="flex gap-3">
-                {publicProjects.map(p => (
-                  <FeaturedProjectCard
-                    key={p.id}
-                    project={p}
-                    onCardClick={handleProjectClick}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+        </h1>
+        <p style={{ fontSize: 'clamp(16px, 2vw, 20px)', color: 'rgba(255,255,255,0.7)', maxWidth: '600px', lineHeight: 1.7, margin: '0 0 40px' }}>
+          Find collaborators, manage your team, protect your IP with agreements, and ship your game — all in one place built for indie devs.
+        </p>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Link to="/signup" style={{ padding: '14px 32px', borderRadius: '9999px', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white', textDecoration: 'none', fontWeight: '700', fontSize: '16px', boxShadow: '0 0 32px rgba(237,39,147,0.4)' }}>
+            Start for Free →
+          </Link>
+          <Link to="/browse" style={{ padding: '14px 32px', borderRadius: '9999px', border: '1px solid rgba(255,255,255,0.2)', color: 'white', textDecoration: 'none', fontWeight: '500', fontSize: '16px' }}>
+            Browse Projects
+          </Link>
         </div>
+        <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', marginTop: '16px' }}>Free during beta · No credit card required</p>
       </section>
 
-      {/* Features */}
-      <section className="px-8 py-16 max-w-5xl mx-auto w-full">
-        <h2
-          className="text-center text-lg font-semibold mb-8"
-          style={{ color: ACCENT }}
-        >
-          Everything your team needs
+      {/* ── Problem / Solution ── */}
+      <section style={{ padding: '80px 24px', maxWidth: '900px', margin: '0 auto', textAlign: 'center' }}>
+        <h2 style={{ fontSize: '32px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '16px' }}>
+          Making games is hard enough.<br />Finding the right team shouldn't be.
         </h2>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          {FEATURES.map(({ icon: Icon, title, desc }, i) => (
-            <div
-              key={title}
-              className="hq-card rounded-lg border overflow-hidden transition-all"
-              style={{
-                backgroundColor: 'var(--bg-surface)',
-                borderColor: 'var(--border-default)',
-              }}
-            >
-              <div style={{ height: '2px', backgroundColor: CARD_BORDERS[i] }} />
-              <div className="p-5">
-                <div
-                  className="w-9 h-9 rounded-lg flex items-center justify-center mb-3"
-                  style={{ backgroundColor: CARD_BORDERS[i] + '18' }}
-                >
-                  <Icon size={18} style={{ color: CARD_BORDERS[i] }} />
-                </div>
-                <h3 className="font-semibold text-sm mb-1.5" style={{ color: 'var(--text-primary)' }}>{title}</h3>
-                <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{desc}</p>
-              </div>
+        <p style={{ fontSize: '16px', color: 'var(--text-secondary)', lineHeight: 1.7, maxWidth: '600px', margin: '0 auto 48px' }}>
+          HQCMD is built specifically for indie game developers — whether you're a solo dev looking for collaborators, or a studio building your next team.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', textAlign: 'left' }}>
+          {PAIN_POINTS.map(item => (
+            <div key={item.icon} style={{ padding: '20px', borderRadius: '12px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+              <div style={{ fontSize: '28px', marginBottom: '10px' }}>{item.icon}</div>
+              <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '8px', textDecoration: 'line-through', margin: '0 0 8px' }}>{item.problem}</p>
+              <p style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: '500', margin: 0 }}>✓ {item.solution}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Footer */}
-      <footer
-        className="px-8 py-5 flex items-center justify-between mt-auto"
-        style={{ borderTop: '1px solid var(--border-subtle)' }}
-      >
+      {/* ── Features ── */}
+      <section style={{ padding: '80px 24px', background: 'var(--bg-surface)' }}>
+        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+          <h2 style={{ fontSize: '32px', fontWeight: '700', color: 'var(--text-primary)', textAlign: 'center', marginBottom: '48px' }}>
+            Everything your indie team needs
+          </h2>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+            {FEATURES.map(feature => (
+              <div key={feature.title} style={{ padding: '24px', borderRadius: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)' }}>
+                <div style={{ fontSize: '32px', marginBottom: '12px' }}>{feature.icon}</div>
+                <h3 style={{ fontSize: '15px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 8px' }}>{feature.title}</h3>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>{feature.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Beta CTA ── */}
+      <section style={{ padding: '80px 24px', textAlign: 'center' }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🧪</div>
+          <h2 style={{ fontSize: '28px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '12px' }}>
+            Now in Open Beta
+          </h2>
+          <p style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: '32px' }}>
+            HQCMD is free during beta. We're building alongside our community — your feedback shapes what comes next. Join early and help define the platform for indie game developers everywhere.
+          </p>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link to="/signup" style={{ padding: '14px 32px', borderRadius: '9999px', background: 'linear-gradient(135deg, #534AB7, #ed2793)', color: 'white', textDecoration: 'none', fontWeight: '700', fontSize: '15px' }}>
+              Join the Beta →
+            </Link>
+            <Link to="/roadmap" style={{ padding: '14px 32px', borderRadius: '9999px', border: '1px solid var(--border-default)', color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '15px' }}>
+              See the Roadmap
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Game Jam strip ── */}
+      <section style={{ padding: '40px 24px', background: 'linear-gradient(135deg, #534AB7, #ed2793)', textAlign: 'center' }}>
+        <p style={{ color: 'white', fontSize: '18px', fontWeight: '600', margin: '0 0 12px' }}>
+          🏁 Running a Game Jam? HQCMD has dedicated Game Jam project support.
+        </p>
+        <Link to="/browse?gamejam=true" style={{ color: 'white', fontSize: '14px', textDecoration: 'underline', opacity: 0.9 }}>
+          Browse Game Jam Projects →
+        </Link>
+      </section>
+
+      {/* ── Footer ── */}
+      <footer style={{ padding: '20px 32px', borderTop: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '24px', width: 'auto' }} onError={e => { e.target.style.display = 'none' }} />
-        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>© 2026 HQ COMMAND. All rights reserved.</p>
+        <p style={{ fontSize: '12px', color: 'var(--text-tertiary)', margin: 0 }}>© 2026 HQ COMMAND. All rights reserved.</p>
       </footer>
+
     </div>
   )
 }

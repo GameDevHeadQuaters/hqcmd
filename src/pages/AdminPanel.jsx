@@ -1752,31 +1752,44 @@ function RoadmapAdminTab() {
   const [editEntry, setEditEntry] = useState(null)
   const [form, setForm] = useState(BLANK_FORM)
   const [feedback, setFeedback] = useState('')
+  const [showAutoGen, setShowAutoGen] = useState(true)
+  const [loading, setLoading] = useState(false)
 
-  function load() {
+  async function load() {
+    setLoading(true)
     try {
-      const stored = JSON.parse(localStorage.getItem(ROADMAP_KEY) || 'null')
-      setEntries(stored || INITIAL_ROADMAP_ADMIN)
-    } catch { setEntries(INITIAL_ROADMAP_ADMIN) }
+      const { data, error } = await supabase
+        .from('roadmap')
+        .select('*')
+        .order('date', { ascending: false })
+      if (!error && data && data.length > 0) {
+        setEntries(data)
+        localStorage.setItem(ROADMAP_KEY, JSON.stringify(data))
+      } else {
+        const stored = JSON.parse(localStorage.getItem(ROADMAP_KEY) || 'null')
+        setEntries(stored || INITIAL_ROADMAP_ADMIN)
+      }
+    } catch {
+      try {
+        const stored = JSON.parse(localStorage.getItem(ROADMAP_KEY) || 'null')
+        setEntries(stored || INITIAL_ROADMAP_ADMIN)
+      } catch { setEntries(INITIAL_ROADMAP_ADMIN) }
+    } finally { setLoading(false) }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function save(updated) {
+  function persist(updated) {
     localStorage.setItem(ROADMAP_KEY, JSON.stringify(updated))
     setEntries(updated)
   }
 
   function flash(msg) {
     setFeedback(msg)
-    setTimeout(() => setFeedback(''), 2000)
+    setTimeout(() => setFeedback(''), 2500)
   }
 
-  function openAdd() {
-    setEditEntry(null)
-    setForm(BLANK_FORM)
-    setShowForm(true)
-  }
+  function openAdd() { setEditEntry(null); setForm(BLANK_FORM); setShowForm(true) }
 
   function openEdit(entry) {
     setEditEntry(entry)
@@ -1784,29 +1797,76 @@ function RoadmapAdminTab() {
     setShowForm(true)
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!form.title.trim()) return
     if (editEntry) {
-      save(entries.map(e => e.id === editEntry.id ? { ...e, ...form } : e))
+      const updated = { ...editEntry, ...form, auto_generated: false }
+      persist(entries.map(e => e.id === editEntry.id ? updated : e))
+      supabase.from('roadmap').upsert(updated, { onConflict: 'id' }).then(({ error }) => { if (error) console.error('[Roadmap] Upsert:', error) })
       flash('Entry updated')
     } else {
-      save([{ ...form, id: String(Date.now()), upvotes: 0 }, ...entries])
+      const newEntry = { ...form, id: String(Date.now()), upvotes: 0, auto_generated: false }
+      persist([newEntry, ...entries])
+      supabase.from('roadmap').insert(newEntry).then(({ error }) => { if (error) console.error('[Roadmap] Insert:', error) })
       flash('Entry added')
     }
-    setShowForm(false)
-    setEditEntry(null)
-    setForm(BLANK_FORM)
+    setShowForm(false); setEditEntry(null); setForm(BLANK_FORM)
   }
 
-  function handleDelete(id) {
-    save(entries.filter(e => e.id !== id))
+  async function handleDelete(id) {
+    persist(entries.filter(e => e.id !== id))
+    supabase.from('roadmap').delete().eq('id', id).then(({ error }) => { if (error) console.error('[Roadmap] Delete:', error) })
     flash('Entry deleted')
   }
 
+  async function cleanUpAutoEntries() {
+    const auto = entries.filter(e => e.auto_generated)
+    const manual = entries.filter(e => !e.auto_generated)
+    const seen = new Map()
+    auto.forEach(e => { if (!seen.has(e.date) || seen.get(e.date).id < e.id) seen.set(e.date, e) })
+    const deduped = Array.from(seen.values())
+    const removedIds = auto.filter(e => !deduped.find(d => d.id === e.id)).map(e => e.id)
+    const cleaned = [...manual, ...deduped]
+    persist(cleaned)
+    if (removedIds.length > 0) {
+      supabase.from('roadmap').delete().in('id', removedIds).then(({ error }) => { if (error) console.error('[Roadmap] Cleanup:', error) })
+    }
+    flash(`Cleaned up — ${removedIds.length} duplicate auto entries removed`)
+  }
+
+  function toggleHide(id, currentlyHidden) {
+    persist(entries.map(e => e.id === id ? { ...e, hidden: !currentlyHidden } : e))
+    supabase.from('roadmap').update({ hidden: !currentlyHidden }).eq('id', id).then(({ error }) => { if (error) console.error('[Roadmap] Toggle hidden:', error) })
+  }
+
+  const autoCount = entries.filter(e => e.auto_generated).length
+  const visibleEntries = showAutoGen ? entries : entries.filter(e => !e.auto_generated)
+
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
-        <div>{feedback && <span style={{ fontSize: '12px', color: 'var(--status-success)' }}>{feedback}</span>}</div>
+      {/* Webhook setup note */}
+      <div style={{ padding: '12px 16px', borderRadius: '8px', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+        <p style={{ fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 6px' }}>🔗 GitHub Webhook Setup</p>
+        <p style={{ margin: '0 0 6px' }}>To auto-update the roadmap from commits, add this webhook to your GitHub repo:</p>
+        <code style={{ display: 'block', background: 'var(--bg-base)', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', marginBottom: '6px', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+          https://hqcmd.vercel.app/api/update-roadmap
+        </code>
+        <p style={{ margin: 0 }}>Content type: application/json · Events: Just the push event</p>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {feedback && <span style={{ fontSize: '12px', color: 'var(--status-success)' }}>{feedback}</span>}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+            <input type="checkbox" checked={showAutoGen} onChange={e => setShowAutoGen(e.target.checked)} />
+            Show auto-generated ({autoCount})
+          </label>
+          {autoCount > 0 && (
+            <button onClick={cleanUpAutoEntries} style={{ padding: '5px 12px', borderRadius: '99px', border: '1px solid var(--border-default)', background: 'none', color: 'var(--text-secondary)', fontSize: '11px', cursor: 'pointer' }}>
+              🧹 Clean up auto entries
+            </button>
+          )}
+        </div>
         <button onClick={openAdd} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 600, padding: '8px 16px', borderRadius: '99px', border: 'none', background: ACCENT, color: 'white', cursor: 'pointer' }}>
           <IconPlus size={13} /> Add Entry
         </button>
@@ -1850,22 +1910,31 @@ function RoadmapAdminTab() {
         </div>
       )}
 
-      {entries.length === 0 ? (
+      {loading ? (
+        <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', textAlign: 'center', padding: '32px 0' }}>Loading…</p>
+      ) : visibleEntries.length === 0 ? (
         <p style={{ fontSize: '14px', color: 'var(--text-tertiary)', textAlign: 'center', padding: '32px 0' }}>No entries yet. Add one above.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {entries.map(entry => (
-            <div key={entry.id} style={{ padding: '14px 16px', borderRadius: '10px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+          {visibleEntries.map(entry => (
+            <div key={entry.id} style={{ padding: '14px 16px', borderRadius: '10px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', opacity: entry.hidden ? 0.55 : 1 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 7px', borderRadius: '99px', background: 'var(--bg-elevated)', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>{entry.status}</span>
                   <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{entry.date}</span>
                   <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>· 👍 {entry.upvotes || 0}</span>
+                  {entry.auto_generated && <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '99px', background: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)' }}>auto</span>}
+                  {entry.hidden && <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '99px', background: 'var(--bg-elevated)', color: 'var(--text-tertiary)' }}>hidden</span>}
                 </div>
                 <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 3px' }}>{entry.title}</p>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>{entry.description}</p>
               </div>
               <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                {entry.auto_generated && (
+                  <button onClick={() => toggleHide(entry.id, !!entry.hidden)} style={{ padding: '5px 10px', borderRadius: '99px', border: '1px solid var(--border-default)', background: 'none', color: 'var(--text-tertiary)', fontSize: '11px', cursor: 'pointer' }}>
+                    {entry.hidden ? 'Show' : 'Hide'}
+                  </button>
+                )}
                 <button onClick={() => openEdit(entry)} style={{ padding: '5px 12px', borderRadius: '99px', border: '1px solid var(--border-default)', background: 'none', color: 'var(--text-secondary)', fontSize: '11px', cursor: 'pointer' }}>Edit</button>
                 <button onClick={() => handleDelete(entry.id)} style={{ padding: '5px 12px', borderRadius: '99px', border: '1px solid rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.08)', color: 'var(--status-error)', fontSize: '11px', cursor: 'pointer' }}>Delete</button>
               </div>
