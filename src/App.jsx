@@ -36,6 +36,7 @@ import DebugPanel from './components/DebugPanel'
 import QuickStartTour from './components/QuickStartTour'
 import ScrollToTop from './components/ScrollToTop'
 import { debugLog } from './utils/debugLogger'
+import LoadingScreen from './components/LoadingScreen'
 
 if (!import.meta.env.VITE_ADMIN_PASSWORD) {
   console.warn('hqcmd: VITE_ADMIN_PASSWORD not set in .env — admin login disabled')
@@ -1386,16 +1387,7 @@ export default function App() {
 
   const unreadAgreementsCount = (agreements ?? []).filter(a => a.isReceived && !a.read).length
 
-  if (authLoading) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-base)' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-          <img src="/logos/logo-cmd.png" alt="HQCMD" style={{ height: '40px', width: 'auto' }} onError={e => { e.target.style.display = 'none' }} />
-          <div className="animate-spin" style={{ width: '24px', height: '24px', border: '2px solid var(--border-default)', borderTopColor: '#534AB7', borderRadius: '50%' }} />
-        </div>
-      </div>
-    )
-  }
+  if (authLoading) return <LoadingScreen />
 
   const topNavProps = {
     currentUser,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import LoadingScreen from '../components/LoadingScreen'
 
 export default function AuthCallback() {
   const navigate = useNavigate()
@@ -120,18 +121,5 @@ export default function AuthCallback() {
     handleCallback()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg-base)' }}>
-      <div style={{ textAlign: 'center' }}>
-        <img
-          src="/logos/logo-hero.png"
-          alt="HQCMD"
-          style={{ height: '60px', mixBlendMode: 'screen', marginBottom: '16px' }}
-          onError={e => { e.target.style.display = 'none' }}
-        />
-        <p style={{ color: 'var(--text-tertiary)', fontSize: '13px' }}>{status}</p>
-        <div className="animate-spin" style={{ width: '20px', height: '20px', border: '2px solid var(--border-default)', borderTopColor: '#534AB7', borderRadius: '50%', margin: '12px auto' }} />
-      </div>
-    </div>
-  )
+  return <LoadingScreen />
 }
