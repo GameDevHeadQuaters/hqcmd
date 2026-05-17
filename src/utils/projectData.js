@@ -1,3 +1,5 @@
+import { supabase } from '../lib/supabase'
+
 const KEY = 'hqcmd_userData_v4'
 
 function readAllData() {

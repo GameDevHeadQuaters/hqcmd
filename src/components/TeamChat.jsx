@@ -3,6 +3,7 @@ import { IconSend, IconMessages } from '@tabler/icons-react'
 import { hasPermission } from '../utils/permissions'
 import { readProject, appendToProjectArray } from '../utils/projectData'
 import { syncChatMessage } from '../lib/dataSync'
+import { supabase } from '../lib/supabase'
 
 const ACCENT = '#534AB7'
 const AVATAR_COLORS = ['#534AB7', '#7c3aed', '#0891b2', '#059669', '#d97706']
