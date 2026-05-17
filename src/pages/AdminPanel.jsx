@@ -469,6 +469,8 @@ function SystemDebugTab() {
   const [showRawData, setShowRawData] = useState(false)
   const [showResetModal, setShowResetModal] = useState(false)
   const [resetConfirmText, setResetConfirmText] = useState('')
+  const [resetMode, setResetMode] = useState('local')
+  const [resetting, setResetting] = useState(false)
   const [debugError, setDebugError] = useState(null)
   const [permSaveFeedback, setPermSaveFeedback] = useState('')
 
@@ -721,58 +723,82 @@ function SystemDebugTab() {
     flash('Test project created — visible on Browse')
   }
 
-  function handleSiteReset() {
-    // Preserve before wipe
-    const permanentProjects = localStorage.getItem('hqcmd_permanent_projects')
-    const permanentImages   = localStorage.getItem('hqcmd_permanent_projects_images')
-    const adminProfile      = localStorage.getItem('hqcmd_admin_profile')
-    const theme             = localStorage.getItem('hqcmd_theme')
-    const sidebarState      = localStorage.getItem('hqcmd_sidebar_collapsed')
+  async function handleSiteReset() {
+    setResetting(true)
 
-    // Wipe all keys
-    const allKeys = []
-    for (let i = 0; i < localStorage.length; i++) allKeys.push(localStorage.key(i))
-    allKeys.forEach(key => localStorage.removeItem(key))
-    // Second pass for any image keys missed above
-    const remaining = []
-    for (let i = 0; i < localStorage.length; i++) remaining.push(localStorage.key(i))
-    remaining.forEach(key => { if (key.startsWith('hqcmd_img_')) localStorage.removeItem(key) })
-
-    // Restore UI prefs and admin profile
-    if (theme)        localStorage.setItem('hqcmd_theme', theme)
-    if (sidebarState) localStorage.setItem('hqcmd_sidebar_collapsed', sidebarState)
-    if (adminProfile) localStorage.setItem('hqcmd_admin_profile', adminProfile)
-
-    // Restore permanent projects into superadmin userData slot
-    if (permanentProjects) {
-      try {
-        const projects = JSON.parse(permanentProjects)
-        const userData = {
-          superadmin: {
-            projects,
-            applications: [], directMessages: [], notifications: [],
-            agreements: [], contacts: [], sharedProjects: [],
-            onboarding: {
-              completed: true,
-              steps: { profileComplete: true, projectCreated: true, browsedProjects: true, invitedMember: true, firstMessage: true },
-            },
-          },
-        }
-        localStorage.setItem(UD_KEY, JSON.stringify(userData))
-        if (permanentImages) {
-          JSON.parse(permanentImages).forEach(({ id, image }) => {
-            if (image) localStorage.setItem('hqcmd_img_' + id, image)
-          })
-        }
-        localStorage.setItem('hqcmd_permanent_projects', permanentProjects)
-        localStorage.setItem('hqcmd_permanent_projects_images', permanentImages || '[]')
-        console.log('[Reset] Restored', projects.length, 'permanent project(s)')
-      } catch (e) {
-        console.warn('[Reset] Failed to restore permanent projects', e)
+    try {
+      if (resetMode === 'full') {
+        console.log('[Reset] Full reset — clearing Supabase...')
+        const { supabase } = await import('../lib/supabase')
+        await supabase.from('chat_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await supabase.from('todos').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await supabase.from('calendar_events').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await supabase.from('project_links').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await supabase.from('milestones').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await supabase.from('project_members').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await supabase.from('applications').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await supabase.from('agreements').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await supabase.from('messages').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await supabase.from('notifications').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await supabase.from('contacts').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await supabase.from('projects').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await supabase.from('roadmap_upvotes').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        await supabase.from('users').delete().eq('is_super_admin', false).eq('is_admin', false)
+        console.log('[Reset] ✅ Supabase data cleared')
       }
-    }
 
-    window.location.href = '/'
+      // Always clear localStorage
+      const permanentProjects = localStorage.getItem('hqcmd_permanent_projects')
+      const permanentImages   = localStorage.getItem('hqcmd_permanent_projects_images')
+      const adminProfile      = localStorage.getItem('hqcmd_admin_profile')
+      const theme             = localStorage.getItem('hqcmd_theme')
+      const sidebarState      = localStorage.getItem('hqcmd_sidebar_collapsed')
+
+      Object.keys(localStorage).forEach(key => localStorage.removeItem(key))
+
+      if (theme)        localStorage.setItem('hqcmd_theme', theme)
+      if (sidebarState) localStorage.setItem('hqcmd_sidebar_collapsed', sidebarState)
+      if (adminProfile) localStorage.setItem('hqcmd_admin_profile', adminProfile)
+
+      if (permanentProjects) {
+        try {
+          const projects = JSON.parse(permanentProjects)
+          const userData = {
+            superadmin: {
+              projects,
+              applications: [], directMessages: [], notifications: [],
+              agreements: [], contacts: [], sharedProjects: [],
+              onboarding: {
+                completed: true,
+                steps: { profileComplete: true, projectCreated: true, browsedProjects: true, invitedMember: true, firstMessage: true },
+              },
+            },
+          }
+          localStorage.setItem(UD_KEY, JSON.stringify(userData))
+          if (permanentImages) {
+            localStorage.setItem('hqcmd_permanent_projects_images', permanentImages)
+            JSON.parse(permanentImages).forEach(({ id, image }) => {
+              if (image) localStorage.setItem('hqcmd_img_' + id, image)
+            })
+          }
+          localStorage.setItem('hqcmd_permanent_projects', permanentProjects)
+          console.log('[Reset] Restored', projects.length, 'permanent project(s)')
+        } catch (e) {
+          console.warn('[Reset] Failed to restore permanent projects', e)
+        }
+      }
+
+      console.log('[Reset] ✅ localStorage cleared')
+
+    } catch(e) {
+      console.error('[Reset] Error:', e)
+      alert('Reset encountered an error: ' + e.message)
+    } finally {
+      setResetting(false)
+      setShowResetModal(false)
+      setResetConfirmText('')
+      window.location.href = '/'
+    }
   }
 
   if (debugError) return (
@@ -1305,6 +1331,31 @@ function SystemDebugTab() {
               <li>All beta requests and invite codes</li>
               <li>All contacts and shared project references</li>
             </ul>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+              <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '500' }}>Reset scope:</label>
+              {[
+                { value: 'local', label: '🗄️ localStorage only', desc: 'Clears local data. Supabase users keep their accounts.' },
+                { value: 'full', label: '💣 Full reset (localStorage + Supabase)', desc: 'Deletes ALL data including Supabase records. Use for clean test runs.' }
+              ].map(option => (
+                <div
+                  key={option.value}
+                  onClick={() => setResetMode(option.value)}
+                  style={{ padding: '10px 12px', borderRadius: '8px', border: `1px solid ${resetMode === option.value ? '#ed2793' : 'var(--border-default)'}`, cursor: 'pointer', background: resetMode === option.value ? 'rgba(237,39,147,0.08)' : 'transparent' }}
+                >
+                  <p style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-primary)', margin: '0 0 2px' }}>{option.label}</p>
+                  <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>{option.desc}</p>
+                </div>
+              ))}
+            </div>
+            {resetMode === 'full' && (
+              <div style={{ padding: '10px 12px', borderRadius: '8px', background: 'rgba(245,158,11,0.1)', border: '1px solid #f59e0b', fontSize: '11px', color: '#f59e0b', marginBottom: '12px' }}>
+                ⚠ Note: Supabase Auth accounts (Google login users) must be manually deleted from the{' '}
+                <a href="https://supabase.com/dashboard/project/wgtbfsqzmwaynevtodbc/auth/users" target="_blank" rel="noopener noreferrer" style={{ color: '#f59e0b' }}>
+                  Supabase Auth dashboard
+                </a>
+                {' '}after reset if you want them to re-register fresh.
+              </div>
+            )}
             <p style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '12px' }}>
               The super admin account will be preserved. Type <strong style={{ color: '#ed2793' }}>RESET</strong> to confirm:
             </p>
@@ -1322,11 +1373,11 @@ function SystemDebugTab() {
                 Cancel
               </button>
               <button
-                disabled={resetConfirmText !== 'RESET'}
+                disabled={resetConfirmText !== 'RESET' || resetting}
                 onClick={handleSiteReset}
-                style={{ flex: 1, padding: '10px', borderRadius: '9999px', border: 'none', background: resetConfirmText === 'RESET' ? '#ed2793' : 'var(--bg-elevated)', color: resetConfirmText === 'RESET' ? 'white' : 'var(--text-tertiary)', cursor: resetConfirmText === 'RESET' ? 'pointer' : 'default', fontWeight: '600' }}
+                style={{ flex: 1, padding: '10px', borderRadius: '9999px', border: 'none', background: resetConfirmText === 'RESET' && !resetting ? '#ed2793' : 'var(--bg-elevated)', color: resetConfirmText === 'RESET' && !resetting ? 'white' : 'var(--text-tertiary)', cursor: resetConfirmText === 'RESET' && !resetting ? 'pointer' : 'default', fontWeight: '600' }}
               >
-                Reset Everything
+                {resetting ? 'Resetting…' : 'Reset Everything'}
               </button>
             </div>
           </div>
